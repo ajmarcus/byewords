@@ -37,6 +37,17 @@ class TestPublicIndex(unittest.TestCase):
         self.assertIn("const puzzles = [", html)
         self.assertIn('const PUZZLE_CURSOR_KEY = "byewords-puzzle-cursor-v1";', html)
 
+    def test_embedded_puzzle_bank_never_reuses_clue_text(self) -> None:
+        html = INDEX_HTML.read_text(encoding="utf-8")
+
+        clue_blocks = re.findall(r'(?:acrossClues|downClues): \[(.*?)\]', html, re.S)
+        clues = []
+        for block in clue_blocks:
+            clues.extend(re.findall(r'"([^"]+)"', block))
+
+        self.assertEqual(len(clues), 110)
+        self.assertEqual(len(clues), len(set(clues)))
+
     def test_rotation_logic_advances_puzzles_on_load_and_finish(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
