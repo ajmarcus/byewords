@@ -1,6 +1,7 @@
 import unittest
 
 from byewords.generate import generate_puzzle, load_default_inputs
+from byewords.grid import distinct_entries
 
 
 class TestBundledData(unittest.TestCase):
@@ -40,6 +41,23 @@ class TestBundledData(unittest.TestCase):
         for clue in puzzle.across + puzzle.down:
             self.assertIn(clue.answer.lower(), clue_bank)
             self.assertEqual(clue.text, clue_bank[clue.answer.lower()][0])
+
+    def test_default_data_supports_cable_cluster_seeds(self) -> None:
+        lexicon_words, related_map, clue_bank = load_default_inputs()
+
+        for seed, title in (("cable", "CABLE Mini"), ("lurie", "LURIE Mini")):
+            with self.subTest(seed=seed):
+                puzzle = generate_puzzle((seed,), lexicon_words, related_map, clue_bank)
+
+                self.assertEqual(puzzle.title, title)
+                self.assertEqual(puzzle.grid.rows, ("cable", "agues", "buses", "leese", "esses"))
+                self.assertGreaterEqual(
+                    sum(entry in set(puzzle.theme_words) for entry in distinct_entries(puzzle.grid)),
+                    4,
+                )
+                self.assertEqual(puzzle.across[1].text, "Feverish chills")
+                self.assertEqual(puzzle.across[3].text, "Archaic verb meaning lose")
+                self.assertEqual(puzzle.across[4].text, "Plural of the letter S")
 
 
 if __name__ == "__main__":

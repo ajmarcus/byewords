@@ -1,6 +1,7 @@
 abase
 actor
 adieu
+agues
 album
 algae
 alley
@@ -52,6 +53,7 @@ earth
 easel
 eases
 eerie
+esses
 ember
 ethic
 fable
@@ -78,6 +80,7 @@ jewel
 kelps
 krill
 latte
+leese
 lemon
 lilac
 lunar

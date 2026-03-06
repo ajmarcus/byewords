@@ -33,11 +33,6 @@ def valid_next_rows(
     return tuple(valid_rows)
 
 
-def _columns_are_distinct(grid: Grid) -> bool:
-    entries = grid.rows + grid_columns(grid)
-    return len(entries) == len(set(entries))
-
-
 def search_grids(
     candidate_words: tuple[str, ...],
     prefix_index: dict[str, tuple[str, ...]],
@@ -52,7 +47,7 @@ def search_grids(
             return
         if len(partial_rows) == GRID_SIZE:
             grid = make_grid(cast(tuple[str, str, str, str, str], partial_rows))
-            if all(column in words_with_prefix(prefix_index, column) for column in grid_columns(grid)) and _columns_are_distinct(grid):
+            if all(column in words_with_prefix(prefix_index, column) for column in grid_columns(grid)):
                 found_grids.append(grid)
             return
 
