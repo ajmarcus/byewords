@@ -22,12 +22,32 @@ class TestPublicIndex(unittest.TestCase):
     def test_embedded_demo_puzzle_matches_snail_sample(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
-        self.assertIn('["A", "D", "I", "E", "U"]', html)
-        self.assertIn('answer: "ADIEU", clue: "Parting word from Paris", direction: "across"', html)
-        self.assertIn('answer: "SNAIL", clue: "Garden crawler with a spiral shell", direction: "across"', html)
-        self.assertIn('answer: "UDALS", clue: "Old Norse freeholders", direction: "down"', html)
-        self.assertIn("ADIEU / BOOED / ANTRA / SNAIL / EASES / ABASE / DONNA / IOTAS / EERIE / UDALS", html)
-        self.assertNotIn('answer: "BUSES"', html)
+        self.assertIn('rows: ["ADIEU", "BOOED", "ANTRA", "SNAIL", "EASES"]', html)
+        self.assertIn('"Parting word from Paris"', html)
+        self.assertIn('"Garden crawler with a spiral shell"', html)
+        self.assertIn('"Old Norse freeholders"', html)
+        self.assertIn('rows: ["CABLE", "AGUES", "BUSES", "LEESE", "ESSES"]', html)
+        self.assertIn("words.map(function (word) {", html)
+        self.assertIn('}).join(" / ");', html)
+
+    def test_embedded_puzzle_bank_has_eleven_full_grids(self) -> None:
+        html = INDEX_HTML.read_text(encoding="utf-8")
+
+        self.assertEqual(len(re.findall(r'rows: \["[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}"\]', html)), 11)
+        self.assertIn("const puzzles = [", html)
+        self.assertIn('const PUZZLE_CURSOR_KEY = "byewords-puzzle-cursor-v1";', html)
+
+    def test_rotation_logic_advances_puzzles_on_load_and_finish(self) -> None:
+        html = INDEX_HTML.read_text(encoding="utf-8")
+
+        self.assertIn("function takeNextPuzzleIndex() {", html)
+        self.assertIn("window.localStorage.getItem(PUZZLE_CURSOR_KEY)", html)
+        self.assertIn("writePuzzleCursor((nextIndex + 1) % puzzles.length);", html)
+        self.assertIn("function queueNextPuzzle() {", html)
+        self.assertIn("queueNextPuzzle();", html)
+        self.assertIn("activatePuzzle(takeNextPuzzleIndex());", html)
+        self.assertIn("if (pendingPuzzleIndex !== null) {", html)
+        self.assertIn("activatePuzzle(pendingPuzzleIndex);", html)
 
     def test_mobile_layout_fills_dynamic_viewport_height(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")

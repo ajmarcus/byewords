@@ -551,26 +551,197 @@
 
   <script>
     (function () {
-      const solution = [
-        ["A", "D", "I", "E", "U"],
-        ["B", "O", "O", "E", "D"],
-        ["A", "N", "T", "R", "A"],
-        ["S", "N", "A", "I", "L"],
-        ["E", "A", "S", "E", "S"]
+      const puzzles = [
+        {
+          rows: ["ADIEU", "BOOED", "ANTRA", "SNAIL", "EASES"],
+          acrossClues: [
+            "Parting word from Paris",
+            "Reacted badly to the comic, say",
+            "Stomach chambers, in anatomy",
+            "Garden crawler with a spiral shell",
+            "Takes the edge off"
+          ],
+          downClues: [
+            "Cut down to size",
+            "Summer of disco",
+            "Tiny bits",
+            "Like a foggy graveyard",
+            "Old Norse freeholders"
+          ]
+        },
+        {
+          rows: ["ABASE", "DONNA", "IOTAS", "EERIE", "UDALS"],
+          acrossClues: [
+            "Cut down to size",
+            "Summer of disco",
+            "Tiny bits",
+            "Like a foggy graveyard",
+            "Old Norse freeholders"
+          ],
+          downClues: [
+            "Parting word from Paris",
+            "Reacted badly to the comic, say",
+            "Stomach chambers, in anatomy",
+            "Garden crawler with a spiral shell",
+            "Takes the edge off"
+          ]
+        },
+        {
+          rows: ["CABLE", "AGUES", "BUSES", "LEESE", "ESSES"],
+          acrossClues: [
+            "Paid TV connection",
+            "Feverish chills",
+            "Many Muni vehicles",
+            "Archaic verb meaning lose",
+            "Plural of the letter S"
+          ],
+          downClues: [
+            "Paid TV connection",
+            "Feverish chills",
+            "Many Muni vehicles",
+            "Archaic verb meaning lose",
+            "Plural of the letter S"
+          ]
+        },
+        {
+          rows: ["AROSE", "RACED", "OCHRE", "SERUM", "EDEMA"],
+          acrossClues: [
+            "Came up",
+            "Sped around the track",
+            "Earthy yellow-brown pigment",
+            "Blood component after clotting",
+            "Swelling caused by trapped fluid"
+          ],
+          downClues: [
+            "Came up",
+            "Sped around the track",
+            "Earthy yellow-brown pigment",
+            "Blood component after clotting",
+            "Swelling caused by trapped fluid"
+          ]
+        },
+        {
+          rows: ["REACT", "EAGER", "AGATE", "CETES", "TRESS"],
+          acrossClues: [
+            "Respond",
+            "Keen",
+            "Banded stone",
+            "Whales and dolphins, taxonomically",
+            "Lock of hair"
+          ],
+          downClues: [
+            "Respond",
+            "Keen",
+            "Banded stone",
+            "Whales and dolphins, taxonomically",
+            "Lock of hair"
+          ]
+        },
+        {
+          rows: ["AROSE", "REATA", "OATER", "STEAL", "EARLY"],
+          acrossClues: [
+            "Came up",
+            "Lariat",
+            "Western movie, casually",
+            "Swipe",
+            "Ahead of schedule"
+          ],
+          downClues: [
+            "Came up",
+            "Lariat",
+            "Western movie, casually",
+            "Swipe",
+            "Ahead of schedule"
+          ]
+        },
+        {
+          rows: ["AROSE", "REATA", "OATER", "STERN", "EARNS"],
+          acrossClues: [
+            "Came up",
+            "Lariat",
+            "Western movie, casually",
+            "Severe in tone",
+            "Brings in"
+          ],
+          downClues: [
+            "Came up",
+            "Lariat",
+            "Western movie, casually",
+            "Severe in tone",
+            "Brings in"
+          ]
+        },
+        {
+          rows: ["AROSE", "RECTA", "OCTAS", "STARE", "EASEL"],
+          acrossClues: [
+            "Came up",
+            "Straight muscles, in anatomy",
+            "Groups of eight",
+            "Look fixedly",
+            "Painter's stand"
+          ],
+          downClues: [
+            "Came up",
+            "Straight muscles, in anatomy",
+            "Groups of eight",
+            "Look fixedly",
+            "Painter's stand"
+          ]
+        },
+        {
+          rows: ["NOTES", "OBEAH", "TEASE", "EASEL", "SHELF"],
+          acrossClues: [
+            "Jots down",
+            "Caribbean folk magic",
+            "Kid playfully",
+            "Painter's stand",
+            "Ledge in a bookcase"
+          ],
+          downClues: [
+            "Jots down",
+            "Caribbean folk magic",
+            "Kid playfully",
+            "Painter's stand",
+            "Ledge in a bookcase"
+          ]
+        },
+        {
+          rows: ["NOTES", "OBEAH", "TECTA", "EATER", "SHARP"],
+          acrossClues: [
+            "Jots down",
+            "Caribbean folk magic",
+            "Rooflike coverings",
+            "Big fan of, as in 'meat eater'",
+            "Keen or clever"
+          ],
+          downClues: [
+            "Jots down",
+            "Caribbean folk magic",
+            "Rooflike coverings",
+            "Big fan of, as in 'meat eater'",
+            "Keen or clever"
+          ]
+        },
+        {
+          rows: ["TEARS", "EASEL", "ASIDE", "REDID", "SLEDS"],
+          acrossClues: [
+            "Rips",
+            "Painter's stand",
+            "Spoken directly to the audience, maybe",
+            "Did over",
+            "Snow-day rides"
+          ],
+          downClues: [
+            "Rips",
+            "Painter's stand",
+            "Spoken directly to the audience, maybe",
+            "Did over",
+            "Snow-day rides"
+          ]
+        }
       ];
 
-      const words = [
-        { number: 1, row: 0, col: 0, len: 5, answer: "ADIEU", clue: "Parting word from Paris", direction: "across" },
-        { number: 2, row: 1, col: 0, len: 5, answer: "BOOED", clue: "Reacted badly to the comic, say", direction: "across" },
-        { number: 3, row: 2, col: 0, len: 5, answer: "ANTRA", clue: "Stomach chambers, in anatomy", direction: "across" },
-        { number: 4, row: 3, col: 0, len: 5, answer: "SNAIL", clue: "Garden crawler with a spiral shell", direction: "across" },
-        { number: 5, row: 4, col: 0, len: 5, answer: "EASES", clue: "Takes the edge off", direction: "across" },
-        { number: 1, row: 0, col: 0, len: 5, answer: "ABASE", clue: "Cut down to size", direction: "down" },
-        { number: 2, row: 0, col: 1, len: 5, answer: "DONNA", clue: "Summer of disco", direction: "down" },
-        { number: 3, row: 0, col: 2, len: 5, answer: "IOTAS", clue: "Tiny bits", direction: "down" },
-        { number: 4, row: 0, col: 3, len: 5, answer: "EERIE", clue: "Like a foggy graveyard", direction: "down" },
-        { number: 5, row: 0, col: 4, len: 5, answer: "UDALS", clue: "Old Norse freeholders", direction: "down" }
-      ];
+      const PUZZLE_CURSOR_KEY = "byewords-puzzle-cursor-v1";
 
       const numbering = {
         "0-0": 1,
@@ -615,6 +786,94 @@
       let isFinished = false;
       let timerHandle = null;
       let activeClueIndex = 0;
+      let activePuzzleIndex = 0;
+      let pendingPuzzleIndex = null;
+      let solution = [];
+      let words = [];
+
+      function buildSolution(rows) {
+        return rows.map(function (row) {
+          return row.split("");
+        });
+      }
+
+      function buildWords(puzzle) {
+        const columns = Array.from({ length: 5 }, function (_, col) {
+          return puzzle.rows.map(function (row) {
+            return row[col];
+          }).join("");
+        });
+
+        return puzzle.rows.map(function (answer, index) {
+          return {
+            number: index + 1,
+            row: index,
+            col: 0,
+            len: 5,
+            answer: answer,
+            clue: puzzle.acrossClues[index],
+            direction: "across"
+          };
+        }).concat(columns.map(function (answer, index) {
+          return {
+            number: index + 1,
+            row: 0,
+            col: index,
+            len: 5,
+            answer: answer,
+            clue: puzzle.downClues[index],
+            direction: "down"
+          };
+        }));
+      }
+
+      function activatePuzzle(index) {
+        activePuzzleIndex = index;
+        solution = buildSolution(puzzles[index].rows);
+        words = buildWords(puzzles[index]);
+      }
+
+      function readPuzzleCursor() {
+        try {
+          const raw = window.localStorage.getItem(PUZZLE_CURSOR_KEY);
+          if (raw === null) return null;
+          const parsed = Number.parseInt(raw, 10);
+          return Number.isNaN(parsed) ? null : parsed;
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function writePuzzleCursor(index) {
+        try {
+          window.localStorage.setItem(PUZZLE_CURSOR_KEY, String(index));
+        } catch (error) {
+          return;
+        }
+      }
+
+      function takeNextPuzzleIndex() {
+        const storedIndex = readPuzzleCursor();
+        const nextIndex = storedIndex === null
+          ? Math.floor(Math.random() * puzzles.length)
+          : ((storedIndex % puzzles.length) + puzzles.length) % puzzles.length;
+        writePuzzleCursor((nextIndex + 1) % puzzles.length);
+        return nextIndex;
+      }
+
+      function queueNextPuzzle() {
+        if (puzzles.length < 2) {
+          pendingPuzzleIndex = activePuzzleIndex;
+          return;
+        }
+
+        let nextIndex = takeNextPuzzleIndex();
+        if (nextIndex === activePuzzleIndex) {
+          nextIndex = (activePuzzleIndex + 1) % puzzles.length;
+          writePuzzleCursor((nextIndex + 1) % puzzles.length);
+        }
+        pendingPuzzleIndex = nextIndex;
+      }
 
       function isBlackCell(row, col) {
         return solution[row][col] === "#";
@@ -884,6 +1143,10 @@
       }
 
       function resetGame() {
+        if (pendingPuzzleIndex !== null) {
+          activatePuzzle(pendingPuzzleIndex);
+          pendingPuzzleIndex = null;
+        }
         for (let r = 0; r < 5; r += 1) {
           for (let c = 0; c < 5; c += 1) {
             if (!isBlackCell(r, c)) entries[r][c] = "";
@@ -903,7 +1166,9 @@
       }
 
       function makeBragText() {
-        return "I solved BYEWORDS in " + formatTime(seconds) + " 🌁\nADIEU / BOOED / ANTRA / SNAIL / EASES / ABASE / DONNA / IOTAS / EERIE / UDALS";
+        return "I solved BYEWORDS in " + formatTime(seconds) + " 🌁\n" + words.map(function (word) {
+          return word.answer;
+        }).join(" / ");
       }
 
       function shareBrag() {
@@ -964,6 +1229,7 @@
       function finish() {
         isFinished = true;
         stopTimer();
+        queueNextPuzzle();
         winCopyEl.textContent = "Solved in " + formatTime(seconds) + ". Go ahead and be a little annoying about it.";
         overlayEl.classList.add("show");
         overlayEl.setAttribute("aria-hidden", "false");
@@ -1011,7 +1277,12 @@
           {
             name: "getWordForCell finds across and down entries",
             run: function () {
-              return getWordForCell(0, 0, "across").answer === "ADIEU" && getWordForCell(3, 0, "across").answer === "SNAIL" && getWordForCell(0, 4, "down").answer === "UDALS";
+              const firstAcross = words.find(function (word) { return word.direction === "across" && word.number === 1; });
+              const firstDown = words.find(function (word) { return word.direction === "down" && word.number === 1; });
+              const lastDown = words.find(function (word) { return word.direction === "down" && word.number === 5; });
+              return getWordForCell(0, 0, "across").answer === firstAcross.answer
+                && getWordForCell(0, 0, "down").answer === firstDown.answer
+                && getWordForCell(0, 4, "down").answer === lastDown.answer;
             }
           },
           {
@@ -1073,9 +1344,11 @@
           {
             name: "clicking cell syncs to the matching across clue",
             run: function () {
-              activeClueIndex = 6;
+              activeClueIndex = words.findIndex(function (word) {
+                return word.direction === "down" && word.number === 1;
+              });
               syncActiveClueFromCell(3, 0);
-              return getActiveWord().answer === "SNAIL" && getActiveWord().direction === "across";
+              return getActiveWord().direction === "across" && getActiveWord().row === 3;
             }
           }
         ];
@@ -1087,6 +1360,7 @@
         });
       }
 
+      activatePuzzle(takeNextPuzzleIndex());
       selected = getPreferredCellForWord(words[0]);
       makeKeyboardRow("row-top", keyRows.top);
       makeKeyboardRow("row-middle", keyRows.middle);
