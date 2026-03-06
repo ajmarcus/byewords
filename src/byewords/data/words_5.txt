@@ -15,11 +15,13 @@ beach
 berry
 birds
 bloom
+buses
 booed
 books
 braid
 brick
 cabin
+cable
 cameo
 cello
 charm
@@ -69,6 +71,7 @@ habit
 heron
 honey
 hotel
+ikeas
 iotas
 ivory
 jewel
@@ -78,11 +81,13 @@ latte
 lemon
 lilac
 lunar
+lurie
 lyric
 magic
 mango
 maple
 marsh
+mayor
 melon
 merit
 metro
@@ -97,9 +102,11 @@ orbit
 otter
 paint
 panda
+parks
 pearl
 pecan
 piano
+piers
 pinch
 plaza
 poems

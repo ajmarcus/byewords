@@ -16,6 +16,19 @@ class TestBundledData(unittest.TestCase):
         for related_words in related_map.values():
             self.assertTrue(set(related_words).issubset(lexicon_set))
 
+    def test_default_data_includes_san_francisco_theme_cluster(self) -> None:
+        lexicon_words, related_map, clue_bank = load_default_inputs()
+        lexicon_set = set(lexicon_words)
+
+        expected_words = {"buses", "cable", "ikeas", "lurie", "mayor", "parks", "piers"}
+        self.assertTrue(expected_words.issubset(lexicon_set))
+        self.assertTrue(expected_words.issubset(set(clue_bank)))
+        self.assertEqual(clue_bank["lurie"][0], "Daniel, San Francisco's 46th mayor")
+        self.assertEqual(clue_bank["buses"][0], "Many Muni vehicles")
+        self.assertEqual(clue_bank["ikeas"][0], "San Francisco and Emeryville furniture stores")
+        self.assertTrue({"lurie", "mayor", "buses", "cable", "ocean", "parks", "piers"}.issubset(set(related_map["lurie"])))
+        self.assertTrue({"ikeas", "civic", "metro", "parks", "plaza", "route", "urban"}.issubset(set(related_map["ikeas"])))
+
     def test_default_snail_puzzle_uses_bundled_clues(self) -> None:
         lexicon_words, related_map, clue_bank = load_default_inputs()
         puzzle = generate_puzzle(("snail",), lexicon_words, related_map, clue_bank)

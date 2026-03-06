@@ -50,6 +50,9 @@
   "bloom": [
     "Flower at its peak"
   ],
+  "buses": [
+    "Many Muni vehicles"
+  ],
   "booed": [
     "Reacted badly to the comic, say"
   ],
@@ -64,6 +67,9 @@
   ],
   "cabin": [
     "Cozy woods retreat"
+  ],
+  "cable": [
+    "Like San Francisco's Powell Street cars"
   ],
   "cameo": [
     "Brief scene-stealing appearance"
@@ -212,6 +218,9 @@
   "hotel": [
     "Place to request late checkout"
   ],
+  "ikeas": [
+    "San Francisco and Emeryville furniture stores"
+  ],
   "iotas": [
     "Tiny bits"
   ],
@@ -239,6 +248,9 @@
   "lunar": [
     "Like the Sea of Tranquility"
   ],
+  "lurie": [
+    "Daniel, San Francisco's 46th mayor"
+  ],
   "lyric": [
     "Line in a song"
   ],
@@ -253,6 +265,9 @@
   ],
   "marsh": [
     "Boggy ground"
+  ],
+  "mayor": [
+    "City Hall's top elected official"
   ],
   "melon": [
     "Cantaloupe or honeydew"
@@ -276,7 +291,7 @@
     "Book-length work of fiction"
   ],
   "ocean": [
-    "Atlantic or Pacific"
+    "What pounds Ocean Beach"
   ],
   "olive": [
     "Martini garnish"
@@ -296,6 +311,9 @@
   "panda": [
     "Black-and-white bamboo eater"
   ],
+  "parks": [
+    "Golden Gate and Dolores, for two"
+  ],
   "pearl": [
     "Gem from an oyster"
   ],
@@ -304,6 +322,9 @@
   ],
   "piano": [
     "Instrument with eighty-eight keys"
+  ],
+  "piers": [
+    "Pier 39 and its neighbors"
   ],
   "pinch": [
     "Small amount, in a recipe"
@@ -462,6 +483,6 @@
     "Moby-Dick, for one"
   ],
   "wharf": [
-    "Dock for cargo and ferries"
+    "Fisherman's ___"
   ]
 }
