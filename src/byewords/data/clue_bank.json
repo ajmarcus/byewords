@@ -1,42 +1,467 @@
 {
   "abase": [
-    "Bring low",
-    "Humiliate"
+    "Cut down to size"
+  ],
+  "actor": [
+    "One taking notes from a director"
   ],
   "adieu": [
-    "Farewell with a flourish",
-    "French goodbye"
+    "Parting word from Paris"
+  ],
+  "album": [
+    "Record-store purchase"
+  ],
+  "algae": [
+    "Pond growth that can turn a lake green"
+  ],
+  "alley": [
+    "Bowling lane"
+  ],
+  "amber": [
+    "Fossilized resin, or its warm hue"
+  ],
+  "angel": [
+    "Haloed figure in a pageant"
   ],
   "antra": [
-    "Chamberlike cavities, in anatomy",
-    "Anatomical chambers"
+    "Stomach chambers, in anatomy"
+  ],
+  "apple": [
+    "Fruit in many lunchboxes"
+  ],
+  "badge": [
+    "Scout sash attachment"
+  ],
+  "bagel": [
+    "Brunch ring with a chewy bite"
+  ],
+  "basil": [
+    "Herb in a classic pesto"
+  ],
+  "beach": [
+    "Place to catch some rays"
+  ],
+  "berry": [
+    "Tiny juicy fruit"
+  ],
+  "birds": [
+    "Flock members"
+  ],
+  "bloom": [
+    "Flower at its peak"
   ],
   "booed": [
-    "Reacted like a hostile crowd",
-    "Jeered at the performer"
+    "Reacted badly to the comic, say"
+  ],
+  "books": [
+    "Library checkouts"
+  ],
+  "braid": [
+    "Plait"
+  ],
+  "brick": [
+    "Solid, dependable sort"
+  ],
+  "cabin": [
+    "Cozy woods retreat"
+  ],
+  "cameo": [
+    "Brief scene-stealing appearance"
+  ],
+  "cello": [
+    "Instrument played between the knees"
+  ],
+  "charm": [
+    "Magic spell or personal appeal"
+  ],
+  "chess": [
+    "Game with bishops and knights"
+  ],
+  "choir": [
+    "Group behind a church anthem"
+  ],
+  "chord": [
+    "Three notes played as one"
+  ],
+  "cider": [
+    "Autumn drink that may be mulled"
+  ],
+  "civic": [
+    "Like a public-minded duty"
+  ],
+  "clock": [
+    "Wall piece with hands"
+  ],
+  "cloud": [
+    "Sky mass with a silver lining"
+  ],
+  "cocoa": [
+    "Powder in a mug of hot chocolate"
+  ],
+  "color": [
+    "Hue"
+  ],
+  "comet": [
+    "Visitor with a glowing tail"
+  ],
+  "coral": [
+    "Reef builder"
+  ],
+  "crane": [
+    "Bird with long legs or a construction giant"
+  ],
+  "creek": [
+    "Small stream"
+  ],
+  "crepe": [
+    "Thin French pancake"
+  ],
+  "crown": [
+    "Top of a tooth, or of a king"
+  ],
+  "daisy": [
+    "Flower whose name means \"day's eye\""
+  ],
+  "dance": [
+    "Move to the beat"
   ],
   "donna": [
-    "Lead-in to Summer or Karan",
-    "Singer Summer or designer Karan"
+    "Summer of disco"
+  ],
+  "dough": [
+    "Bread starter or slangy cash"
+  ],
+  "drama": [
+    "Stage genre full of tension"
+  ],
+  "drink": [
+    "Something poured over ice, perhaps"
+  ],
+  "dream": [
+    "Sleepy vision"
+  ],
+  "eagle": [
+    "Bird on many U.S. seals"
+  ],
+  "earth": [
+    "Our home planet"
+  ],
+  "easel": [
+    "Painter's stand"
   ],
   "eases": [
-    "Takes the edge off",
-    "Relieves"
+    "Takes the edge off"
   ],
   "eerie": [
-    "Like an abandoned carnival at night",
-    "Spooky"
+    "Like a foggy graveyard"
+  ],
+  "ember": [
+    "Glowing bit in a dying fire"
+  ],
+  "ethic": [
+    "Guiding moral principle"
+  ],
+  "fable": [
+    "Story with a moral"
+  ],
+  "fauna": [
+    "Animal life of a region"
+  ],
+  "feast": [
+    "Lavish spread"
+  ],
+  "ferry": [
+    "Boat on a fixed route"
+  ],
+  "flora": [
+    "Plant life of a region"
+  ],
+  "flute": [
+    "Silver-toned woodwind"
+  ],
+  "frost": [
+    "It may coat a windshield overnight"
+  ],
+  "froth": [
+    "Foamy top on a cappuccino"
+  ],
+  "fruit": [
+    "Produce-section category for apples and pears"
+  ],
+  "genre": [
+    "Section in a record store"
+  ],
+  "gleam": [
+    "Shine softly"
+  ],
+  "grape": [
+    "Fruit behind many vineyard bottles"
+  ],
+  "grass": [
+    "Lawn covering"
+  ],
+  "habit": [
+    "Routine that's hard to break"
+  ],
+  "heron": [
+    "Long-legged wading bird"
+  ],
+  "honey": [
+    "Sweet stuff from a hive"
+  ],
+  "hotel": [
+    "Place to request late checkout"
   ],
   "iotas": [
-    "Tiny traces",
-    "Teensy bits"
+    "Tiny bits"
+  ],
+  "ivory": [
+    "Piano-key material of old"
+  ],
+  "jewel": [
+    "Gem in a setting"
+  ],
+  "kelps": [
+    "Sea forest plants"
+  ],
+  "krill": [
+    "Tiny crustaceans eaten by whales"
+  ],
+  "latte": [
+    "Espresso drink with lots of milk"
+  ],
+  "lemon": [
+    "Sour citrus or a dud purchase"
+  ],
+  "lilac": [
+    "Pale purple bloom"
+  ],
+  "lunar": [
+    "Like the Sea of Tranquility"
+  ],
+  "lyric": [
+    "Line in a song"
+  ],
+  "magic": [
+    "Stagecraft with a reveal"
+  ],
+  "mango": [
+    "Tropical fruit with a big pit"
+  ],
+  "maple": [
+    "Tree tapped for syrup"
+  ],
+  "marsh": [
+    "Boggy ground"
+  ],
+  "melon": [
+    "Cantaloupe or honeydew"
+  ],
+  "merit": [
+    "Deserve"
+  ],
+  "metro": [
+    "Big-city rail system"
+  ],
+  "movie": [
+    "Big-screen feature"
+  ],
+  "music": [
+    "Art form with scales and chords"
+  ],
+  "night": [
+    "Time for stargazing"
+  ],
+  "novel": [
+    "Book-length work of fiction"
+  ],
+  "ocean": [
+    "Atlantic or Pacific"
+  ],
+  "olive": [
+    "Martini garnish"
+  ],
+  "opera": [
+    "Stage form with arias"
+  ],
+  "orbit": [
+    "Path around a planet"
+  ],
+  "otter": [
+    "Playful river mammal"
+  ],
+  "paint": [
+    "Coat with color"
+  ],
+  "panda": [
+    "Black-and-white bamboo eater"
+  ],
+  "pearl": [
+    "Gem from an oyster"
+  ],
+  "pecan": [
+    "Pie nut"
+  ],
+  "piano": [
+    "Instrument with eighty-eight keys"
+  ],
+  "pinch": [
+    "Small amount, in a recipe"
+  ],
+  "plaza": [
+    "Open public square"
+  ],
+  "poems": [
+    "Verses in a slim collection"
+  ],
+  "porch": [
+    "Front-of-house perch"
+  ],
+  "prose": [
+    "Writing that's not in verse"
+  ],
+  "radar": [
+    "Tracking system that uses radio waves"
+  ],
+  "raven": [
+    "Pitch-black bird"
+  ],
+  "reefs": [
+    "Coral formations"
+  ],
+  "river": [
+    "Waterway larger than a creek"
+  ],
+  "robin": [
+    "Bird with a red breast"
+  ],
+  "route": [
+    "Way from A to B"
+  ],
+  "rover": [
+    "Mars exploration vehicle"
+  ],
+  "rural": [
+    "Not city-dwelling"
+  ],
+  "sandy": [
+    "Like many beach towels by noon"
+  ],
+  "savor": [
+    "Enjoy slowly"
+  ],
+  "scene": [
+    "Unit of a play"
+  ],
+  "scent": [
+    "Trace picked up by a bloodhound"
+  ],
+  "score": [
+    "Twenty, to Lincoln"
+  ],
+  "sense": [
+    "Good judgment"
+  ],
+  "shell": [
+    "Protective home for a snail"
+  ],
+  "shore": [
+    "Land by the water"
+  ],
+  "skiff": [
+    "Small rowboat"
+  ],
+  "slime": [
+    "Goopy stuff"
   ],
   "snail": [
-    "Garden crawler with a spiral shell",
-    "Slowpoke with a shell"
+    "Garden crawler with a spiral shell"
+  ],
+  "solar": [
+    "Powered by the sun"
+  ],
+  "space": [
+    "The final frontier"
+  ],
+  "spice": [
+    "Cumin or cardamom"
+  ],
+  "spray": [
+    "Sea mist"
+  ],
+  "stage": [
+    "Place for a spotlight"
+  ],
+  "stars": [
+    "Points of light overhead"
+  ],
+  "storm": [
+    "Tempest"
+  ],
+  "story": [
+    "A tale to tell"
+  ],
+  "sugar": [
+    "Coffee-sweetening crystals"
+  ],
+  "sunny": [
+    "Bright and cheerful"
+  ],
+  "sushi": [
+    "Rice roll with a soy sauce side"
+  ],
+  "sweet": [
+    "Like many desserts"
+  ],
+  "tempo": [
+    "Allegro or adagio"
+  ],
+  "tenor": [
+    "Voice above baritone"
+  ],
+  "tides": [
+    "Ocean rises and falls"
+  ],
+  "toast": [
+    "Raise a glass for"
+  ],
+  "tower": [
+    "Skyscraper, often"
+  ],
+  "trail": [
+    "Path through the woods"
+  ],
+  "train": [
+    "Amtrak offering"
   ],
   "udals": [
-    "Old Norse landholders",
-    "Feudal holders in old Norse law"
+    "Old Norse freeholders"
+  ],
+  "urban": [
+    "Like city living"
+  ],
+  "venus": [
+    "Planet named for a goddess"
+  ],
+  "verse": [
+    "Line of poetry"
+  ],
+  "viola": [
+    "Instrument between violin and cello"
+  ],
+  "visit": [
+    "Drop by"
+  ],
+  "water": [
+    "It may be still or sparkling"
+  ],
+  "waves": [
+    "Ocean rollers"
+  ],
+  "whale": [
+    "Moby-Dick, for one"
+  ],
+  "wharf": [
+    "Dock for cargo and ferries"
   ]
 }

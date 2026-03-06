@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BYEWORDS</title>
+  <style>
+    :root {
+      --paper: #f6f4ef;
+      --white: #ffffff;
+      --ink: #111111;
+      --blue: #0b63f6;
+      --yellow: #f5e84b;
+      --yellow-soft: #fff7b8;
+      --blue-soft: #eaf1ff;
+      --red-soft: #ffe0de;
+      --shadow-black: 3px 3px 0 0 var(--ink);
+      --cell-size: min(15.8vw, 74px);
+      --cell-min: 52px;
+      --board-gap: 3px;
+      --key-gap: 6px;
+      --key-font: 14px;
+      --key-pad-y: 11px;
+      --key-side-pad: 0px;
+      --frame-width: min(100%, 420px);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .app {
+      min-height: 100vh;
+      padding: 16px 12px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .shell {
+      width: var(--frame-width);
+      border: 2px solid var(--ink);
+      background: var(--white);
+      box-shadow: none;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .topbar {
+      background: var(--blue);
+      color: var(--white);
+      padding: 12px 16px;
+      border-bottom: 2px solid var(--ink);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      opacity: 0.9;
+    }
+
+    .timer {
+      border: 2px solid var(--ink);
+      background: var(--yellow);
+      color: var(--ink);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 900;
+      min-width: 74px;
+      text-align: center;
+      transform: translateZ(0);
+      transition: transform 140ms ease, background-color 180ms ease;
+    }
+
+    .content {
+      padding: 16px;
+    }
+
+    .board-wrap {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: var(--board-gap);
+      background: var(--ink);
+      padding: var(--board-gap);
+      border: 2px solid var(--ink);
+      box-shadow: none;
+    }
+
+    .cell {
+      width: max(var(--cell-min), var(--cell-size));
+      height: max(var(--cell-min), var(--cell-size));
+      border: 1px solid var(--ink);
+      background: var(--white);
+      color: var(--ink);
+      font-size: clamp(28px, 8vw, 34px);
+      font-weight: 900;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      padding: 0;
+      cursor: pointer;
+      transition: background-color 140ms ease, transform 120ms ease;
+      touch-action: manipulation;
+    }
+
+    .cell:active { transform: scale(0.97); }
+    .cell.black { background: var(--ink); cursor: default; }
+    .cell.selected { background: var(--yellow); }
+    .cell.in-word { background: var(--blue-soft); }
+    .cell.wrong { background: var(--red-soft); }
+
+    .cell-num {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      font-size: 9px;
+      font-weight: 800;
+      line-height: 1;
+      color: rgba(17, 17, 17, 0.55);
+    }
+
+    .cell-letter {
+      display: inline-block;
+      transform: scale(1);
+      opacity: 1;
+      transition: transform 140ms ease, opacity 140ms ease;
+    }
+
+    .cell.bump .cell-letter {
+      transform: scale(1.16);
+    }
+
+    .clue-nav {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr) 44px;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .clue {
+      border: 2px solid var(--ink);
+      background: var(--yellow-soft);
+      box-shadow: 4px 4px 0 0 var(--ink);
+      padding: 12px;
+    }
+
+    .clue.bounce {
+      animation: clue-bounce 180ms ease-out;
+    }
+
+    @keyframes clue-bounce {
+      0% { transform: translateY(3px); }
+      100% { transform: translateY(0); }
+    }
+
+    .clue-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(17, 17, 17, 0.6);
+    }
+
+    .clue-text {
+      margin-top: 8px;
+      font-family: Georgia, Cambria, "Times New Roman", Times, serif;
+      font-size: 28px;
+      font-weight: 600;
+      line-height: 1.06;
+      letter-spacing: -0.02em;
+      min-height: 88px;
+    }
+
+    .clue-meta {
+      margin-top: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: rgba(17, 17, 17, 0.58);
+    }
+
+    .nav-btn {
+      border: 2px solid var(--ink);
+      background: var(--white);
+      color: var(--ink);
+      box-shadow: var(--shadow-black);
+      font-size: 20px;
+      font-weight: 900;
+      cursor: pointer;
+      transition: transform 110ms ease, box-shadow 110ms ease, background-color 140ms ease;
+      touch-action: manipulation;
+    }
+
+    .nav-btn:active {
+      transform: translate(3px, 3px);
+      box-shadow: 0 0 0 0 var(--ink);
+    }
+
+    .keyboard {
+      margin-top: 18px;
+      padding-top: 0;
+    }
+
+    .key-row {
+      display: grid;
+      gap: var(--key-gap);
+      margin-bottom: var(--key-gap);
+      width: 100%;
+    }
+
+    .key-row.top { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+    .key-row.middle { grid-template-columns: repeat(9, minmax(0, 1fr)); }
+    .key-row.bottom { grid-template-columns: repeat(7, minmax(0, 1fr)); max-width: 74%; margin-left: auto; margin-right: auto; }
+    .key-row.actions { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 220px; margin-left: auto; margin-right: auto; }
+
+    .key {
+      min-width: 0;
+      border: 2px solid var(--ink);
+      background: var(--white);
+      color: var(--ink);
+      box-shadow: var(--shadow-black);
+      font-size: var(--key-font);
+      font-weight: 900;
+      line-height: 1;
+      text-transform: uppercase;
+      padding: var(--key-pad-y) var(--key-side-pad);
+      cursor: pointer;
+      transition: transform 110ms ease, box-shadow 110ms ease, background-color 140ms ease;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .key:hover { transform: translateY(-1px); }
+    .key:active {
+      transform: translate(3px, 3px);
+      box-shadow: 0 0 0 0 var(--ink);
+    }
+
+    .key.blue {
+      background: var(--blue);
+      color: var(--white);
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(17, 17, 17, 0.34);
+      padding: 16px;
+      overflow: hidden;
+    }
+
+    .overlay.show { display: flex; }
+
+    .win-card {
+      width: 100%;
+      max-width: 320px;
+      border: 2px solid var(--ink);
+      background: var(--white);
+      box-shadow: 10px 10px 0 0 var(--ink);
+      padding: 18px;
+      position: relative;
+      z-index: 2;
+      animation: pop 240ms ease-out;
+    }
+
+    .badge {
+      display: inline-block;
+      border: 2px solid var(--ink);
+      background: var(--yellow);
+      padding: 5px 8px;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .win-title {
+      margin-top: 12px;
+      font-family: Georgia, Cambria, "Times New Roman", Times, serif;
+      font-size: 38px;
+      font-weight: 600;
+      line-height: 0.98;
+      letter-spacing: -0.03em;
+    }
+
+    .win-copy {
+      margin-top: 10px;
+      font-size: 16px;
+      line-height: 1.5;
+      color: rgba(17, 17, 17, 0.72);
+    }
+
+    .win-actions {
+      margin-top: 18px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .win-actions .key {
+      padding-top: 18px;
+      padding-bottom: 18px;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 40px;
+      height: 40px;
+      border: 2px solid var(--ink);
+      background: var(--white);
+      color: var(--ink);
+      box-shadow: var(--shadow-black);
+      font-size: 18px;
+      font-weight: 900;
+      line-height: 1;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .close-btn:active {
+      transform: translate(3px, 3px);
+      box-shadow: 0 0 0 0 var(--ink);
+    }
+
+    .emoji-rain {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .emoji {
+      position: absolute;
+      top: -40px;
+      font-size: 28px;
+      animation-name: fall;
+      animation-timing-function: ease-in-out;
+      animation-fill-mode: forwards;
+    }
+
+    @keyframes fall {
+      0% { transform: translate3d(0, -20px, 0) rotate(0deg); opacity: 0; }
+      15% { opacity: 1; }
+      85% { opacity: 1; }
+      100% { transform: translate3d(var(--drift-x), 115vh, 0) rotate(var(--spin)); opacity: 0; }
+    }
+
+    @keyframes pop {
+      0% { transform: scale(0.94) translateY(8px); opacity: 0; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    @media (max-width: 420px) {
+      :root {
+        --frame-width: 100%;
+        --cell-size: calc((100vw - 24px - 32px - 10px - 6px) / 5);
+        --cell-min: 0px;
+        --key-gap: 4px;
+        --key-font: 12px;
+        --key-pad-y: 10px;
+      }
+
+      .app { padding: 12px 8px; align-items: flex-start; }
+      .content { padding: 14px; }
+      .clue-text { font-size: 24px; min-height: 74px; }
+      .key-row.bottom { max-width: 76%; }
+      .key-row.actions { max-width: 100%; }
+    }
+
+    @media (max-width: 360px) {
+      :root {
+        --key-gap: 3px;
+        --key-font: 11px;
+        --key-pad-y: 9px;
+      }
+
+      .topbar { padding: 10px 12px; }
+      .timer { min-width: 68px; padding: 6px 8px; font-size: 13px; }
+      .clue-text { font-size: 22px; }
+      .key-row.bottom { max-width: 80%; }
+    }
+
+    @media (min-width: 768px) {
+      .app { padding: 24px; }
+      .shell { max-width: 460px; }
+      .content { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <main class="shell" aria-label="BYEWORDS puzzle">
+      <div class="topbar">
+        <div class="eyebrow">BYEWORDS</div>
+        <div class="timer" id="timer">00:00</div>
+      </div>
+
+      <div class="content">
+        <div class="board-wrap">
+          <section class="board" id="board" aria-label="Puzzle board"></section>
+        </div>
+
+        <div class="clue-nav">
+          <button class="nav-btn" id="prev-clue" type="button" aria-label="Previous clue">←</button>
+          <section class="clue" id="clue-card" aria-live="polite">
+            <div class="clue-label">Clue</div>
+            <div class="clue-text" id="clue-text">Pick a cell.</div>
+            <div class="clue-meta" id="clue-meta"></div>
+          </section>
+          <button class="nav-btn" id="next-clue" type="button" aria-label="Next clue">→</button>
+        </div>
+
+        <section class="keyboard" aria-label="Keyboard">
+          <div class="key-row top" id="row-top"></div>
+          <div class="key-row middle" id="row-middle"></div>
+          <div class="key-row bottom" id="row-bottom"></div>
+          <div class="key-row actions">
+            <button class="key" id="delete-key" type="button">Delete</button>
+            <button class="key blue" id="reset-key" type="button">Reset</button>
+          </div>
+        </section>
+      </div>
+
+      <section class="overlay" id="overlay" aria-hidden="true">
+        <div class="emoji-rain" id="emoji-rain"></div>
+        <div class="win-card">
+          <button class="close-btn" id="close-overlay-btn" type="button" aria-label="Dismiss finished modal">✕</button>
+          <div class="badge">Finished ✨</div>
+          <div class="win-title">You cooked.</div>
+          <div class="win-copy" id="win-copy">Solved in 00:00. Go ahead and be a little annoying about it.</div>
+          <div class="win-actions">
+            <button class="key blue" id="share-btn" type="button">Share brag</button>
+            <button class="key" id="again-btn" type="button">Play again</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      const solution = [
+        ["B", "U", "S", "E", "S"],
+        ["D", "E", "F", "O", "G"],
+        ["A", "I", "#", "V", "C"],
+        ["B", "E", "A", "C", "H"],
+        ["C", "H", "I", "N", "A"]
+      ];
+
+      const words = [
+        { number: 1, row: 0, col: 0, len: 5, answer: "BUSES", clue: "Muni workhorses rolling down Market.", direction: "across" },
+        { number: 2, row: 0, col: 2, len: 2, answer: "SF", clue: "Two-letter city name on half the tote bags.", direction: "down" },
+        { number: 3, row: 1, col: 0, len: 5, answer: "DEFOG", clue: "What the weather refuses to do by Ocean Beach.", direction: "across" },
+        { number: 4, row: 2, col: 0, len: 2, answer: "AI", clue: "Thing every startup, protest, podcast, and pitch deck is somehow about now.", direction: "across" },
+        { number: 5, row: 2, col: 3, len: 2, answer: "VC", clue: "Creature blamed for every weird warehouse party and half the rent.", direction: "across" },
+        { number: 6, row: 3, col: 0, len: 5, answer: "BEACH", clue: "Ocean ___, where summer still means a jacket.", direction: "across" },
+        { number: 7, row: 3, col: 2, len: 2, answer: "AI", clue: "Two-letter buzzword lurking under the block too.", direction: "down" },
+        { number: 8, row: 4, col: 0, len: 5, answer: "CHINA", clue: "___ Basin, the ballpark-adjacent SF place name.", direction: "across" }
+      ];
+
+      const numbering = {
+        "0-0": 1,
+        "0-2": 2,
+        "1-0": 3,
+        "2-0": 4,
+        "2-3": 5,
+        "3-0": 6,
+        "3-2": 7,
+        "4-0": 8
+      };
+
+      const keyRows = {
+        top: ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
+        middle: ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
+        bottom: ["Z", "X", "C", "V", "B", "N", "M"]
+      };
+
+      const rainEmojis = ["🌁", "💙", "💛", "✨", "📰", "🎉", "🚕", "🏙️", "🥐", "🫡"];
+
+      const boardEl = document.getElementById("board");
+      const clueCardEl = document.getElementById("clue-card");
+      const clueTextEl = document.getElementById("clue-text");
+      const clueMetaEl = document.getElementById("clue-meta");
+      const timerEl = document.getElementById("timer");
+      const overlayEl = document.getElementById("overlay");
+      const prevClueEl = document.getElementById("prev-clue");
+      const nextClueEl = document.getElementById("next-clue");
+      const winCopyEl = document.getElementById("win-copy");
+      const emojiRainEl = document.getElementById("emoji-rain");
+      const shareBtnEl = document.getElementById("share-btn");
+      const againBtnEl = document.getElementById("again-btn");
+      const deleteKeyEl = document.getElementById("delete-key");
+      const resetKeyEl = document.getElementById("reset-key");
+      const closeOverlayBtnEl = document.getElementById("close-overlay-btn");
+
+      const entries = Array.from({ length: 5 }, function () {
+        return Array.from({ length: 5 }, function () { return ""; });
+      });
+      let selected = null;
+      let seconds = 0;
+      let isFinished = false;
+      let timerHandle = null;
+      let activeClueIndex = 0;
+
+      function isBlackCell(row, col) {
+        return solution[row][col] === "#";
+      }
+
+      function makeKeyboardRow(targetId, keys) {
+        const container = document.getElementById(targetId);
+        container.innerHTML = "";
+        keys.forEach(function (letter) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "key";
+          button.textContent = letter;
+          button.addEventListener("click", function () {
+            handleLetter(letter);
+          });
+          container.appendChild(button);
+        });
+      }
+
+      function getActiveWord() {
+        return words[activeClueIndex] || null;
+      }
+
+      function getWordForCell(row, col, direction) {
+        const targetDirection = direction || "across";
+        return words.find(function (word) {
+          if (word.direction !== targetDirection) return false;
+          if (targetDirection === "across") {
+            if (word.row !== row) return false;
+            return col >= word.col && col < word.col + word.len;
+          }
+          if (word.col !== col) return false;
+          return row >= word.row && row < word.row + word.len;
+        }) || null;
+      }
+
+      function getWordCells(word) {
+        return Array.from({ length: word.len }, function (_, i) {
+          if (word.direction === "down") {
+            return [word.row + i, word.col];
+          }
+          return [word.row, word.col + i];
+        });
+      }
+
+      function getPreferredCellForWord(word) {
+        const cells = getWordCells(word);
+        const firstEmpty = cells.find(function (pair) {
+          return entries[pair[0]][pair[1]] === "";
+        });
+        if (firstEmpty) {
+          return { row: firstEmpty[0], col: firstEmpty[1] };
+        }
+        const last = cells[cells.length - 1];
+        return { row: last[0], col: last[1] };
+      }
+
+      function formatTime(totalSeconds) {
+        const minutes = Math.floor(totalSeconds / 60);
+        const secs = totalSeconds % 60;
+        return String(minutes).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
+      }
+
+      function isSolved() {
+        for (let r = 0; r < 5; r += 1) {
+          for (let c = 0; c < 5; c += 1) {
+            if (isBlackCell(r, c)) continue;
+            if (entries[r][c] !== solution[r][c]) return false;
+          }
+        }
+        return true;
+      }
+
+      function bumpTimer() {
+        timerEl.style.transform = "translateY(-1px) scale(1.03)";
+        window.setTimeout(function () {
+          timerEl.style.transform = "translateY(0) scale(1)";
+        }, 120);
+      }
+
+      function startTimer() {
+        if (timerHandle) window.clearInterval(timerHandle);
+        timerHandle = window.setInterval(function () {
+          seconds += 1;
+          timerEl.textContent = formatTime(seconds);
+          if (seconds % 10 === 0) bumpTimer();
+        }, 1000);
+      }
+
+      function stopTimer() {
+        if (timerHandle) {
+          window.clearInterval(timerHandle);
+          timerHandle = null;
+        }
+      }
+
+      function updateClue() {
+        const word = getActiveWord();
+        clueTextEl.textContent = word ? word.clue : "Pick a cell.";
+        clueMetaEl.textContent = word ? (word.number + " · " + word.answer.length + " letters · " + word.direction) : "";
+        clueCardEl.classList.remove("bounce");
+        void clueCardEl.offsetWidth;
+        clueCardEl.classList.add("bounce");
+      }
+
+      function setActiveClue(index) {
+        activeClueIndex = (index + words.length) % words.length;
+        selected = getPreferredCellForWord(words[activeClueIndex]);
+        renderBoard();
+        updateClue();
+      }
+
+      function moveClue(step) {
+        setActiveClue(activeClueIndex + step);
+      }
+
+      function moveSelection(key) {
+        if (key === "ArrowLeft" || key === "ArrowUp") {
+          moveClue(-1);
+          return;
+        }
+        if (key === "ArrowRight" || key === "ArrowDown") {
+          moveClue(1);
+        }
+      }
+
+      function syncActiveClueFromCell(row, col) {
+        const current = getActiveWord();
+        if (current) {
+          const currentCells = getWordCells(current);
+          const inCurrent = currentCells.some(function (pair) {
+            return pair[0] === row && pair[1] === col;
+          });
+          if (inCurrent) return;
+        }
+        const acrossWord = getWordForCell(row, col, "across");
+        const downWord = getWordForCell(row, col, "down");
+        const nextWord = acrossWord || downWord;
+        const nextIndex = words.findIndex(function (word) {
+          return nextWord && word.number === nextWord.number && word.direction === nextWord.direction;
+        });
+        if (nextIndex !== -1) activeClueIndex = nextIndex;
+      }
+
+      function renderBoard() {
+        const activeWord = getActiveWord();
+        const activeCells = activeWord ? getWordCells(activeWord) : [];
+        boardEl.innerHTML = "";
+
+        for (let r = 0; r < 5; r += 1) {
+          for (let c = 0; c < 5; c += 1) {
+            const cell = document.createElement("button");
+            cell.type = "button";
+            cell.className = "cell";
+
+            const black = isBlackCell(r, c);
+            const selectedNow = selected.row === r && selected.col === c;
+            const inWord = activeCells.some(function (pair) {
+              return pair[0] === r && pair[1] === c;
+            });
+            const wrong = entries[r][c] && entries[r][c] !== solution[r][c];
+
+            if (black) {
+              cell.classList.add("black");
+              cell.disabled = true;
+            } else {
+              if (selectedNow) cell.classList.add("selected");
+              else if (wrong) cell.classList.add("wrong");
+              else if (inWord) cell.classList.add("in-word");
+
+              cell.addEventListener("click", function () {
+                selected = { row: r, col: c };
+                syncActiveClueFromCell(r, c);
+                renderBoard();
+                updateClue();
+              });
+
+              const num = numbering[r + "-" + c];
+              if (num) {
+                const numSpan = document.createElement("span");
+                numSpan.className = "cell-num";
+                numSpan.textContent = num;
+                cell.appendChild(numSpan);
+              }
+
+              const letterSpan = document.createElement("span");
+              letterSpan.className = "cell-letter";
+              letterSpan.textContent = entries[r][c] || "";
+              cell.appendChild(letterSpan);
+            }
+
+            boardEl.appendChild(cell);
+          }
+        }
+      }
+
+      function flashCell(row, col) {
+        const index = row * 5 + col;
+        const node = boardEl.children[index];
+        if (!node || node.classList.contains("black")) return;
+        node.classList.add("bump");
+        window.setTimeout(function () {
+          node.classList.remove("bump");
+        }, 140);
+      }
+
+      function handleLetter(letter) {
+        if (isFinished || isBlackCell(selected.row, selected.col)) return;
+        const row = selected.row;
+        const col = selected.col;
+        entries[row][col] = letter;
+        const word = getActiveWord();
+        if (word) {
+          const cells = getWordCells(word);
+          const index = cells.findIndex(function (pair) {
+            return pair[0] === row && pair[1] === col;
+          });
+          const next = cells[index + 1];
+          if (next) {
+            selected = { row: next[0], col: next[1] };
+          }
+        }
+        renderBoard();
+        updateClue();
+        flashCell(row, col);
+        if (isSolved()) finish();
+      }
+
+      function handleBackspace() {
+        if (isFinished || isBlackCell(selected.row, selected.col)) return;
+        const row = selected.row;
+        const col = selected.col;
+
+        if (entries[row][col]) {
+          entries[row][col] = "";
+          renderBoard();
+          return;
+        }
+
+        const word = getActiveWord();
+        if (!word) return;
+        const cells = getWordCells(word);
+        const index = cells.findIndex(function (pair) {
+          return pair[0] === row && pair[1] === col;
+        });
+        const prev = cells[index - 1];
+        if (!prev) return;
+        selected = { row: prev[0], col: prev[1] };
+        entries[prev[0]][prev[1]] = "";
+        renderBoard();
+        updateClue();
+      }
+
+      function resetGame() {
+        for (let r = 0; r < 5; r += 1) {
+          for (let c = 0; c < 5; c += 1) {
+            if (!isBlackCell(r, c)) entries[r][c] = "";
+          }
+        }
+        activeClueIndex = 0;
+        selected = getPreferredCellForWord(words[0]);
+        seconds = 0;
+        isFinished = false;
+        timerEl.textContent = "00:00";
+        overlayEl.classList.remove("show");
+        overlayEl.setAttribute("aria-hidden", "true");
+        emojiRainEl.innerHTML = "";
+        startTimer();
+        renderBoard();
+        updateClue();
+      }
+
+      function makeBragText() {
+        return "I solved BYEWORDS in " + formatTime(seconds) + " 🌁\nBUSES / DEFOG / BEACH / CHINA / SF / AI";
+      }
+
+      function shareBrag() {
+        const text = makeBragText();
+
+        function markCopied() {
+          shareBtnEl.textContent = "Copied";
+          window.setTimeout(function () {
+            shareBtnEl.textContent = "Share brag";
+          }, 1600);
+        }
+
+        if (navigator.share) {
+          navigator.share({ title: "BYEWORDS", text: text }).then(function () {
+            markCopied();
+          }).catch(function () {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(text).then(markCopied).catch(function () {
+                window.prompt("Copy your brag:", text);
+              });
+            } else {
+              window.prompt("Copy your brag:", text);
+            }
+          });
+          return;
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(markCopied).catch(function () {
+            window.prompt("Copy your brag:", text);
+          });
+          return;
+        }
+
+        window.prompt("Copy your brag:", text);
+      }
+
+      function dismissOverlay() {
+        overlayEl.classList.remove("show");
+        overlayEl.setAttribute("aria-hidden", "true");
+      }
+
+      function showerEmojis() {
+        emojiRainEl.innerHTML = "";
+        for (let i = 0; i < 28; i += 1) {
+          const drop = document.createElement("div");
+          drop.className = "emoji";
+          drop.textContent = rainEmojis[i % rainEmojis.length];
+          drop.style.left = ((i * 13) % 100) + "%";
+          drop.style.animationDuration = (1.9 + (i % 5) * 0.2) + "s";
+          drop.style.animationDelay = ((i % 7) * 0.08) + "s";
+          drop.style.setProperty("--drift-x", ((i % 2 === 0 ? 1 : -1) * (6 + (i % 5) * 8)) + "px");
+          drop.style.setProperty("--spin", ((i % 2 === 0 ? 1 : -1) * (14 + (i % 6) * 10)) + "deg");
+          emojiRainEl.appendChild(drop);
+        }
+      }
+
+      function finish() {
+        isFinished = true;
+        stopTimer();
+        winCopyEl.textContent = "Solved in " + formatTime(seconds) + ". Go ahead and be a little annoying about it.";
+        overlayEl.classList.add("show");
+        overlayEl.setAttribute("aria-hidden", "false");
+        showerEmojis();
+      }
+
+      function bindEvents() {
+        deleteKeyEl.addEventListener("click", handleBackspace);
+        resetKeyEl.addEventListener("click", resetGame);
+        shareBtnEl.addEventListener("click", shareBrag);
+        againBtnEl.addEventListener("click", resetGame);
+        closeOverlayBtnEl.addEventListener("click", dismissOverlay);
+        prevClueEl.addEventListener("click", function () { moveClue(-1); });
+        nextClueEl.addEventListener("click", function () { moveClue(1); });
+
+        window.addEventListener("keydown", function (event) {
+          const key = event.key.toUpperCase();
+          if (/^[A-Z]$/.test(key)) {
+            event.preventDefault();
+            handleLetter(key);
+          } else if (event.key === "Backspace") {
+            event.preventDefault();
+            handleBackspace();
+          } else if (event.key === "Enter") {
+            event.preventDefault();
+            moveClue(1);
+          } else if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+            event.preventDefault();
+            moveSelection(event.key);
+          }
+        });
+      }
+
+      function runSmokeTests() {
+        const tests = [
+          {
+            name: "formatTime zero pads",
+            run: function () {
+              return formatTime(0) === "00:00" && formatTime(65) === "01:05";
+            }
+          },
+          {
+            name: "getWordForCell finds across and down entries",
+            run: function () {
+              return getWordForCell(0, 0, "across").answer === "BUSES" && getWordForCell(2, 3, "across").answer === "VC" && getWordForCell(0, 2, "down").answer === "SF";
+            }
+          },
+          {
+            name: "makeBragText includes newline",
+            run: function () {
+              return makeBragText().indexOf("\n") !== -1;
+            }
+          },
+          {
+            name: "black cell detection works",
+            run: function () {
+              return isBlackCell(2, 2) === true && isBlackCell(0, 0) === false;
+            }
+          },
+          {
+            name: "preferred clue cell picks first empty cell",
+            run: function () {
+              entries[0][0] = "B";
+              entries[0][1] = "U";
+              const preferred = getPreferredCellForWord(words[0]);
+              entries[0][0] = "";
+              entries[0][1] = "";
+              return preferred.row === 0 && preferred.col === 2;
+            }
+          },
+          {
+            name: "full clue falls back to last cell",
+            run: function () {
+              const word = words[0];
+              const cells = getWordCells(word);
+              cells.forEach(function (pair, idx) {
+                entries[pair[0]][pair[1]] = word.answer[idx];
+              });
+              const preferred = getPreferredCellForWord(word);
+              cells.forEach(function (pair) {
+                entries[pair[0]][pair[1]] = "";
+              });
+              return preferred.row === 0 && preferred.col === 4;
+            }
+          },
+          {
+            name: "down preferred cell walks vertically",
+            run: function () {
+              const downWord = words.find(function (word) { return word.direction === "down" && word.number === 2; });
+              entries[0][2] = "S";
+              const preferred = getPreferredCellForWord(downWord);
+              entries[0][2] = "";
+              return preferred.row === 1 && preferred.col === 2;
+            }
+          },
+          {
+            name: "reset selects first preferred cell",
+            run: function () {
+              entries[0][0] = "B";
+              resetGame();
+              return selected.row === 0 && selected.col === 0 && entries[0][0] === "";
+            }
+          },
+          {
+            name: "clicking cell can sync to down clue when no across match exists",
+            run: function () {
+              activeClueIndex = 0;
+              syncActiveClueFromCell(0, 2);
+              return getActiveWord().number === 1 || getActiveWord().number === 2;
+            }
+          }
+        ];
+
+        tests.forEach(function (test) {
+          if (!test.run()) {
+            throw new Error("Smoke test failed: " + test.name);
+          }
+        });
+      }
+
+      selected = getPreferredCellForWord(words[0]);
+      makeKeyboardRow("row-top", keyRows.top);
+      makeKeyboardRow("row-middle", keyRows.middle);
+      makeKeyboardRow("row-bottom", keyRows.bottom);
+      bindEvents();
+      renderBoard();
+      updateClue();
+      runSmokeTests();
+      startTimer();
+
+      window.__sfMiniDebug = {
+        isSolved: isSolved,
+        formatTime: formatTime,
+        makeBragText: makeBragText,
+        getPreferredCellForWord: getPreferredCellForWord,
+        moveClue: moveClue,
+        getActiveWord: getActiveWord
+      };
+    })();
+  </script>
+</body>
+</html>

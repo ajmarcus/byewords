@@ -1,5 +1,216 @@
 {
-  "snail": ["snail", "adieu", "booed", "antra", "eases"],
-  "eases": ["eases", "snail", "adieu", "booed", "antra"],
-  "adieu": ["adieu", "booed", "antra", "snail", "eases"]
+  "beach": [
+    "beach",
+    "ocean",
+    "shore",
+    "sandy",
+    "waves",
+    "tides",
+    "coral",
+    "shell",
+    "spray",
+    "wharf"
+  ],
+  "birds": [
+    "birds",
+    "eagle",
+    "heron",
+    "raven",
+    "robin"
+  ],
+  "books": [
+    "books",
+    "fable",
+    "novel",
+    "poems",
+    "prose",
+    "story",
+    "verse"
+  ],
+  "color": [
+    "color",
+    "amber",
+    "coral",
+    "ivory",
+    "lilac",
+    "olive"
+  ],
+  "drama": [
+    "drama",
+    "actor",
+    "cameo",
+    "dance",
+    "genre",
+    "lyric",
+    "movie",
+    "opera",
+    "scene",
+    "stage",
+    "story"
+  ],
+  "drink": [
+    "drink",
+    "cider",
+    "cocoa",
+    "latte",
+    "toast",
+    "water"
+  ],
+  "earth": [
+    "earth",
+    "cloud",
+    "comet",
+    "fauna",
+    "flora",
+    "ocean",
+    "orbit",
+    "river",
+    "solar",
+    "storm",
+    "venus",
+    "water"
+  ],
+  "fauna": [
+    "fauna",
+    "birds",
+    "eagle",
+    "heron",
+    "otter",
+    "panda",
+    "raven",
+    "robin",
+    "snail",
+    "whale"
+  ],
+  "flora": [
+    "flora",
+    "algae",
+    "basil",
+    "bloom",
+    "daisy",
+    "grass",
+    "kelps",
+    "lilac",
+    "maple",
+    "marsh"
+  ],
+  "fruit": [
+    "fruit",
+    "apple",
+    "berry",
+    "grape",
+    "lemon",
+    "mango",
+    "melon"
+  ],
+  "movie": [
+    "movie",
+    "actor",
+    "cameo",
+    "drama",
+    "genre",
+    "scene",
+    "story"
+  ],
+  "music": [
+    "music",
+    "album",
+    "choir",
+    "chord",
+    "cello",
+    "lyric",
+    "opera",
+    "piano",
+    "tempo",
+    "tenor",
+    "verse",
+    "viola"
+  ],
+  "night": [
+    "night",
+    "cloud",
+    "eerie",
+    "lunar",
+    "stars",
+    "storm"
+  ],
+  "ocean": [
+    "ocean",
+    "coral",
+    "reefs",
+    "waves",
+    "tides",
+    "shore",
+    "wharf",
+    "otter",
+    "krill",
+    "kelps",
+    "whale"
+  ],
+  "shore": [
+    "shore",
+    "beach",
+    "ocean",
+    "reefs",
+    "shell",
+    "skiff",
+    "spray",
+    "tides",
+    "waves",
+    "wharf"
+  ],
+  "snail": [
+    "snail",
+    "shell",
+    "slime",
+    "trail",
+    "adieu",
+    "booed",
+    "antra",
+    "eases",
+    "eerie"
+  ],
+  "space": [
+    "space",
+    "comet",
+    "earth",
+    "lunar",
+    "orbit",
+    "radar",
+    "rover",
+    "solar",
+    "stars",
+    "venus"
+  ],
+  "sweet": [
+    "sweet",
+    "cider",
+    "cocoa",
+    "honey",
+    "latte",
+    "melon",
+    "sugar"
+  ],
+  "urban": [
+    "urban",
+    "alley",
+    "civic",
+    "hotel",
+    "metro",
+    "plaza",
+    "route",
+    "tower",
+    "train"
+  ],
+  "water": [
+    "water",
+    "cloud",
+    "creek",
+    "froth",
+    "ocean",
+    "river",
+    "storm",
+    "tides",
+    "waves"
+  ]
 }
