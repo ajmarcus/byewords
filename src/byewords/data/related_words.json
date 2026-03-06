@@ -1,0 +1,5 @@
+{
+  "snail": ["snail", "adieu", "booed", "antra", "eases"],
+  "eases": ["eases", "snail", "adieu", "booed", "antra"],
+  "adieu": ["adieu", "booed", "antra", "snail", "eases"]
+}

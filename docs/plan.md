@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build a **5×5 crossword puzzle creator in Python** that takes a few seed words and programmatically generates a highly entertaining puzzle with related words and clue interactions between across and down entries.
+Build a **5×5 crossword puzzle creator in Python** that takes a few seed words and programmatically generates a highly entertaining puzzle with related words and sharp, answer-specific clues.
 
 The implementation should be:
 
@@ -24,8 +24,8 @@ A good 5×5 mini is not just “find 10 words that cross.” It must solve four 
 3. **Entertaining clue writing**  
    Clues should feel lively rather than dictionary-like. Clue generation is its own problem, separate from grid fill.
 
-4. **Across/down interaction**  
-   The across and down clues should “talk to each other.” This is not standard crossword generation, so it should be treated as a first-class design target.
+4. **Clueability and surface quality**  
+   The fill must support concise, lively clues rather than generic dictionary-like prompts.
 
 ## Constraints worth adopting
 
@@ -36,7 +36,7 @@ For a satisfying American-style mini:
 - the grid should be fully connected
 - rotational symmetry is common, but for a 5×5 mini it can be relaxed if it hurts quality
 
-For a **5×5**, the cleanest format is often a **full grid with no blocks**, which gives exactly **5 across + 5 down**, with every cell checked automatically. This also makes clue interplay much easier because each across has a natural paired down.
+For a **5×5**, the cleanest format is often a **full grid with no blocks**, which gives exactly **5 across + 5 down**, with every cell checked automatically.
 
 ## Alternatives and tradeoffs
 
@@ -51,7 +51,7 @@ Model arbitrary black-square patterns, generate slots, then fill with backtracki
 **Cons**
 - more moving parts
 - harder to keep code minimal
-- harder to make clue interactions systematic
+- harder to keep clue quality systematic
 - overkill for a 5×5
 
 ### Option B: Exact-cover / DLX fill engine
@@ -63,7 +63,7 @@ Encode fill as exact cover and solve with Algorithm X / DLX.
 - fast when the formulation is right
 
 **Cons**
-- awkward once soft objectives matter: theme quality, clue interaction, fun, word quality
+- awkward once soft objectives matter: theme quality, clue quality, fun, word quality
 - more complex than needed here
 
 ### Option C: Stochastic / hill-climbing fill
@@ -99,7 +99,7 @@ Treat the puzzle as a 5×5 letter matrix where each row is an across answer and 
 
 Use **Option D**:
 
-> Generate a 5×5 full grid using prefix-pruned backtracking over 5-letter candidate words, then score candidate fills for theme coherence, word quality, and clue interaction.
+> Generate a 5×5 full grid using prefix-pruned backtracking over 5-letter candidate words, then score candidate fills for theme coherence, word quality, and clueability.
 
 This is the simplest approach that still gives high puzzle quality.
 
@@ -137,7 +137,7 @@ All core functions should be pure:
 - `expand_theme(seeds, lexicon, associations) -> list[Word]`
 - `build_prefix_index(words) -> dict[prefix, tuple[Word, ...]]`
 - `generate_candidate_grids(...) -> Iterable[Grid]`
-- `score_grid(grid, theme_words, frequencies, interactions) -> float`
+- `score_grid(grid, theme_words, frequencies) -> float`
 - `write_clues(grid, theme) -> Puzzle`
 
 ### 2) Lexicon strategy
@@ -244,21 +244,13 @@ A weighted score should combine:
 - reward high-information intersections
 - penalize overly repetitive letter patterns
 
-#### Interaction potential
-Reward across/down answer pairs that can be clued in relation to one another:
+#### Clueability
+Reward entries that support lively, fair clues:
 
-- cause/effect
-- question/answer
-- setup/punchline
-- category/example
-- contrast
-- sequence
-
-Example pairings:
-
-- across: `alarm` / down: `snooz`
-- across: `cloud` / down: `rainy`
-- across: `pizza` / down: `ovens`
+- common enough to clue cleanly
+- specific enough to avoid dull definitions
+- varied in tone and part of speech
+- compatible with the theme when possible
 
 ### 6) Clue-generation strategy
 
@@ -273,48 +265,19 @@ Templates:
 #### B. Themed clue
 - “What this beach puzzle has plenty of”
 
-#### C. Paired clue
-Write clues in linked pairs:
+#### C. Specific clue-bank clue
+Use a curated answer-level clue whenever possible:
 
-- Across 1: “What 1-Down wishes you’d ignore”
-- Down 1: “Button pressed in response to 1-Across”
+- `snail` -> “Garden crawler with a spiral shell”
+- `eases` -> “Takes the edge off”
+- `iotas` -> “Tiny traces”
 
-or
+#### D. Playful themed clue
+A few clues can acknowledge the mini’s theme without referencing another clue directly:
+- “Beachgoer’s slow-moving stowaway, maybe”
+- “What a stress-ball session does”
 
-- Across 3: “Where 3-Down might appear”
-- Down 3: “Forecast for 3-Across”
-
-This is the key feature for the requested behavior.
-
-#### D. Meta / playful clue
-A few clues can acknowledge the mini’s theme or another clue:
-- “Tiny tropical fruit, and also the vibe of 4-Down”
-- “With 5-Down, a very bad meeting”
-
-### 7) Formalizing clue interactions
-
-Model clue relationships explicitly.
-
-```python
-@dataclass(frozen=True)
-class Interaction:
-    across_idx: int
-    down_idx: int
-    relation: Literal[
-        "cause_effect",
-        "question_answer",
-        "contrast",
-        "category_example",
-        "setup_punchline",
-        "sequence",
-    ]
-```
-
-Then define template renderers per relation.
-
-This is better than trying to invent clue interplay ad hoc after the grid is built.
-
-### 8) Failure handling
+### 7) Failure handling
 
 Full 5×5 themed grids can fail often if the candidate pool is too tight.
 
@@ -364,12 +327,12 @@ Deliverable:
 
 Build:
 
-- clue templates
-- interaction relation detection
-- paired-clue writer
+- curated clue bank
+- themed standalone clue writer
+- fallback clue heuristics
 
 Deliverable:
-- clues that reference each other in controlled ways
+- concise, lively clues that stand on their own
 
 ### Phase 4: Search + ranking
 
@@ -390,7 +353,7 @@ Test at four levels.
 - prefix index correctness
 - grid validation
 - column extraction
-- interaction-template rendering
+- clue-bank lookup and fallback rendering
 
 #### Property-style tests
 - every output row is length 5
@@ -438,14 +401,14 @@ A pure satisfiability solver will happily produce dull boards.
 
 Mitigation:
 - require score thresholds
-- rank by theme density and clue-interaction potential
+- rank by theme density and clueability
 
 ### 3) Clues become repetitive
 Template systems can sound canned.
 
 Mitigation:
 - use a mix of straight, paired, and playful clue templates
-- keep a library of surface forms per interaction type
+- keep a library of answer-level clues and themed clue variants
 
 ### 4) Overly obscure words
 This is a classic crossword problem.
@@ -458,7 +421,7 @@ Mitigation:
 
 Use:
 
-> **A full 5×5 word-square-style generator using prefix-pruned backtracking plus a scoring layer for theme coherence and across/down clue interactions.**
+> **A full 5×5 word-square-style generator using prefix-pruned backtracking plus a scoring layer for theme coherence and strong standalone clues.**
 
 It provides the best balance of:
 

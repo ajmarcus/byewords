@@ -1,5 +1,30 @@
 # Crossword Generator Layout
 
+## Current status
+
+Completed:
+- immutable core types, grid helpers, prefix index, and constrained 5x5 search
+- seed normalization and theme expansion from bundled related-word data
+- grid scoring and deterministic ranking
+- CLI wiring and text rendering
+- curated clue-bank clue generation with deterministic fallbacks
+- unit coverage for each implemented module plus end-to-end generation tests
+
+Current limitations:
+- the bundled lexicon is still tiny and includes weak fill such as `antra` and `udals`
+- clue quality is now meaningfully better, but overall puzzle quality is capped by the fill set
+- theme expansion is still mostly hand-authored and does not yet support a broad seed vocabulary
+
+## What is next
+
+Next priority:
+- replace the toy lexicon with a stronger, cleaner 5-letter word list so generated grids contain more clueable entries
+
+After that:
+- expand the clue bank alongside the better lexicon
+- improve theme coverage so more user-supplied seeds lead to non-fallback themed grids
+- revisit scoring so familiarity and clueability matter more directly during grid selection
+
 ## Target shape
 
 A small package with a strict separation between:
@@ -25,14 +50,13 @@ src/byewords/
 ├── grid.py
 ├── search.py
 ├── score.py
-├── interactions.py
 ├── clues.py
 ├── generate.py
 ├── render.py
 └── data/
     ├── words_5.txt
     ├── related_words.json
-    ├── clue_patterns.json
+    ├── clue_bank.json
     └── stopwords.txt
 
 tests/
@@ -43,7 +67,6 @@ tests/
 ├── test_grid.py
 ├── test_search.py
 ├── test_score.py
-├── test_interactions.py
 ├── test_clues.py
 ├── test_generate.py
 └── fixtures.py
@@ -60,15 +83,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 Direction = Literal["across", "down"]
-Relation = Literal[
-    "cause_effect",
-    "contrast",
-    "category_example",
-    "question_answer",
-    "sequence",
-    "setup_punchline",
-    "parallel",
-]
 
 @dataclass(frozen=True)
 class Grid:
@@ -81,19 +95,11 @@ class Slot:
     answer: str
 
 @dataclass(frozen=True)
-class Interaction:
-    across_index: int
-    down_index: int
-    relation: Relation
-    strength: float
-
-@dataclass(frozen=True)
 class Clue:
     number: int
     direction: Direction
     answer: str
     text: str
-    partner_number: int | None = None
 
 @dataclass(frozen=True)
 class Puzzle:
@@ -108,7 +114,7 @@ class CandidateGrid:
     grid: Grid
     theme_score: float
     fill_score: float
-    interaction_score: float
+    clue_score: float
     total_score: float
 
 @dataclass(frozen=True)
@@ -137,7 +143,7 @@ def load_word_list(path: str) -> tuple[str, ...]: ...
 def normalize_word(word: str) -> str | None: ...
 def filter_legal_words(words: tuple[str, ...]) -> tuple[str, ...]: ...
 def load_related_words(path: str) -> dict[str, tuple[str, ...]]: ...
-def load_clue_patterns(path: str) -> dict[str, tuple[str, ...]]: ...
+def load_clue_bank(path: str) -> dict[str, tuple[str, ...]]: ...
 ```
 
 ### `theme.py`
@@ -275,48 +281,14 @@ def score_grid(grid: Grid, theme_words: set[str]) -> CandidateGrid: ...
 def rank_grids(grids: tuple[Grid, ...], theme_words: set[str]) -> tuple[CandidateGrid, ...]: ...
 ```
 
-### `interactions.py`
-
-Detects and proposes across/down clue relationships.
-
-Responsibilities:
-- find pairs with semantic or structural interaction potential
-- assign relation type + confidence
-- keep this separate from clue wording
-
-Core functions:
-
-```python
-def detect_interactions(
-    grid: Grid,
-    seeds: tuple[str, ...],
-    related_map: dict[str, tuple[str, ...]],
-) -> tuple[Interaction, ...]: ...
-
-def best_interaction_for_across(
-    interactions: tuple[Interaction, ...],
-    across_index: int,
-) -> Interaction | None: ...
-
-def best_interaction_for_down(
-    interactions: tuple[Interaction, ...],
-    down_index: int,
-) -> Interaction | None: ...
-```
-
-This module should be deliberately heuristic. For example:
-- same topic cluster -> `parallel`
-- likely object/place relationship -> `category_example`
-- opposite-ish tone words -> `contrast`
-- process/result -> `cause_effect`
-
 ### `clues.py`
 
-Builds clue text from answers plus interaction structure.
+Builds clue text from answers plus a curated clue bank.
 
 Responsibilities:
-- straight clue templates
-- paired clue templates
+- direct answer-level clues from the bundled bank
+- themed standalone clues when appropriate
+- fallback clue heuristics
 - answer-aware surface realization
 - deterministic clue generation
 
@@ -325,29 +297,25 @@ Core functions:
 ```python
 def make_across_clues(
     grid: Grid,
-    interactions: tuple[Interaction, ...],
-    clue_patterns: dict[str, tuple[str, ...]],
+    clue_bank: dict[str, tuple[str, ...]],
 ) -> tuple[Clue, ...]: ...
 
 def make_down_clues(
     grid: Grid,
-    interactions: tuple[Interaction, ...],
-    clue_patterns: dict[str, tuple[str, ...]],
+    clue_bank: dict[str, tuple[str, ...]],
 ) -> tuple[Clue, ...]: ...
 
 def clue_for_slot(
     slot: Slot,
-    interaction: Interaction | None,
-    clue_patterns: dict[str, tuple[str, ...]],
+    clue_bank: dict[str, tuple[str, ...]],
 ) -> Clue: ...
 ```
 
 Internals:
 
 ```python
-def _straight_clue(answer: str) -> str: ...
-def _paired_clue(answer: str, relation: Relation, partner_number: int, direction: Direction) -> str: ...
-def _answer_label(number: int, direction: Direction) -> str: ...
+def _best_clue(answer: str, clue_bank: dict[str, tuple[str, ...]]) -> str: ...
+def _fallback_clue(answer: str) -> str: ...
 ```
 
 ### `generate.py`
@@ -366,7 +334,7 @@ def generate_puzzle(
     seeds: tuple[str, ...],
     lexicon_words: tuple[str, ...],
     related_map: dict[str, tuple[str, ...]],
-    clue_patterns: dict[str, tuple[str, ...]],
+    clue_bank: dict[str, tuple[str, ...]],
     config: GenerateConfig = GenerateConfig(),
 ) -> Puzzle: ...
 ```
@@ -379,9 +347,8 @@ Pipeline:
 4. build prefix index
 5. search valid grids
 6. score and rank grids
-7. detect interactions on the best grid
-8. generate clues
-9. build the final puzzle
+7. generate clues
+8. build the final puzzle
 
 ### `render.py`
 
@@ -412,10 +379,8 @@ lexicon   prefixes   grid
    ↑         ↑        ↑
  theme ---- search ---|
    ↑         ↑
- interactions score
-       \     /
-        clues
-          ↑
+   score   clues
+      \     /
        generate
           ↑
         render
@@ -510,19 +475,11 @@ Examples:
 - duplicate penalty works
 - score decomposition is stable
 
-### `test_interactions.py`
-Checks relation detection.
-
-Examples:
-- identifies likely paired answers
-- assigns stable relation type
-- chooses strongest relation per slot
-
 ### `test_clues.py`
 Checks clue text generation.
 
 Examples:
-- paired clues reference correct partner number
+- answer-specific clues are preferred when available
 - clue strings are deterministic
 - no answer leakage in clue text unless explicitly intended
 
@@ -544,10 +501,9 @@ Before full entertainment logic, build in this order:
 4. `search.py`
 5. `score.py`
 6. `theme.py`
-7. `interactions.py`
-8. `clues.py`
-9. `generate.py`
-10. `render.py`
+7. `clues.py`
+8. `generate.py`
+9. `render.py`
 
 That is the fastest path to a valid, testable core.
 
@@ -558,11 +514,11 @@ That is the fastest path to a valid, testable core.
 - all answers length 5
 - seed-based candidate pool
 - deterministic prefix-pruned search
-- simple rule-based clue interactions
+- curated clue bank plus deterministic fallbacks
 
 ### v2
 - optional blocked 5×5 layouts
-- richer semantic relation detection
+- richer theme-specific clue generation
 - multiple clue styles per answer
 - difficulty tuning
 - export to web UI / JSON schema
@@ -577,14 +533,13 @@ from crossword.theme import normalize_seeds, expand_theme_words, build_candidate
 from crossword.prefixes import build_prefix_index
 from crossword.search import search_grids
 from crossword.score import rank_grids
-from crossword.interactions import detect_interactions
 from crossword.clues import make_across_clues, make_down_clues
 
 def generate_puzzle(
     seeds: tuple[str, ...],
     lexicon_words: tuple[str, ...],
     related_map: dict[str, tuple[str, ...]],
-    clue_patterns: dict[str, tuple[str, ...]],
+    clue_bank: dict[str, tuple[str, ...]],
     config: GenerateConfig = GenerateConfig(),
 ) -> Puzzle:
     normalized = normalize_seeds(seeds)
@@ -604,9 +559,8 @@ def generate_puzzle(
     )
     ranked = rank_grids(grids, set(theme_words))
     best = ranked[0].grid
-    interactions = detect_interactions(best, normalized, related_map)
-    across = make_across_clues(best, interactions, clue_patterns)
-    down = make_down_clues(best, interactions, clue_patterns)
+    across = make_across_clues(best, clue_bank)
+    down = make_down_clues(best, clue_bank)
 
     return Puzzle(
         grid=best,
