@@ -29,6 +29,7 @@
     html, body { margin: 0; padding: 0; }
     body {
       min-height: 100vh;
+      min-height: 100dvh;
       background: var(--paper);
       color: var(--ink);
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -36,6 +37,7 @@
 
     .app {
       min-height: 100vh;
+      min-height: 100dvh;
       padding: 16px 12px;
       display: flex;
       justify-content: center;
@@ -49,6 +51,8 @@
       box-shadow: none;
       overflow: hidden;
       position: relative;
+      display: flex;
+      flex-direction: column;
     }
 
     .topbar {
@@ -86,6 +90,10 @@
 
     .content {
       padding: 16px;
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
     }
 
     .board-wrap {
@@ -217,8 +225,8 @@
     }
 
     .keyboard {
-      margin-top: 18px;
-      padding-top: 0;
+      margin-top: auto;
+      padding-top: 20px;
     }
 
     .key-row {
@@ -231,7 +239,7 @@
     .key-row.top { grid-template-columns: repeat(10, minmax(0, 1fr)); }
     .key-row.middle { grid-template-columns: repeat(9, minmax(0, 1fr)); }
     .key-row.bottom { grid-template-columns: repeat(7, minmax(0, 1fr)); max-width: 74%; margin-left: auto; margin-right: auto; }
-    .key-row.actions { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 220px; margin-left: auto; margin-right: auto; }
+    .key-row.actions { grid-template-columns: minmax(0, 1fr); max-width: 240px; margin-left: auto; margin-right: auto; }
 
     .key {
       min-width: 0;
@@ -322,8 +330,8 @@
     }
 
     .win-actions .key {
-      padding-top: 18px;
-      padding-bottom: 18px;
+      padding-top: 22px;
+      padding-bottom: 22px;
     }
 
     .close-btn {
@@ -384,12 +392,13 @@
         --frame-width: 100%;
         --cell-size: calc((100vw - 24px - 32px - 10px - 6px) / 5);
         --cell-min: 0px;
-        --key-gap: 4px;
+        --key-gap: 8px;
         --key-font: 12px;
-        --key-pad-y: 10px;
+        --key-pad-y: 14px;
       }
 
-      .app { padding: 12px 8px; align-items: flex-start; }
+      .app { height: 100vh; height: 100dvh; min-height: 100dvh; padding: 0; align-items: stretch; }
+      .shell { height: 100vh; height: 100dvh; min-height: 100dvh; max-height: 100dvh; }
       .content { padding: 14px; }
       .clue-text { font-size: 24px; min-height: 74px; }
       .key-row.bottom { max-width: 76%; }
@@ -398,9 +407,9 @@
 
     @media (max-width: 360px) {
       :root {
-        --key-gap: 3px;
+        --key-gap: 6px;
         --key-font: 11px;
-        --key-pad-y: 9px;
+        --key-pad-y: 12px;
       }
 
       .topbar { padding: 10px 12px; }
@@ -445,7 +454,6 @@
           <div class="key-row bottom" id="row-bottom"></div>
           <div class="key-row actions">
             <button class="key" id="delete-key" type="button">Delete</button>
-            <button class="key blue" id="reset-key" type="button">Reset</button>
           </div>
         </section>
       </div>
@@ -519,7 +527,6 @@
       const shareBtnEl = document.getElementById("share-btn");
       const againBtnEl = document.getElementById("again-btn");
       const deleteKeyEl = document.getElementById("delete-key");
-      const resetKeyEl = document.getElementById("reset-key");
       const closeOverlayBtnEl = document.getElementById("close-overlay-btn");
 
       const entries = Array.from({ length: 5 }, function () {
@@ -873,7 +880,6 @@
 
       function bindEvents() {
         deleteKeyEl.addEventListener("click", handleBackspace);
-        resetKeyEl.addEventListener("click", resetGame);
         shareBtnEl.addEventListener("click", shareBrag);
         againBtnEl.addEventListener("click", resetGame);
         closeOverlayBtnEl.addEventListener("click", dismissOverlay);
