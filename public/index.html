@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="favicon.ico" sizes="16x16" />
   <title>BYEWORDS</title>
   <style>
     :root {
@@ -551,33 +552,36 @@
   <script>
     (function () {
       const solution = [
-        ["B", "U", "S", "E", "S"],
-        ["D", "E", "F", "O", "G"],
-        ["A", "I", "#", "V", "C"],
-        ["B", "E", "A", "C", "H"],
-        ["C", "H", "I", "N", "A"]
+        ["A", "D", "I", "E", "U"],
+        ["B", "O", "O", "E", "D"],
+        ["A", "N", "T", "R", "A"],
+        ["S", "N", "A", "I", "L"],
+        ["E", "A", "S", "E", "S"]
       ];
 
       const words = [
-        { number: 1, row: 0, col: 0, len: 5, answer: "BUSES", clue: "Muni workhorses rolling down Market.", direction: "across" },
-        { number: 2, row: 0, col: 2, len: 2, answer: "SF", clue: "Two-letter city name on half the tote bags.", direction: "down" },
-        { number: 3, row: 1, col: 0, len: 5, answer: "DEFOG", clue: "What the weather refuses to do by Ocean Beach.", direction: "across" },
-        { number: 4, row: 2, col: 0, len: 2, answer: "AI", clue: "Thing every startup, protest, podcast, and pitch deck is somehow about now.", direction: "across" },
-        { number: 5, row: 2, col: 3, len: 2, answer: "VC", clue: "Creature blamed for every weird warehouse party and half the rent.", direction: "across" },
-        { number: 6, row: 3, col: 0, len: 5, answer: "BEACH", clue: "Ocean ___, where summer still means a jacket.", direction: "across" },
-        { number: 7, row: 3, col: 2, len: 2, answer: "AI", clue: "Two-letter buzzword lurking under the block too.", direction: "down" },
-        { number: 8, row: 4, col: 0, len: 5, answer: "CHINA", clue: "___ Basin, the ballpark-adjacent SF place name.", direction: "across" }
+        { number: 1, row: 0, col: 0, len: 5, answer: "ADIEU", clue: "Parting word from Paris", direction: "across" },
+        { number: 2, row: 1, col: 0, len: 5, answer: "BOOED", clue: "Reacted badly to the comic, say", direction: "across" },
+        { number: 3, row: 2, col: 0, len: 5, answer: "ANTRA", clue: "Stomach chambers, in anatomy", direction: "across" },
+        { number: 4, row: 3, col: 0, len: 5, answer: "SNAIL", clue: "Garden crawler with a spiral shell", direction: "across" },
+        { number: 5, row: 4, col: 0, len: 5, answer: "EASES", clue: "Takes the edge off", direction: "across" },
+        { number: 1, row: 0, col: 0, len: 5, answer: "ABASE", clue: "Cut down to size", direction: "down" },
+        { number: 2, row: 0, col: 1, len: 5, answer: "DONNA", clue: "Summer of disco", direction: "down" },
+        { number: 3, row: 0, col: 2, len: 5, answer: "IOTAS", clue: "Tiny bits", direction: "down" },
+        { number: 4, row: 0, col: 3, len: 5, answer: "EERIE", clue: "Like a foggy graveyard", direction: "down" },
+        { number: 5, row: 0, col: 4, len: 5, answer: "UDALS", clue: "Old Norse freeholders", direction: "down" }
       ];
 
       const numbering = {
         "0-0": 1,
-        "0-2": 2,
-        "1-0": 3,
-        "2-0": 4,
-        "2-3": 5,
-        "3-0": 6,
-        "3-2": 7,
-        "4-0": 8
+        "0-1": 2,
+        "0-2": 3,
+        "0-3": 4,
+        "0-4": 5,
+        "1-0": 6,
+        "2-0": 7,
+        "3-0": 8,
+        "4-0": 9
       };
 
       const keyRows = {
@@ -899,7 +903,7 @@
       }
 
       function makeBragText() {
-        return "I solved BYEWORDS in " + formatTime(seconds) + " 🌁\nBUSES / DEFOG / BEACH / CHINA / SF / AI";
+        return "I solved BYEWORDS in " + formatTime(seconds) + " 🌁\nADIEU / BOOED / ANTRA / SNAIL / EASES / ABASE / DONNA / IOTAS / EERIE / UDALS";
       }
 
       function shareBrag() {
@@ -1007,7 +1011,7 @@
           {
             name: "getWordForCell finds across and down entries",
             run: function () {
-              return getWordForCell(0, 0, "across").answer === "BUSES" && getWordForCell(2, 3, "across").answer === "VC" && getWordForCell(0, 2, "down").answer === "SF";
+              return getWordForCell(0, 0, "across").answer === "ADIEU" && getWordForCell(3, 0, "across").answer === "SNAIL" && getWordForCell(0, 4, "down").answer === "UDALS";
             }
           },
           {
@@ -1017,16 +1021,16 @@
             }
           },
           {
-            name: "black cell detection works",
+            name: "full grid has no black cells",
             run: function () {
-              return isBlackCell(2, 2) === true && isBlackCell(0, 0) === false;
+              return isBlackCell(2, 2) === false && isBlackCell(0, 0) === false;
             }
           },
           {
             name: "preferred clue cell picks first empty cell",
             run: function () {
-              entries[0][0] = "B";
-              entries[0][1] = "U";
+              entries[0][0] = "A";
+              entries[0][1] = "D";
               const preferred = getPreferredCellForWord(words[0]);
               entries[0][0] = "";
               entries[0][1] = "";
@@ -1052,26 +1056,26 @@
             name: "down preferred cell walks vertically",
             run: function () {
               const downWord = words.find(function (word) { return word.direction === "down" && word.number === 2; });
-              entries[0][2] = "S";
+              entries[0][1] = "D";
               const preferred = getPreferredCellForWord(downWord);
-              entries[0][2] = "";
-              return preferred.row === 1 && preferred.col === 2;
+              entries[0][1] = "";
+              return preferred.row === 1 && preferred.col === 1;
             }
           },
           {
             name: "reset selects first preferred cell",
             run: function () {
-              entries[0][0] = "B";
+              entries[0][0] = "A";
               resetGame();
               return selected.row === 0 && selected.col === 0 && entries[0][0] === "";
             }
           },
           {
-            name: "clicking cell can sync to down clue when no across match exists",
+            name: "clicking cell syncs to the matching across clue",
             run: function () {
-              activeClueIndex = 0;
-              syncActiveClueFromCell(0, 2);
-              return getActiveWord().number === 1 || getActiveWord().number === 2;
+              activeClueIndex = 6;
+              syncActiveClueFromCell(3, 0);
+              return getActiveWord().answer === "SNAIL" && getActiveWord().direction === "across";
             }
           }
         ];

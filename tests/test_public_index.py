@@ -4,9 +4,31 @@ import unittest
 
 
 INDEX_HTML = Path(__file__).resolve().parents[1] / "public" / "index.html"
+FAVICON_ICO = Path(__file__).resolve().parents[1] / "public" / "favicon.ico"
 
 
 class TestPublicIndex(unittest.TestCase):
+    def test_document_links_to_favicon(self) -> None:
+        html = INDEX_HTML.read_text(encoding="utf-8")
+
+        self.assertIn('<link rel="icon" href="favicon.ico" sizes="16x16" />', html)
+
+    def test_favicon_file_exists_and_uses_ico_header(self) -> None:
+        icon = FAVICON_ICO.read_bytes()
+
+        self.assertGreater(len(icon), 100)
+        self.assertEqual(icon[:4], b"\x00\x00\x01\x00")
+
+    def test_embedded_demo_puzzle_matches_snail_sample(self) -> None:
+        html = INDEX_HTML.read_text(encoding="utf-8")
+
+        self.assertIn('["A", "D", "I", "E", "U"]', html)
+        self.assertIn('answer: "ADIEU", clue: "Parting word from Paris", direction: "across"', html)
+        self.assertIn('answer: "SNAIL", clue: "Garden crawler with a spiral shell", direction: "across"', html)
+        self.assertIn('answer: "UDALS", clue: "Old Norse freeholders", direction: "down"', html)
+        self.assertIn("ADIEU / BOOED / ANTRA / SNAIL / EASES / ABASE / DONNA / IOTAS / EERIE / UDALS", html)
+        self.assertNotIn('answer: "BUSES"', html)
+
     def test_mobile_layout_fills_dynamic_viewport_height(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
