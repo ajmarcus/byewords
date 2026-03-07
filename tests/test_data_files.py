@@ -1,7 +1,8 @@
 import unittest
 
 from byewords.clue_bank import preferred_clue_words
-from byewords.generate import build_demo_puzzle, load_default_inputs
+from byewords.generate import build_demo_puzzle, generate_puzzle, load_default_inputs
+from byewords.grid import distinct_entries
 
 
 class TestBundledData(unittest.TestCase):
@@ -59,6 +60,18 @@ class TestBundledData(unittest.TestCase):
         for clue in puzzle.down:
             self.assertIn(clue.answer.lower(), clue_bank)
             self.assertTrue(clue.text.strip())
+
+    def test_readme_seed_example_generates_a_puzzle(self) -> None:
+        lexicon_words, related_map, clue_bank = load_default_inputs()
+        seeds = ("ozone", "liven", "inert", "verve", "ester")
+
+        puzzle = generate_puzzle(seeds, lexicon_words, related_map, clue_bank)
+
+        self.assertEqual(puzzle.title, "OZONE Mini")
+        self.assertEqual(len(puzzle.across), 5)
+        self.assertEqual(len(puzzle.down), 5)
+        self.assertTrue(set(seeds).issubset(set(distinct_entries(puzzle.grid))))
+        self.assertEqual(len(set(distinct_entries(puzzle.grid))), 10)
 
 if __name__ == "__main__":
     unittest.main()
