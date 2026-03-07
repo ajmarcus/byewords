@@ -1,6 +1,6 @@
 {
   "abase": [
-    "Humiliate"
+    "Humiliate, as a smug reply guy tries nightly",
   ],
   "actor": [
     "One taking notes from a director"
@@ -32,6 +32,9 @@
   "apple": [
     "Fruit in many lunchboxes"
   ],
+  "audit": [
+    "Financial review"
+  ],
   "badge": [
     "Scout sash attachment"
   ],
@@ -53,9 +56,6 @@
   "bloom": [
     "Flower at its peak"
   ],
-  "buses": [
-    "Public transit vehicles"
-  ],
   "booed": [
     "Responded with jeers"
   ],
@@ -68,6 +68,9 @@
   "brick": [
     "Solid, dependable sort"
   ],
+  "buses": [
+    "Public transit vehicles"
+  ],
   "cabin": [
     "Cozy woods retreat"
   ],
@@ -79,6 +82,9 @@
   ],
   "cello": [
     "Instrument played between the knees"
+  ],
+  "chaos": [
+    "Total mess"
   ],
   "charm": [
     "Magic spell or personal appeal"
@@ -116,6 +122,9 @@
   "coral": [
     "Reef builder"
   ],
+  "court": [
+    "Forum for a legal showdown"
+  ],
   "crane": [
     "Bird with long legs or a construction giant"
   ],
@@ -143,11 +152,14 @@
   "drama": [
     "Stage genre full of tension"
   ],
+  "dream": [
+    "Sleepy vision"
+  ],
   "drink": [
     "Something poured over ice, perhaps"
   ],
-  "dream": [
-    "Sleepy vision"
+  "drone": [
+    "Remote-controlled flier"
   ],
   "eagle": [
     "Bird on many U.S. seals"
@@ -159,16 +171,19 @@
     "Painter's stand"
   ],
   "eases": [
-    "Relieves"
+    "Takes the drama down a notch",
   ],
   "eerie": [
-    "Spooky"
+    "Creepy in a goosebump-forward way",
   ],
-  "esses": [
-    "S-shaped curves"
+  "email": [
+    "Inbox message"
   ],
   "ember": [
     "Glowing bit in a dying fire"
+  ],
+  "esses": [
+    "S-shaped curves"
   ],
   "ethic": [
     "Guiding moral principle"
@@ -236,6 +251,10 @@
   "jewel": [
     "Gem in a setting"
   ],
+  "judge": [
+    "One dropping a ruling the timeline will summarize badly",
+    "Black-robed decider"
+  ],
   "kelps": [
     "Sea forest plants"
   ],
@@ -272,6 +291,10 @@
   "maple": [
     "Tree tapped for syrup"
   ],
+  "march": [
+    "Month for brackets, bagpipes, and fake-spring optimism",
+    "Month after February"
+  ],
   "marsh": [
     "Boggy ground"
   ],
@@ -288,7 +311,8 @@
     "Big-city rail system"
   ],
   "movie": [
-    "Big-screen feature"
+    "Thing everyone becomes unbearable about during awards season",
+    "Film"
   ],
   "music": [
     "Art form with scales and chords"
@@ -300,7 +324,8 @@
     "Book-length work of fiction"
   ],
   "ocean": [
-    "What pounds Ocean Beach"
+    "Big blue thing humanity keeps treating like a suggestion box",
+    "Vast body of salt water"
   ],
   "olive": [
     "Martini garnish"
@@ -310,6 +335,10 @@
   ],
   "orbit": [
     "Path around a planet"
+  ],
+  "oscar": [
+    "Gold guy back in everyone's group chat every March",
+    "Awards-season statuette"
   ],
   "otter": [
     "Playful river mammal"
@@ -321,7 +350,8 @@
     "Black-and-white bamboo eater"
   ],
   "parks": [
-    "Green rooms for a whole city"
+    "Green spaces city budgets love to underfund",
+    "Public green spaces"
   ],
   "pearl": [
     "Gem from an oyster"
@@ -333,7 +363,8 @@
     "Instrument with eighty-eight keys"
   ],
   "piers": [
-    "Waterfront hangout spots with gulls on payroll"
+    "Waterfront stroll spots with gulls and attitude",
+    "Docks for promenades"
   ],
   "pinch": [
     "Small amount, in a recipe"
@@ -347,11 +378,19 @@
   "porch": [
     "Front-of-house perch"
   ],
+  "price": [
+    "Thing every politician swears is about to chill out",
+    "Cost"
+  ],
   "prose": [
     "Writing that's not in verse"
   ],
   "radar": [
     "Tracking system that uses radio waves"
+  ],
+  "rally": [
+    "Campaign stop, or the market's \"we're so back\" act",
+    "Pep gathering"
   ],
   "raven": [
     "Pitch-black bird"
@@ -375,7 +414,8 @@
     "Not city-dwelling"
   ],
   "sandy": [
-    "Like many beach towels by noon"
+    "Like a car floor mat after one \"quick\" beach trip",
+    "Covered with grit"
   ],
   "savor": [
     "Enjoy slowly"
@@ -393,9 +433,11 @@
     "Good judgment"
   ],
   "shell": [
-    "Protective home for a snail"
+    "Beach souvenir with better acoustics than bargain earbuds",
+    "Seashell, maybe"
   ],
   "shore": [
+    "Where the waves keep clocking in",
     "Land by the water"
   ],
   "skiff": [
@@ -405,6 +447,7 @@
     "Goopy stuff"
   ],
   "snail": [
+    "Slow walker carrying its whole rent situation",
     "Slow garden crawler"
   ],
   "solar": [
@@ -417,7 +460,8 @@
     "Cumin or cardamom"
   ],
   "spray": [
-    "Sea mist"
+    "Sea mist or sunscreen, depending on how the day is going",
+    "Mist from a nozzle"
   ],
   "stage": [
     "Place for a spotlight"
@@ -449,14 +493,23 @@
   "tenor": [
     "Voice above baritone"
   ],
+  "tesla": [
+    "EV brand that cannot stay out of the discourse",
+    "Electric-car brand"
+  ],
   "tides": [
-    "Ocean rises and falls"
+    "Moon-run schedule with zero respect for your plans",
+    "Rises and falls of the sea"
   ],
   "toast": [
     "Raise a glass for"
   ],
   "tower": [
     "Skyscraper, often"
+  ],
+  "trade": [
+    "Thing tariff hawks keep body-slamming on TV",
+    "Exchange of goods"
   ],
   "trail": [
     "Path through the woods"
@@ -465,7 +518,12 @@
     "Amtrak offering"
   ],
   "udals": [
+    "Old Norse landholders, for your nightmare trivia round",
     "Old Norse landholdings"
+  ],
+  "union": [
+    "Thing management suddenly calls \"complicated\"",
+    "Collective bargaining group"
   ],
   "urban": [
     "Like city living"
@@ -486,12 +544,14 @@
     "It may be still or sparkling"
   ],
   "waves": [
-    "Ocean rollers"
+    "Beach applause from the planet",
+    "Ocean swells"
   ],
   "whale": [
     "Moby-Dick, for one"
   ],
   "wharf": [
-    "Fisherman's ___"
+    "Pier's smellier, busier cousin",
+    "Dock for cargo or ferries"
   ]
 }

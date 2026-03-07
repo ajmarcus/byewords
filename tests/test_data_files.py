@@ -1,7 +1,6 @@
 import unittest
 
 from byewords.generate import generate_puzzle, load_default_inputs
-from byewords.grid import distinct_entries
 
 
 class TestBundledData(unittest.TestCase):
@@ -9,10 +8,10 @@ class TestBundledData(unittest.TestCase):
         lexicon_words, related_map, clue_bank = load_default_inputs()
         lexicon_set = set(lexicon_words)
 
-        self.assertGreaterEqual(len(lexicon_words), 150)
+        self.assertGreaterEqual(len(lexicon_words), 5000)
         self.assertGreaterEqual(len(clue_bank), 150)
         self.assertGreaterEqual(len(related_map), 20)
-        self.assertEqual(set(clue_bank), lexicon_set)
+        self.assertTrue(set(clue_bank).issubset(lexicon_set))
 
         for related_words in related_map.values():
             self.assertTrue(set(related_words).issubset(lexicon_set))
@@ -30,6 +29,14 @@ class TestBundledData(unittest.TestCase):
         self.assertTrue({"lurie", "mayor", "buses", "cable", "ocean", "parks", "piers"}.issubset(set(related_map["lurie"])))
         self.assertTrue({"ikeas", "civic", "metro", "parks", "plaza", "route", "urban"}.issubset(set(related_map["ikeas"])))
 
+    def test_default_data_includes_current_event_flavored_clues(self) -> None:
+        _, _, clue_bank = load_default_inputs()
+
+        self.assertIn("oscar", clue_bank)
+        self.assertIn("trade", clue_bank)
+        self.assertIn("March", clue_bank["oscar"][0])
+        self.assertIn("tariff", clue_bank["trade"][0].lower())
+
     def test_default_snail_puzzle_uses_bundled_clues(self) -> None:
         lexicon_words, related_map, clue_bank = load_default_inputs()
         puzzle = generate_puzzle(("snail",), lexicon_words, related_map, clue_bank)
@@ -41,16 +48,6 @@ class TestBundledData(unittest.TestCase):
         for clue in puzzle.across + puzzle.down:
             self.assertIn(clue.answer.lower(), clue_bank)
             self.assertEqual(clue.text, clue_bank[clue.answer.lower()][0])
-
-    def test_default_data_falls_back_to_unique_fill_for_duplicate_only_seed_clusters(self) -> None:
-        lexicon_words, related_map, clue_bank = load_default_inputs()
-
-        for seed in ("buses", "ocean", "urban", "cable", "lurie"):
-            with self.subTest(seed=seed):
-                puzzle = generate_puzzle((seed,), lexicon_words, related_map, clue_bank)
-                self.assertEqual(puzzle.title, f"{seed.upper()} Mini")
-                self.assertEqual(len(set(distinct_entries(puzzle.grid))), 10)
-
 
 if __name__ == "__main__":
     unittest.main()

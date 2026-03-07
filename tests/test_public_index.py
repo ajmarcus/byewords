@@ -23,9 +23,9 @@ class TestPublicIndex(unittest.TestCase):
         html = INDEX_HTML.read_text(encoding="utf-8")
 
         self.assertIn('rows: ["ADIEU", "BOOED", "ANTRA", "SNAIL", "EASES"]', html)
-        self.assertIn('"French farewell"', html)
-        self.assertIn('"Slow garden crawler"', html)
-        self.assertIn('"Old Norse landholdings"', html)
+        self.assertIn('"French exit with more flourish than plain bye"', html)
+        self.assertIn('"Slow walker carrying its whole rent situation"', html)
+        self.assertIn('"Old Norse landholders, for your nightmare trivia round"', html)
         self.assertIn('rows: ["ABASE", "DONNA", "IOTAS", "EERIE", "UDALS"]', html)
         self.assertIn("words.map(function (word) {", html)
         self.assertIn('}).join(" / ");', html)

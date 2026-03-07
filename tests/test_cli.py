@@ -18,6 +18,21 @@ class TestCli(unittest.TestCase):
         self.assertIn("Across", output)
         self.assertIn("Down", output)
 
+    def test_cli_returns_error_for_seed_that_is_not_in_the_lexicon(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+
+        with (
+            redirect_stdout(stdout),
+            patch("sys.stderr", stderr),
+            patch("sys.argv", ["byewords", "--seed", "zzzzz"]),
+        ):
+            exit_code = main()
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("bundled 5-letter lexicon", stderr.getvalue())
+
     def test_parse_args_supports_positional_seeds(self) -> None:
         self.assertEqual(parse_args(["snail", "eases"]), ("snail", "eases"))
 

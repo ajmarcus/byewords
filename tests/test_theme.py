@@ -36,6 +36,17 @@ class TestTheme(unittest.TestCase):
 
         self.assertEqual(pool, ("snail", "slime", "eases", "abase"))
 
+    def test_build_candidate_pool_prioritizes_preferred_fill_before_other_neutral_words(self) -> None:
+        pool = build_candidate_pool(
+            ("snail",),
+            ("snail",),
+            ("snail", "abase", "eases", "slime"),
+            allow_neutral_fill=True,
+            preferred_words=("eases",),
+        )
+
+        self.assertEqual(pool, ("snail", "eases", "abase", "slime"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,5 @@
 import argparse
+import sys
 
 from byewords.generate import generate_puzzle, load_default_inputs
 from byewords.render import render_puzzle_text
@@ -32,6 +33,10 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, ...]:
 def main() -> int:
     seeds = parse_args()
     lexicon_words, related_map, clue_bank = load_default_inputs()
-    puzzle = generate_puzzle(seeds, lexicon_words, related_map, clue_bank)
+    try:
+        puzzle = generate_puzzle(seeds, lexicon_words, related_map, clue_bank)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     print(render_puzzle_text(puzzle))
     return 0

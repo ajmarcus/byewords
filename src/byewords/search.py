@@ -20,13 +20,20 @@ def valid_next_rows(
     partial_rows: tuple[str, ...],
     candidate_words: tuple[str, ...],
     prefix_index: dict[str, tuple[str, ...]],
+    fixed_rows: dict[int, str] | None = None,
+    fixed_columns: dict[int, str] | None = None,
 ) -> tuple[str, ...]:
     used_rows = set(partial_rows)
     valid_rows = []
-    for candidate in candidate_words:
+    next_index = len(partial_rows)
+    row_candidates = candidate_words if fixed_rows is None or next_index not in fixed_rows else (fixed_rows[next_index],)
+    for candidate in row_candidates:
         normalized = candidate.lower()
         if normalized in used_rows:
             continue
+        if fixed_columns is not None:
+            if any(normalized[column_index] != fixed_word[next_index] for column_index, fixed_word in fixed_columns.items()):
+                continue
         prefixes = _next_prefixes(partial_rows, normalized)
         if _is_prefix_compatible(prefixes, prefix_index):
             valid_rows.append(normalized)
@@ -38,6 +45,8 @@ def search_grids(
     prefix_index: dict[str, tuple[str, ...]],
     beam_width: int,
     max_candidates: int,
+    fixed_rows: dict[int, str] | None = None,
+    fixed_columns: dict[int, str] | None = None,
 ) -> tuple[Grid, ...]:
     ordered_candidates = tuple(dict.fromkeys(word.lower() for word in candidate_words))
     found_grids: list[Grid] = []
@@ -51,7 +60,13 @@ def search_grids(
                 found_grids.append(grid)
             return
 
-        next_rows = valid_next_rows(partial_rows, ordered_candidates, prefix_index)
+        next_rows = valid_next_rows(
+            partial_rows,
+            ordered_candidates,
+            prefix_index,
+            fixed_rows=fixed_rows,
+            fixed_columns=fixed_columns,
+        )
         for next_row in next_rows[:beam_width]:
             search(partial_rows + (next_row,))
             if len(found_grids) >= max_candidates:

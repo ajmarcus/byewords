@@ -21,7 +21,7 @@ class TestLexicon(unittest.TestCase):
     def test_filter_legal_words_normalizes_and_deduplicates(self) -> None:
         self.assertEqual(
             filter_legal_words(("Snail", "snail", "eases", "toolong", "bad!")),
-            ("eases", "snail"),
+            ("snail", "eases"),
         )
 
     def test_json_loaders_normalize_word_lists(self) -> None:

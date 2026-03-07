@@ -9,7 +9,7 @@ def load_word_list(path: str) -> tuple[str, ...]:
 
 def normalize_word(word: str) -> str | None:
     normalized = word.strip().lower()
-    if len(normalized) != 5 or not normalized.isalpha():
+    if len(normalized) != 5 or not normalized.isascii() or not normalized.isalpha():
         return None
     return normalized
 
@@ -20,7 +20,7 @@ def filter_legal_words(words: tuple[str, ...]) -> tuple[str, ...]:
         normalized = normalize_word(word)
         if normalized is not None:
             legal_words.append(normalized)
-    return tuple(sorted(dict.fromkeys(legal_words)))
+    return tuple(dict.fromkeys(legal_words))
 
 
 def load_related_words(path: str) -> dict[str, tuple[str, ...]]:

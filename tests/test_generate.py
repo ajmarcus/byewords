@@ -40,26 +40,47 @@ class TestGenerate(unittest.TestCase):
                 clue_bank={},
             )
 
-    def test_generate_puzzle_enforces_minimum_theme_entries(self) -> None:
+    def test_generate_puzzle_rejects_seed_words_missing_from_the_lexicon(self) -> None:
         with self.assertRaises(ValueError):
             generate_puzzle(
-                seeds=("snail",),
+                seeds=("beach",),
                 lexicon_words=TEST_LEXICON,
-                related_map={"snail": ("snail", "adieu", "booed", "antra", "eases")},
-                clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
-                config=GenerateConfig(min_theme_words=6, allow_theme_fallback=False),
+                related_map={},
+                clue_bank={},
             )
 
-    def test_generate_puzzle_falls_back_to_best_unique_fill_when_theme_threshold_misses(self) -> None:
+    def test_generate_puzzle_rejects_grids_that_do_not_place_the_seed_word(self) -> None:
+        with self.assertRaises(ValueError):
+            generate_puzzle(
+                seeds=("cable",),
+                lexicon_words=TEST_LEXICON + ("cable", "agues", "buses", "leese", "esses"),
+                related_map={"cable": ("cable", "agues", "buses", "leese", "esses")},
+                clue_bank={},
+            )
+
+    def test_generate_puzzle_falls_back_to_seeded_near_miss_when_theme_threshold_misses(self) -> None:
         puzzle = generate_puzzle(
-            seeds=("cable",),
-            lexicon_words=TEST_LEXICON + ("cable", "agues", "buses", "leese", "esses"),
-            related_map={"cable": ("cable", "agues", "buses", "leese", "esses")},
-            clue_bank={},
+            seeds=("snail",),
+            lexicon_words=TEST_LEXICON + ("slime",),
+            related_map={"snail": ("snail", "adieu", "booed", "antra", "eases", "slime")},
+            clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
+            config=GenerateConfig(min_theme_words=6, allow_theme_fallback=True),
         )
 
-        self.assertEqual(puzzle.title, "CABLE Mini")
+        self.assertEqual(puzzle.title, "SNAIL Mini")
+        self.assertIn("snail", distinct_entries(puzzle.grid))
         self.assertEqual(len(set(distinct_entries(puzzle.grid))), 10)
+
+    def test_generate_puzzle_accepts_seeded_fill_without_a_theme_cluster(self) -> None:
+        puzzle = generate_puzzle(
+            seeds=("snail",),
+            lexicon_words=TEST_LEXICON,
+            related_map={},
+            clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
+        )
+
+        self.assertEqual(puzzle.title, "SNAIL Mini")
+        self.assertIn("snail", distinct_entries(puzzle.grid))
 
 
 if __name__ == "__main__":

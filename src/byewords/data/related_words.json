@@ -213,6 +213,14 @@
     "parks",
     "piers"
   ],
+  "oscar": [
+    "oscar",
+    "actor",
+    "drama",
+    "movie",
+    "scene",
+    "story"
+  ],
   "parks": [
     "parks",
     "beach",
@@ -277,6 +285,16 @@
     "latte",
     "melon",
     "sugar"
+  ],
+  "trade": [
+    "trade",
+    "price",
+    "court",
+    "judge",
+    "union",
+    "rally",
+    "chaos",
+    "email"
   ],
   "urban": [
     "urban",
