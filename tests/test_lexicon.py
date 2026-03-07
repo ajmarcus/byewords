@@ -29,10 +29,10 @@ class TestLexicon(unittest.TestCase):
             related_path = Path(directory, "related.json")
             clue_path = Path(directory, "clues.json")
             related_path.write_text(json.dumps({"Snail": ["Slime", "trail", "bad!"]}), encoding="utf-8")
-            clue_path.write_text(json.dumps({"Snail": ["Garden crawler with a spiral shell"]}), encoding="utf-8")
+            clue_path.write_text(json.dumps({"Snail": ["Mollusk hauling its studio apartment"]}), encoding="utf-8")
 
             self.assertEqual(load_related_words(str(related_path)), {"snail": ("slime", "trail")})
-            self.assertEqual(load_clue_bank(str(clue_path)), {"snail": ("Garden crawler with a spiral shell",)})
+            self.assertEqual(load_clue_bank(str(clue_path)), {"snail": ("Mollusk hauling its studio apartment",)})
 
 
 if __name__ == "__main__":

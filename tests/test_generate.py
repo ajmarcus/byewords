@@ -11,14 +11,14 @@ class TestGenerate(unittest.TestCase):
             seeds=("snail",),
             lexicon_words=TEST_LEXICON,
             related_map={"snail": ("snail", "adieu", "booed", "antra", "eases")},
-            clue_bank={"snail": ("Garden crawler with a spiral shell",)},
+            clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
         )
 
         self.assertEqual(puzzle.title, "SNAIL Mini")
         self.assertEqual(len(puzzle.across), 5)
         self.assertEqual(len(puzzle.down), 5)
         self.assertEqual(puzzle.grid.rows[3], "snail")
-        self.assertEqual(puzzle.across[3].text, "Garden crawler with a spiral shell")
+        self.assertEqual(puzzle.across[3].text, "Mollusk hauling its studio apartment")
 
     def test_generate_puzzle_raises_on_impossible_input(self) -> None:
         with self.assertRaises(ValueError):
@@ -26,7 +26,7 @@ class TestGenerate(unittest.TestCase):
                 seeds=("snail",),
                 lexicon_words=("snail", "abase"),
                 related_map={"snail": ("snail",)},
-                clue_bank={"snail": ("Garden crawler with a spiral shell",)},
+                clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
             )
 
     def test_generate_puzzle_rejects_seeds_without_enough_theme_words(self) -> None:
@@ -44,7 +44,7 @@ class TestGenerate(unittest.TestCase):
                 seeds=("snail",),
                 lexicon_words=TEST_LEXICON,
                 related_map={"snail": ("snail", "adieu", "booed", "antra", "eases")},
-                clue_bank={"snail": ("Garden crawler with a spiral shell",)},
+                clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
                 config=GenerateConfig(min_theme_words=6),
             )
 

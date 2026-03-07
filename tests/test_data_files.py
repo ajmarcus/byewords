@@ -24,9 +24,9 @@ class TestBundledData(unittest.TestCase):
         expected_words = {"buses", "cable", "ikeas", "lurie", "mayor", "parks", "piers"}
         self.assertTrue(expected_words.issubset(lexicon_set))
         self.assertTrue(expected_words.issubset(set(clue_bank)))
-        self.assertEqual(clue_bank["lurie"][0], "Daniel, San Francisco's 46th mayor")
-        self.assertEqual(clue_bank["buses"][0], "Many Muni vehicles")
-        self.assertEqual(clue_bank["ikeas"][0], "San Francisco and Emeryville furniture stores")
+        self.assertEqual(clue_bank["lurie"][0], "Daniel who got the San Francisco mayor keys in 2022")
+        self.assertEqual(clue_bank["buses"][0], "Muni rides in a herd")
+        self.assertEqual(clue_bank["ikeas"][0], "Bay Area furniture mazes with cinnamon buns")
         self.assertTrue({"lurie", "mayor", "buses", "cable", "ocean", "parks", "piers"}.issubset(set(related_map["lurie"])))
         self.assertTrue({"ikeas", "civic", "metro", "parks", "plaza", "route", "urban"}.issubset(set(related_map["ikeas"])))
 
@@ -55,9 +55,9 @@ class TestBundledData(unittest.TestCase):
                     sum(entry in set(puzzle.theme_words) for entry in distinct_entries(puzzle.grid)),
                     4,
                 )
-                self.assertEqual(puzzle.across[1].text, "Feverish chills")
-                self.assertEqual(puzzle.across[3].text, "Archaic verb meaning lose")
-                self.assertEqual(puzzle.across[4].text, "Plural of the letter S")
+                self.assertEqual(puzzle.across[1].text, "Vintage fever shakes")
+                self.assertEqual(puzzle.across[3].text, "Lose, if your dictionary wears lace cuffs")
+                self.assertEqual(puzzle.across[4].text, "Curves with strong main-character energy")
 
 
 if __name__ == "__main__":
