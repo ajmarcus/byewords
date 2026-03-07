@@ -63,14 +63,19 @@ class TestPublicIndex(unittest.TestCase):
     def test_rotation_logic_advances_puzzles_on_load_and_finish(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
+        self.assertIn("function normalizePuzzleIndex(index) {", html)
         self.assertIn("function takeNextPuzzleIndex() {", html)
         self.assertIn("window.localStorage.getItem(PUZZLE_CURSOR_KEY)", html)
         self.assertIn("writePuzzleCursor((nextIndex + 1) % puzzles.length);", html)
         self.assertIn("function queueNextPuzzle() {", html)
+        self.assertIn("const storedIndex = readPuzzleCursor();", html)
+        self.assertIn("writePuzzleCursor(nextIndex);", html)
         self.assertIn("queueNextPuzzle();", html)
+        self.assertIn("writePuzzleCursor((activePuzzleIndex + 1) % puzzles.length);", html)
         self.assertIn("activatePuzzle(takeNextPuzzleIndex());", html)
         self.assertIn("if (pendingPuzzleIndex !== null) {", html)
         self.assertIn("activatePuzzle(pendingPuzzleIndex);", html)
+        self.assertIn("queued puzzle stays aligned with stored cursor until reset", html)
 
     def test_mobile_layout_fills_dynamic_viewport_height(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")

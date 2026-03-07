@@ -699,11 +699,15 @@
         }
       }
 
+      function normalizePuzzleIndex(index) {
+        return ((index % puzzles.length) + puzzles.length) % puzzles.length;
+      }
+
       function takeNextPuzzleIndex() {
         const storedIndex = readPuzzleCursor();
         const nextIndex = storedIndex === null
           ? Math.floor(Math.random() * puzzles.length)
-          : ((storedIndex % puzzles.length) + puzzles.length) % puzzles.length;
+          : normalizePuzzleIndex(storedIndex);
         writePuzzleCursor((nextIndex + 1) % puzzles.length);
         return nextIndex;
       }
@@ -714,12 +718,15 @@
           return;
         }
 
-        let nextIndex = takeNextPuzzleIndex();
+        const storedIndex = readPuzzleCursor();
+        let nextIndex = storedIndex === null
+          ? (activePuzzleIndex + 1) % puzzles.length
+          : normalizePuzzleIndex(storedIndex);
         if (nextIndex === activePuzzleIndex) {
           nextIndex = (activePuzzleIndex + 1) % puzzles.length;
-          writePuzzleCursor((nextIndex + 1) % puzzles.length);
         }
         pendingPuzzleIndex = nextIndex;
+        writePuzzleCursor(nextIndex);
       }
 
       function isBlackCell(row, col) {
@@ -992,6 +999,7 @@
       function resetGame() {
         if (pendingPuzzleIndex !== null) {
           activatePuzzle(pendingPuzzleIndex);
+          writePuzzleCursor((activePuzzleIndex + 1) % puzzles.length);
           pendingPuzzleIndex = null;
         }
         for (let r = 0; r < 5; r += 1) {
@@ -1186,6 +1194,35 @@
               entries[0][0] = "A";
               resetGame();
               return selected.row === 0 && selected.col === 0 && entries[0][0] === "";
+            }
+          },
+          {
+            name: "queued puzzle stays aligned with stored cursor until reset",
+            run: function () {
+              if (puzzles.length < 2) return true;
+              const originalActivePuzzleIndex = activePuzzleIndex;
+              const originalPendingPuzzleIndex = pendingPuzzleIndex;
+              const originalCursor = readPuzzleCursor();
+              activePuzzleIndex = 0;
+              pendingPuzzleIndex = null;
+              writePuzzleCursor(1);
+              queueNextPuzzle();
+              const queuedOkay = pendingPuzzleIndex === 1 && readPuzzleCursor() === 1;
+              resetGame();
+              const resetOkay = activePuzzleIndex === 1 && readPuzzleCursor() === 0;
+              activePuzzleIndex = originalActivePuzzleIndex;
+              pendingPuzzleIndex = originalPendingPuzzleIndex;
+              if (originalCursor === null) {
+                try {
+                  window.localStorage.removeItem(PUZZLE_CURSOR_KEY);
+                } catch (error) {
+                  // Ignore storage cleanup failures in smoke tests.
+                }
+              } else {
+                writePuzzleCursor(originalCursor);
+              }
+              activatePuzzle(originalActivePuzzleIndex);
+              return queuedOkay && resetOkay;
             }
           },
           {

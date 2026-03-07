@@ -66,9 +66,10 @@ def generate_puzzle(
         for candidate in ranked
         if _theme_entry_count(candidate.grid, theme_word_set) >= config.min_theme_words
     )
-    if not qualified:
+    chosen = qualified[0] if qualified else (ranked[0] if ranked and config.allow_theme_fallback else None)
+    if chosen is None:
         raise ValueError("unable to generate a valid 5x5 puzzle from the provided seeds")
-    best_grid = qualified[0].grid
+    best_grid = chosen.grid
     used_clues: set[str] = set()
     across = make_across_clues(best_grid, clue_bank, used_clues)
     down = make_down_clues(best_grid, clue_bank, used_clues)

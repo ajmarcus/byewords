@@ -47,17 +47,19 @@ class TestGenerate(unittest.TestCase):
                 lexicon_words=TEST_LEXICON,
                 related_map={"snail": ("snail", "adieu", "booed", "antra", "eases")},
                 clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
-                config=GenerateConfig(min_theme_words=6),
+                config=GenerateConfig(min_theme_words=6, allow_theme_fallback=False),
             )
 
-    def test_generate_puzzle_rejects_duplicate_only_fill(self) -> None:
-        with self.assertRaises(ValueError):
-            generate_puzzle(
-                seeds=("cable",),
-                lexicon_words=("cable", "agues", "buses", "leese", "esses"),
-                related_map={"cable": ("cable", "agues", "buses", "leese", "esses")},
-                clue_bank={},
-            )
+    def test_generate_puzzle_falls_back_to_best_unique_fill_when_theme_threshold_misses(self) -> None:
+        puzzle = generate_puzzle(
+            seeds=("cable",),
+            lexicon_words=TEST_LEXICON + ("cable", "agues", "buses", "leese", "esses"),
+            related_map={"cable": ("cable", "agues", "buses", "leese", "esses")},
+            clue_bank={},
+        )
+
+        self.assertEqual(puzzle.title, "CABLE Mini")
+        self.assertEqual(len(set(distinct_entries(puzzle.grid))), 10)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 import unittest
 
 from byewords.generate import generate_puzzle, load_default_inputs
+from byewords.grid import distinct_entries
 
 
 class TestBundledData(unittest.TestCase):
@@ -41,13 +42,14 @@ class TestBundledData(unittest.TestCase):
             self.assertIn(clue.answer.lower(), clue_bank)
             self.assertEqual(clue.text, clue_bank[clue.answer.lower()][0])
 
-    def test_default_data_rejects_cable_cluster_seeds_that_only_fit_with_duplicates(self) -> None:
+    def test_default_data_falls_back_to_unique_fill_for_duplicate_only_seed_clusters(self) -> None:
         lexicon_words, related_map, clue_bank = load_default_inputs()
 
-        for seed in ("cable", "lurie"):
+        for seed in ("buses", "ocean", "urban", "cable", "lurie"):
             with self.subTest(seed=seed):
-                with self.assertRaises(ValueError):
-                    generate_puzzle((seed,), lexicon_words, related_map, clue_bank)
+                puzzle = generate_puzzle((seed,), lexicon_words, related_map, clue_bank)
+                self.assertEqual(puzzle.title, f"{seed.upper()} Mini")
+                self.assertEqual(len(set(distinct_entries(puzzle.grid))), 10)
 
 
 if __name__ == "__main__":

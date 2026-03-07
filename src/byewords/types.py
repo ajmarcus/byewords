@@ -48,4 +48,5 @@ class GenerateConfig:
     beam_width: int = 100
     min_theme_words: int = 4
     allow_neutral_fill: bool = True
+    allow_theme_fallback: bool = True
     random_seed: int = 0
