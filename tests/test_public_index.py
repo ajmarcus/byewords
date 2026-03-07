@@ -30,10 +30,10 @@ class TestPublicIndex(unittest.TestCase):
         self.assertIn("words.map(function (word) {", html)
         self.assertIn('}).join(" / ");', html)
 
-    def test_embedded_puzzle_bank_has_two_full_grids(self) -> None:
+    def test_embedded_puzzle_bank_has_ten_full_grids(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
-        self.assertEqual(len(re.findall(r'rows: \["[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}"\]', html)), 2)
+        self.assertEqual(len(re.findall(r'rows: \["[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}"\]', html)), 10)
         self.assertIn("const puzzles = [", html)
         self.assertIn('const PUZZLE_CURSOR_KEY = "byewords-puzzle-cursor-v1";', html)
 
@@ -45,14 +45,14 @@ class TestPublicIndex(unittest.TestCase):
         for block in clue_blocks:
             clues.extend(re.findall(r'"([^"]+)"', block))
 
-        self.assertEqual(len(clues), 20)
+        self.assertEqual(len(clues), 100)
         self.assertEqual(len(clues), len(set(clues)))
 
     def test_embedded_puzzle_bank_uses_unique_entries_per_board(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
         boards = re.findall(r'rows: \["([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})"\]', html)
-        self.assertEqual(len(boards), 2)
+        self.assertEqual(len(boards), 10)
 
         for rows in boards:
             columns = tuple("".join(row[index] for row in rows) for index in range(5))
