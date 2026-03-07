@@ -1,6 +1,6 @@
 from typing import cast
 
-from byewords.grid import GRID_SIZE, grid_columns, make_grid, partial_column_prefixes
+from byewords.grid import GRID_SIZE, grid_columns, has_unique_entries, make_grid, partial_column_prefixes
 from byewords.prefixes import has_prefix, words_with_prefix
 from byewords.types import Grid
 
@@ -47,7 +47,7 @@ def search_grids(
             return
         if len(partial_rows) == GRID_SIZE:
             grid = make_grid(cast(tuple[str, str, str, str, str], partial_rows))
-            if all(column in words_with_prefix(prefix_index, column) for column in grid_columns(grid)):
+            if has_unique_entries(grid) and all(column in words_with_prefix(prefix_index, column) for column in grid_columns(grid)):
                 found_grids.append(grid)
             return
 

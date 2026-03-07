@@ -69,8 +69,9 @@ def generate_puzzle(
     if not qualified:
         raise ValueError("unable to generate a valid 5x5 puzzle from the provided seeds")
     best_grid = qualified[0].grid
-    across = make_across_clues(best_grid, clue_bank)
-    down = make_down_clues(best_grid, clue_bank)
+    used_clues: set[str] = set()
+    across = make_across_clues(best_grid, clue_bank, used_clues)
+    down = make_down_clues(best_grid, clue_bank, used_clues)
     title_seed = _select_title_seed(normalized_seeds, theme_words).upper()
     return Puzzle(
         grid=best_grid,

@@ -1,7 +1,6 @@
 import unittest
 
 from byewords.generate import generate_puzzle, load_default_inputs
-from byewords.grid import distinct_entries
 
 
 class TestBundledData(unittest.TestCase):
@@ -25,7 +24,7 @@ class TestBundledData(unittest.TestCase):
         self.assertTrue(expected_words.issubset(lexicon_set))
         self.assertTrue(expected_words.issubset(set(clue_bank)))
         self.assertEqual(clue_bank["lurie"][0], "Daniel who got the San Francisco mayor keys in 2022")
-        self.assertEqual(clue_bank["buses"][0], "Muni rides in a herd")
+        self.assertEqual(clue_bank["buses"][0], "Public transit vehicles")
         self.assertEqual(clue_bank["ikeas"][0], "Bay Area furniture mazes with cinnamon buns")
         self.assertTrue({"lurie", "mayor", "buses", "cable", "ocean", "parks", "piers"}.issubset(set(related_map["lurie"])))
         self.assertTrue({"ikeas", "civic", "metro", "parks", "plaza", "route", "urban"}.issubset(set(related_map["ikeas"])))
@@ -42,22 +41,13 @@ class TestBundledData(unittest.TestCase):
             self.assertIn(clue.answer.lower(), clue_bank)
             self.assertEqual(clue.text, clue_bank[clue.answer.lower()][0])
 
-    def test_default_data_supports_cable_cluster_seeds(self) -> None:
+    def test_default_data_rejects_cable_cluster_seeds_that_only_fit_with_duplicates(self) -> None:
         lexicon_words, related_map, clue_bank = load_default_inputs()
 
-        for seed, title in (("cable", "CABLE Mini"), ("lurie", "LURIE Mini")):
+        for seed in ("cable", "lurie"):
             with self.subTest(seed=seed):
-                puzzle = generate_puzzle((seed,), lexicon_words, related_map, clue_bank)
-
-                self.assertEqual(puzzle.title, title)
-                self.assertEqual(puzzle.grid.rows, ("cable", "agues", "buses", "leese", "esses"))
-                self.assertGreaterEqual(
-                    sum(entry in set(puzzle.theme_words) for entry in distinct_entries(puzzle.grid)),
-                    4,
-                )
-                self.assertEqual(puzzle.across[1].text, "Vintage fever shakes")
-                self.assertEqual(puzzle.across[3].text, "Lose, if your dictionary wears lace cuffs")
-                self.assertEqual(puzzle.across[4].text, "Curves with strong main-character energy")
+                with self.assertRaises(ValueError):
+                    generate_puzzle((seed,), lexicon_words, related_map, clue_bank)
 
 
 if __name__ == "__main__":

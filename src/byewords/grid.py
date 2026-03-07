@@ -41,11 +41,16 @@ def partial_column_prefixes(rows: tuple[str, ...]) -> tuple[str, str, str, str, 
 
 def is_full_grid_valid(grid: Grid, lexicon_set: set[str]) -> bool:
     entries = distinct_entries(grid)
-    return all(entry in lexicon_set for entry in entries)
+    return len(set(entries)) == len(entries) and all(entry in lexicon_set for entry in entries)
 
 
 def distinct_entries(grid: Grid) -> tuple[str, ...]:
     return grid.rows + grid_columns(grid)
+
+
+def has_unique_entries(grid: Grid) -> bool:
+    entries = distinct_entries(grid)
+    return len(set(entries)) == len(entries)
 
 
 def slot_numbers() -> tuple[int, int, int, int, int]:

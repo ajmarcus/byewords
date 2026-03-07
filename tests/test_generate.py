@@ -1,6 +1,7 @@
 import unittest
 
 from byewords.generate import generate_puzzle
+from byewords.grid import distinct_entries
 from byewords.types import GenerateConfig
 from tests.fixtures import TEST_LEXICON
 
@@ -19,6 +20,7 @@ class TestGenerate(unittest.TestCase):
         self.assertEqual(len(puzzle.down), 5)
         self.assertEqual(puzzle.grid.rows[3], "snail")
         self.assertEqual(puzzle.across[3].text, "Mollusk hauling its studio apartment")
+        self.assertEqual(len(set(distinct_entries(puzzle.grid))), 10)
 
     def test_generate_puzzle_raises_on_impossible_input(self) -> None:
         with self.assertRaises(ValueError):
@@ -46,6 +48,15 @@ class TestGenerate(unittest.TestCase):
                 related_map={"snail": ("snail", "adieu", "booed", "antra", "eases")},
                 clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
                 config=GenerateConfig(min_theme_words=6),
+            )
+
+    def test_generate_puzzle_rejects_duplicate_only_fill(self) -> None:
+        with self.assertRaises(ValueError):
+            generate_puzzle(
+                seeds=("cable",),
+                lexicon_words=("cable", "agues", "buses", "leese", "esses"),
+                related_map={"cable": ("cable", "agues", "buses", "leese", "esses")},
+                clue_bank={},
             )
 
 

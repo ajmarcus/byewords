@@ -23,21 +23,21 @@ class TestPublicIndex(unittest.TestCase):
         html = INDEX_HTML.read_text(encoding="utf-8")
 
         self.assertIn('rows: ["ADIEU", "BOOED", "ANTRA", "SNAIL", "EASES"]', html)
-        self.assertIn('"French goodbye with a little wrist flick"', html)
-        self.assertIn('"Mollusk hauling its studio apartment"', html)
-        self.assertIn('"Norse freeholders from the deep-cut history round"', html)
-        self.assertIn('rows: ["CABLE", "AGUES", "BUSES", "LEESE", "ESSES"]', html)
+        self.assertIn('"French farewell"', html)
+        self.assertIn('"Slow garden crawler"', html)
+        self.assertIn('"Old Norse landholdings"', html)
+        self.assertIn('rows: ["ABASE", "DONNA", "IOTAS", "EERIE", "UDALS"]', html)
         self.assertIn("words.map(function (word) {", html)
         self.assertIn('}).join(" / ");', html)
 
-    def test_embedded_puzzle_bank_has_eleven_full_grids(self) -> None:
+    def test_embedded_puzzle_bank_has_two_full_grids(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
-        self.assertEqual(len(re.findall(r'rows: \["[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}"\]', html)), 11)
+        self.assertEqual(len(re.findall(r'rows: \["[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}"\]', html)), 2)
         self.assertIn("const puzzles = [", html)
         self.assertIn('const PUZZLE_CURSOR_KEY = "byewords-puzzle-cursor-v1";', html)
 
-    def test_embedded_puzzle_bank_never_reuses_clue_text(self) -> None:
+    def test_embedded_puzzle_bank_never_repeats_clue_text(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
         clue_blocks = re.findall(r'(?:acrossClues|downClues): \[(.*?)\]', html, re.S)
@@ -45,8 +45,20 @@ class TestPublicIndex(unittest.TestCase):
         for block in clue_blocks:
             clues.extend(re.findall(r'"([^"]+)"', block))
 
-        self.assertEqual(len(clues), 110)
+        self.assertEqual(len(clues), 20)
         self.assertEqual(len(clues), len(set(clues)))
+
+    def test_embedded_puzzle_bank_uses_unique_entries_per_board(self) -> None:
+        html = INDEX_HTML.read_text(encoding="utf-8")
+
+        boards = re.findall(r'rows: \["([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})"\]', html)
+        self.assertEqual(len(boards), 2)
+
+        for rows in boards:
+            columns = tuple("".join(row[index] for row in rows) for index in range(5))
+            entries = rows + columns
+            self.assertEqual(len(entries), 10)
+            self.assertEqual(len(set(entries)), 10)
 
     def test_rotation_logic_advances_puzzles_on_load_and_finish(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")

@@ -29,7 +29,17 @@ class TestClues(unittest.TestCase):
             clue_bank={},
         )
 
-        self.assertEqual(clue.text, "Word with a repeated letter")
+        self.assertEqual(clue.text, "Entry that starts with A and ends with E and has a repeated letter")
+
+    def test_make_clues_picks_an_unused_variant_when_answer_repeats(self) -> None:
+        grid = make_grid(("cable", "agues", "buses", "leese", "esses"))
+        used_texts: set[str] = set()
+
+        across = make_across_clues(grid, {"cable": ("San Francisco streetcar",)}, used_texts)
+        down = make_down_clues(grid, {"cable": ("San Francisco streetcar",)}, used_texts)
+
+        self.assertEqual(across[0].text, "San Francisco streetcar")
+        self.assertEqual(down[0].text, "Entry that starts with C and ends with E")
 
 
 if __name__ == "__main__":

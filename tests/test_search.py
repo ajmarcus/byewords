@@ -42,20 +42,19 @@ class TestSearch(unittest.TestCase):
             (),
         )
 
-    def test_search_grids_allows_reused_across_and_down_entries(self) -> None:
+    def test_search_grids_rejects_duplicate_entries_across_and_down(self) -> None:
         candidate_words = ("cable", "agues", "buses", "leese", "esses")
         prefix_index = build_prefix_index(candidate_words)
 
-        grids = search_grids(
-            candidate_words=candidate_words,
-            prefix_index=prefix_index,
-            beam_width=10,
-            max_candidates=5,
+        self.assertEqual(
+            search_grids(
+                candidate_words=candidate_words,
+                prefix_index=prefix_index,
+                beam_width=10,
+                max_candidates=5,
+            ),
+            (),
         )
-
-        self.assertEqual(len(grids), 1)
-        self.assertEqual(grids[0].rows, candidate_words)
-        self.assertEqual(grid_columns(grids[0]), candidate_words)
 
 
 if __name__ == "__main__":
