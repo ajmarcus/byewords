@@ -724,8 +724,6 @@
         }
       ];
 
-      const PUZZLE_CURSOR_KEY = "byewords-puzzle-cursor-v1";
-
       const numbering = {
         "0-0": 1,
         "0-1": 2,
@@ -816,53 +814,28 @@
         words = buildWords(puzzles[index]);
       }
 
-      function readPuzzleCursor() {
-        try {
-          const raw = window.localStorage.getItem(PUZZLE_CURSOR_KEY);
-          if (raw === null) return null;
-          const parsed = Number.parseInt(raw, 10);
-          return Number.isNaN(parsed) ? null : parsed;
-        } catch (error) {
-          return null;
-        }
-      }
-
-      function writePuzzleCursor(index) {
-        try {
-          window.localStorage.setItem(PUZZLE_CURSOR_KEY, String(index));
-        } catch (error) {
-          return;
-        }
-      }
-
       function normalizePuzzleIndex(index) {
         return ((index % puzzles.length) + puzzles.length) % puzzles.length;
       }
 
-      function takeNextPuzzleIndex() {
-        const storedIndex = readPuzzleCursor();
-        const nextIndex = storedIndex === null
-          ? Math.floor(Math.random() * puzzles.length)
-          : normalizePuzzleIndex(storedIndex);
-        writePuzzleCursor((nextIndex + 1) % puzzles.length);
-        return nextIndex;
+      function pickPuzzleIndex(randomValue) {
+        return Math.min(puzzles.length - 1, Math.floor(randomValue * puzzles.length));
+      }
+
+      function randomPuzzleIndex() {
+        return pickPuzzleIndex(Math.random());
+      }
+
+      function pickNextPuzzleIndex(currentIndex, randomValue) {
+        if (puzzles.length < 2) {
+          return normalizePuzzleIndex(currentIndex);
+        }
+        const offset = Math.floor(randomValue * (puzzles.length - 1)) + 1;
+        return (normalizePuzzleIndex(currentIndex) + offset) % puzzles.length;
       }
 
       function queueNextPuzzle() {
-        if (puzzles.length < 2) {
-          pendingPuzzleIndex = activePuzzleIndex;
-          return;
-        }
-
-        const storedIndex = readPuzzleCursor();
-        let nextIndex = storedIndex === null
-          ? (activePuzzleIndex + 1) % puzzles.length
-          : normalizePuzzleIndex(storedIndex);
-        if (nextIndex === activePuzzleIndex) {
-          nextIndex = (activePuzzleIndex + 1) % puzzles.length;
-        }
-        pendingPuzzleIndex = nextIndex;
-        writePuzzleCursor(nextIndex);
+        pendingPuzzleIndex = pickNextPuzzleIndex(activePuzzleIndex, Math.random());
       }
 
       function isBlackCell(row, col) {
@@ -1135,7 +1108,6 @@
       function resetGame() {
         if (pendingPuzzleIndex !== null) {
           activatePuzzle(pendingPuzzleIndex);
-          writePuzzleCursor((activePuzzleIndex + 1) % puzzles.length);
           pendingPuzzleIndex = null;
         }
         for (let r = 0; r < 5; r += 1) {
@@ -1333,32 +1305,34 @@
             }
           },
           {
-            name: "queued puzzle stays aligned with stored cursor until reset",
+            name: "pickPuzzleIndex covers the full puzzle bank",
+            run: function () {
+              return pickPuzzleIndex(0) === 0
+                && pickPuzzleIndex(0.999999) === puzzles.length - 1;
+            }
+          },
+          {
+            name: "pickNextPuzzleIndex never repeats the active puzzle",
+            run: function () {
+              if (puzzles.length < 2) return pickNextPuzzleIndex(0, 0.5) === 0;
+              return pickNextPuzzleIndex(0, 0) === 1
+                && pickNextPuzzleIndex(2, 0.999999) !== 2;
+            }
+          },
+          {
+            name: "reset swaps in the queued puzzle",
             run: function () {
               if (puzzles.length < 2) return true;
               const originalActivePuzzleIndex = activePuzzleIndex;
               const originalPendingPuzzleIndex = pendingPuzzleIndex;
-              const originalCursor = readPuzzleCursor();
               activePuzzleIndex = 0;
-              pendingPuzzleIndex = null;
-              writePuzzleCursor(1);
-              queueNextPuzzle();
-              const queuedOkay = pendingPuzzleIndex === 1 && readPuzzleCursor() === 1;
+              pendingPuzzleIndex = 1;
               resetGame();
-              const resetOkay = activePuzzleIndex === 1 && readPuzzleCursor() === 0;
+              const resetOkay = activePuzzleIndex === 1 && pendingPuzzleIndex === null;
               activePuzzleIndex = originalActivePuzzleIndex;
               pendingPuzzleIndex = originalPendingPuzzleIndex;
-              if (originalCursor === null) {
-                try {
-                  window.localStorage.removeItem(PUZZLE_CURSOR_KEY);
-                } catch (error) {
-                  // Ignore storage cleanup failures in smoke tests.
-                }
-              } else {
-                writePuzzleCursor(originalCursor);
-              }
               activatePuzzle(originalActivePuzzleIndex);
-              return queuedOkay && resetOkay;
+              return resetOkay;
             }
           },
           {
@@ -1380,7 +1354,7 @@
         });
       }
 
-      activatePuzzle(takeNextPuzzleIndex());
+      activatePuzzle(randomPuzzleIndex());
       selected = getPreferredCellForWord(words[0]);
       makeKeyboardRow("row-top", keyRows.top);
       makeKeyboardRow("row-middle", keyRows.middle);

@@ -35,7 +35,7 @@ class TestPublicIndex(unittest.TestCase):
 
         self.assertEqual(len(re.findall(r'rows: \["[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}"\]', html)), 10)
         self.assertIn("const puzzles = [", html)
-        self.assertIn('const PUZZLE_CURSOR_KEY = "byewords-puzzle-cursor-v1";', html)
+        self.assertIn("function randomPuzzleIndex() {", html)
 
     def test_embedded_puzzle_bank_never_repeats_clue_text(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
@@ -60,22 +60,28 @@ class TestPublicIndex(unittest.TestCase):
             self.assertEqual(len(entries), 10)
             self.assertEqual(len(set(entries)), 10)
 
-    def test_rotation_logic_advances_puzzles_on_load_and_finish(self) -> None:
+    def test_random_selection_logic_uses_no_persistent_cursor(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
         self.assertIn("function normalizePuzzleIndex(index) {", html)
-        self.assertIn("function takeNextPuzzleIndex() {", html)
-        self.assertIn("window.localStorage.getItem(PUZZLE_CURSOR_KEY)", html)
-        self.assertIn("writePuzzleCursor((nextIndex + 1) % puzzles.length);", html)
+        self.assertIn("function pickPuzzleIndex(randomValue) {", html)
+        self.assertIn("Math.floor(randomValue * puzzles.length)", html)
+        self.assertIn("function randomPuzzleIndex() {", html)
+        self.assertIn("return pickPuzzleIndex(Math.random());", html)
+        self.assertIn("function pickNextPuzzleIndex(currentIndex, randomValue) {", html)
+        self.assertIn("const offset = Math.floor(randomValue * (puzzles.length - 1)) + 1;", html)
         self.assertIn("function queueNextPuzzle() {", html)
-        self.assertIn("const storedIndex = readPuzzleCursor();", html)
-        self.assertIn("writePuzzleCursor(nextIndex);", html)
+        self.assertIn("pendingPuzzleIndex = pickNextPuzzleIndex(activePuzzleIndex, Math.random());", html)
         self.assertIn("queueNextPuzzle();", html)
-        self.assertIn("writePuzzleCursor((activePuzzleIndex + 1) % puzzles.length);", html)
-        self.assertIn("activatePuzzle(takeNextPuzzleIndex());", html)
+        self.assertIn("activatePuzzle(randomPuzzleIndex());", html)
         self.assertIn("if (pendingPuzzleIndex !== null) {", html)
         self.assertIn("activatePuzzle(pendingPuzzleIndex);", html)
-        self.assertIn("queued puzzle stays aligned with stored cursor until reset", html)
+        self.assertIn("pickPuzzleIndex covers the full puzzle bank", html)
+        self.assertIn("pickNextPuzzleIndex never repeats the active puzzle", html)
+        self.assertIn("reset swaps in the queued puzzle", html)
+        self.assertNotIn("window.localStorage.getItem", html)
+        self.assertNotIn("window.localStorage.setItem", html)
+        self.assertNotIn("PUZZLE_CURSOR_KEY", html)
 
     def test_mobile_layout_fills_dynamic_viewport_height(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
