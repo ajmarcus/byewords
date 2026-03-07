@@ -1,13 +1,16 @@
 from importlib import resources
 
+from byewords.clue_bank import preferred_clue_words
 from byewords.clues import make_across_clues, make_down_clues
-from byewords.grid import distinct_entries
+from byewords.grid import distinct_entries, make_grid
 from byewords.lexicon import load_clue_bank, load_related_words, load_word_list
 from byewords.prefixes import build_prefix_index
 from byewords.score import rank_grids
 from byewords.search import search_grids
 from byewords.theme import build_candidate_pool, expand_theme_words, normalize_seeds
 from byewords.types import GenerateConfig, Grid, Puzzle
+
+DEFAULT_DEMO_ROWS = ("water", "alive", "tides", "event", "rests")
 
 
 def _data_path(filename: str) -> str:
@@ -19,6 +22,23 @@ def load_default_inputs() -> tuple[tuple[str, ...], dict[str, tuple[str, ...]], 
     related_words = load_related_words(_data_path("related_words.json"))
     clue_bank = load_clue_bank(_data_path("clue_bank.json"))
     return lexicon_words, related_words, clue_bank
+
+
+def build_demo_puzzle(
+    related_map: dict[str, tuple[str, ...]],
+    clue_bank: dict[str, tuple[str, ...]],
+) -> Puzzle:
+    grid = make_grid(DEFAULT_DEMO_ROWS)
+    used_clues: set[str] = set()
+    across = make_across_clues(grid, clue_bank, used_clues)
+    down = make_down_clues(grid, clue_bank, used_clues)
+    return Puzzle(
+        grid=grid,
+        across=across,
+        down=down,
+        theme_words=related_map.get("water", DEFAULT_DEMO_ROWS),
+        title="WATER Mini",
+    )
 
 
 def _theme_entry_count(grid: Grid, theme_words: set[str]) -> int:
@@ -65,13 +85,14 @@ def generate_puzzle(
     if not available_seeds:
         raise ValueError("none of the provided seed words are available in the bundled 5-letter lexicon")
     theme_words = expand_theme_words(normalized_seeds, related_map, lexicon_words)
+    preferred_words = preferred_clue_words(clue_bank)
 
     candidate_words = build_candidate_pool(
         seeds=available_seeds,
         theme_words=theme_words,
         lexicon=lexicon_words,
         allow_neutral_fill=config.allow_neutral_fill,
-        preferred_words=tuple(clue_bank),
+        preferred_words=preferred_words,
     )
     prefix_index = build_prefix_index(lexicon_words)
     grids: tuple[Grid, ...] = ()

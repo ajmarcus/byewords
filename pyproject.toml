@@ -21,3 +21,4 @@ packages = ["src/byewords"]
 
 [project.scripts]
 byewords = "byewords.cli:main"
+byewords-groq-clues = "byewords.groq_clues:main"

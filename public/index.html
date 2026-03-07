@@ -769,6 +769,7 @@
       let activeClueIndex = 0;
       let activePuzzleIndex = 0;
       let pendingPuzzleIndex = null;
+      let lastRenderedClueKey = null;
       let solution = [];
       let words = [];
 
@@ -861,6 +862,10 @@
         return words[activeClueIndex] || null;
       }
 
+      function getClueRenderKey(word) {
+        return word ? (activePuzzleIndex + ":" + word.direction + ":" + word.number) : "none";
+      }
+
       function getWordForCell(row, col, direction) {
         const targetDirection = direction || "across";
         return words.find(function (word) {
@@ -949,11 +954,16 @@
 
       function updateClue() {
         const word = getActiveWord();
+        const nextClueKey = getClueRenderKey(word);
+        const clueChanged = nextClueKey !== lastRenderedClueKey;
         clueTextEl.textContent = word ? word.clue : "Pick a cell.";
         clueMetaEl.textContent = word ? (word.number + " · " + word.answer.length + " letters · " + word.direction) : "";
         clueCardEl.classList.remove("bounce");
-        void clueCardEl.offsetWidth;
-        clueCardEl.classList.add("bounce");
+        if (clueChanged) {
+          void clueCardEl.offsetWidth;
+          clueCardEl.classList.add("bounce");
+        }
+        lastRenderedClueKey = nextClueKey;
         window.requestAnimationFrame(fitClueText);
       }
 
@@ -1343,6 +1353,31 @@
               });
               syncActiveClueFromCell(3, 0);
               return getActiveWord().direction === "across" && getActiveWord().row === 3;
+            }
+          },
+          {
+            name: "typing in the same clue does not rebounce the clue card",
+            run: function () {
+              const originalActiveClueIndex = activeClueIndex;
+              const originalSelected = selected ? { row: selected.row, col: selected.col } : null;
+              const originalEntry = entries[0][0];
+
+              activeClueIndex = 0;
+              selected = { row: 0, col: 0 };
+              entries[0][0] = "";
+              lastRenderedClueKey = null;
+              updateClue();
+              clueCardEl.classList.remove("bounce");
+
+              handleLetter("A");
+              const stayedStill = !clueCardEl.classList.contains("bounce");
+
+              entries[0][0] = originalEntry;
+              activeClueIndex = originalActiveClueIndex;
+              selected = originalSelected;
+              renderBoard();
+              updateClue();
+              return stayedStill;
             }
           }
         ];

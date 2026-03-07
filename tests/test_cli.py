@@ -10,11 +10,11 @@ class TestCli(unittest.TestCase):
     def test_cli_prints_expected_message(self) -> None:
         buf = StringIO()
 
-        with redirect_stdout(buf), patch("sys.argv", ["byewords", "--seed", "snail"]):
+        with redirect_stdout(buf), patch("sys.argv", ["byewords"]):
             main()
 
         output = buf.getvalue()
-        self.assertIn("SNAIL Mini", output)
+        self.assertIn("WATER Mini", output)
         self.assertIn("Across", output)
         self.assertIn("Down", output)
 

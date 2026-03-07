@@ -16,6 +16,14 @@ def _is_prefix_compatible(
     return all(has_prefix(prefix_index, prefix) for prefix in prefixes)
 
 
+def _prefix_branching_score(
+    prefixes: tuple[str, str, str, str, str],
+    prefix_index: dict[str, tuple[str, ...]],
+) -> tuple[int, int, tuple[int, ...]]:
+    counts = tuple(len(prefix_index[prefix]) for prefix in prefixes)
+    return (max(counts), sum(counts), counts)
+
+
 def valid_next_rows(
     partial_rows: tuple[str, ...],
     candidate_words: tuple[str, ...],
@@ -24,7 +32,7 @@ def valid_next_rows(
     fixed_columns: dict[int, str] | None = None,
 ) -> tuple[str, ...]:
     used_rows = set(partial_rows)
-    valid_rows = []
+    valid_rows: list[tuple[tuple[int, int, tuple[int, ...]], str]] = []
     next_index = len(partial_rows)
     row_candidates = candidate_words if fixed_rows is None or next_index not in fixed_rows else (fixed_rows[next_index],)
     for candidate in row_candidates:
@@ -36,8 +44,9 @@ def valid_next_rows(
                 continue
         prefixes = _next_prefixes(partial_rows, normalized)
         if _is_prefix_compatible(prefixes, prefix_index):
-            valid_rows.append(normalized)
-    return tuple(valid_rows)
+            valid_rows.append((_prefix_branching_score(prefixes, prefix_index), normalized))
+    valid_rows.sort(key=lambda item: (item[0], item[1]))
+    return tuple(row for _, row in valid_rows)
 
 
 def search_grids(

@@ -137,6 +137,11 @@ class TestPublicIndex(unittest.TestCase):
         self.assertIn("window.requestAnimationFrame(fitClueText);", html)
         self.assertIn('window.addEventListener("resize", fitClueText);', html)
         self.assertIn("overflow: hidden;", html)
+        self.assertIn("function getClueRenderKey(word) {", html)
+        self.assertIn('return word ? (activePuzzleIndex + ":" + word.direction + ":" + word.number) : "none";', html)
+        self.assertIn("const clueChanged = nextClueKey !== lastRenderedClueKey;", html)
+        self.assertIn("if (clueChanged) {", html)
+        self.assertIn('name: "typing in the same clue does not rebounce the clue card"', html)
 
     def test_keyboard_handler_preserves_browser_shortcuts(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")

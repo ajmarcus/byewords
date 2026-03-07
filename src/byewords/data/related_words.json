@@ -94,7 +94,6 @@
     "river",
     "solar",
     "storm",
-    "venus",
     "water"
   ],
   "fauna": [
@@ -116,7 +115,6 @@
     "bloom",
     "daisy",
     "grass",
-    "kelps",
     "lilac",
     "maple",
     "marsh"
@@ -130,34 +128,8 @@
     "mango",
     "melon"
   ],
-  "ikeas": [
-    "ikeas",
-    "civic",
-    "metro",
-    "parks",
-    "plaza",
-    "route",
-    "urban"
-  ],
-  "lurie": [
-    "lurie",
-    "mayor",
-    "buses",
-    "cable",
-    "civic",
-    "ferry",
-    "metro",
-    "ocean",
-    "parks",
-    "piers",
-    "plaza",
-    "route",
-    "urban",
-    "wharf"
-  ],
   "mayor": [
     "mayor",
-    "lurie",
     "civic",
     "metro",
     "parks",
@@ -205,21 +177,12 @@
     "wharf",
     "otter",
     "krill",
-    "kelps",
     "whale",
     "buses",
     "cable",
     "ferry",
     "parks",
     "piers"
-  ],
-  "oscar": [
-    "oscar",
-    "actor",
-    "drama",
-    "movie",
-    "scene",
-    "story"
   ],
   "parks": [
     "parks",
@@ -261,7 +224,6 @@
     "trail",
     "adieu",
     "booed",
-    "antra",
     "eases",
     "eerie"
   ],
@@ -274,8 +236,7 @@
     "radar",
     "rover",
     "solar",
-    "stars",
-    "venus"
+    "stars"
   ],
   "sweet": [
     "sweet",
@@ -303,8 +264,6 @@
     "cable",
     "civic",
     "hotel",
-    "ikeas",
-    "lurie",
     "mayor",
     "metro",
     "parks",
