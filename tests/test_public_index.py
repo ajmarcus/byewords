@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import re
 import unittest
@@ -19,14 +20,12 @@ class TestPublicIndex(unittest.TestCase):
         self.assertGreater(len(icon), 100)
         self.assertEqual(icon[:4], b"\x00\x00\x01\x00")
 
-    def test_embedded_demo_puzzle_matches_snail_sample(self) -> None:
+    def test_embedded_puzzle_bank_uses_ten_distinct_boards(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
-        self.assertIn('rows: ["ADIEU", "BOOED", "ANTRA", "SNAIL", "EASES"]', html)
-        self.assertIn('"French exit with more flourish than plain bye"', html)
-        self.assertIn('"Slow walker carrying its whole rent situation"', html)
-        self.assertIn('"Old Norse landholders, for your nightmare trivia round"', html)
-        self.assertIn('rows: ["ABASE", "DONNA", "IOTAS", "EERIE", "UDALS"]', html)
+        boards = re.findall(r'rows: \["([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})"\]', html)
+        self.assertEqual(len(boards), 10)
+        self.assertEqual(len(set(boards)), 10)
         self.assertIn("words.map(function (word) {", html)
         self.assertIn('}).join(" / ");', html)
 
@@ -43,7 +42,8 @@ class TestPublicIndex(unittest.TestCase):
         clue_blocks = re.findall(r'(?:acrossClues|downClues): \[(.*?)\]', html, re.S)
         clues = []
         for block in clue_blocks:
-            clues.extend(re.findall(r'"([^"]+)"', block))
+            encoded_clues = re.findall(r'"(?:[^"\\]|\\.)*"', block)
+            clues.extend(json.loads(clue) for clue in encoded_clues)
 
         self.assertEqual(len(clues), 100)
         self.assertEqual(len(clues), len(set(clues)))
