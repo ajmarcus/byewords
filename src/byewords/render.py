@@ -14,15 +14,15 @@ def render_clues(puzzle: Puzzle) -> str:
 
 
 def render_puzzle_text(puzzle: Puzzle) -> str:
-    sections = [
-        puzzle.title,
-        "",
-        f"Theme words: {', '.join(word.upper() for word in puzzle.theme_words)}",
-        "",
-        render_grid_ascii(puzzle.grid),
-        "",
-        render_clues(puzzle),
-    ]
+    sections = [puzzle.title, ""]
+    if puzzle.theme_words:
+        sections.extend(
+            [
+                f"Seed words: {', '.join(word.upper() for word in puzzle.theme_words)}",
+                "",
+            ]
+        )
+    sections.extend([render_grid_ascii(puzzle.grid), "", render_clues(puzzle)])
     return "\n".join(sections)
 
 

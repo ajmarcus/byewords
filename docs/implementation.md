@@ -15,15 +15,41 @@ Current limitations:
 - clue quality is now meaningfully better, but overall puzzle quality is capped by the fill set
 - theme expansion is still mostly hand-authored and does not yet support a broad seed vocabulary
 
+## Comparison with `Phil`
+
+[`Phil`](https://github.com/keiranking/Phil) is a general constructor and autofill tool, not a direct peer to this generator. Its public code paths use:
+
+- arbitrary blocked grids rather than a fixed full 5×5
+- symmetry-aware pattern generation
+- a WebAssembly build of the Glucose SAT solver for autofill
+- "quick" solving that can return forced letters before a full fill lands
+- a large external word list as the primary quality lever
+
+By contrast, this project currently does:
+
+- fixed-size full-grid search only
+- deterministic row-by-row prefix pruning
+- scoring after generating candidate fills
+- theme expansion before search rather than slot-by-slot fill assistance
+
+That means the correct takeaway is not "replace the solver." The correct takeaway is:
+
+- keep the current specialized search for the default 5×5 path
+- borrow Phil's emphasis on constructor-grade word data and debugging feedback
+- preserve an abstraction boundary so a blocked-grid solver can be added later without infecting the small core
+
 ## What is next
 
 Next priority:
 - replace the toy lexicon with a stronger, cleaner 5-letter word list so generated grids contain more clueable entries
+- add search diagnostics that explain impossible seeds in terms of dead prefixes and over-constrained positions
+- expose optional "forced letter" style hints during debugging, inspired by Phil's quick autofill mode
 
 After that:
 - expand the clue bank alongside the better lexicon
 - improve theme coverage so more user-supplied seeds lead to non-fallback themed grids
 - revisit scoring so familiarity and clueability matter more directly during grid selection
+- define a separate solver interface before considering blocked-grid layouts or a SAT/CP backend
 
 ## Target shape
 
@@ -232,6 +258,8 @@ Responsibilities:
 - prefix pruning
 - ranked search order
 - top-k candidate collection
+- search diagnostics for failed branches
+- optional forced-letter summaries for partial fills
 
 Core functions:
 
@@ -248,6 +276,11 @@ def search_grids(
     beam_width: int,
     max_candidates: int,
 ) -> tuple[Grid, ...]: ...
+
+def analyze_search_failure(
+    candidate_words: tuple[str, ...],
+    prefix_index: dict[str, tuple[str, ...]],
+) -> SearchDiagnostics: ...
 ```
 
 Internal helpers:
@@ -255,11 +288,25 @@ Internal helpers:
 ```python
 def _next_prefixes(partial_rows: tuple[str, ...], next_row: str) -> tuple[str, ...]: ...
 def _is_prefix_compatible(prefixes: tuple[str, ...], prefix_index: dict[str, tuple[str, ...]]) -> bool: ...
+def _forced_letters(partial_rows: tuple[str, ...], prefix_index: dict[str, tuple[str, ...]]) -> tuple[frozenset[str], ...]: ...
 def _search_dfs(...): ...
 def _search_beam(...): ...
 ```
 
 Expose one public strategy initially, likely beam search with deterministic ordering.
+
+Phil suggests one implementation detail worth copying here: do not let failure remain opaque. Even if we keep the search simple, we should return enough structured information to show which prefixes died, which columns have only one legal next letter, and whether the candidate pool itself was too narrow.
+
+Suggested diagnostics model:
+
+```python
+@dataclass(frozen=True)
+class SearchDiagnostics:
+    deepest_row: int
+    dead_prefixes: tuple[str, ...]
+    forced_letters_by_column: tuple[frozenset[str], ...]
+    surviving_rows: tuple[str, ...]
+```
 
 ### `score.py`
 
@@ -269,6 +316,7 @@ Responsibilities:
 - score fill quality
 - score theme density
 - score diversity / non-duplication
+- use lexicon metadata when available
 - return decomposed scoring for debugging and tests
 
 Core functions:
@@ -280,6 +328,8 @@ def score_entry_diversity(grid: Grid) -> float: ...
 def score_grid(grid: Grid, theme_words: set[str]) -> CandidateGrid: ...
 def rank_grids(grids: tuple[Grid, ...], theme_words: set[str]) -> tuple[CandidateGrid, ...]: ...
 ```
+
+Phil's strongest lesson for scoring is indirect: solver sophistication matters less than word-list quality. `score_fill_quality` should eventually consume entry metadata such as familiarity, clueability, part-of-speech variety, and constructor blacklists so the search does not keep surfacing technically valid but editorially weak fills.
 
 ### `clues.py`
 
@@ -349,6 +399,8 @@ Pipeline:
 6. score and rank grids
 7. generate clues
 8. build the final puzzle
+
+If search fails, return structured diagnostics internally and surface a concise explanation at the CLI boundary. That keeps the core pure while giving users the kind of actionable feedback Phil provides during construction.
 
 ### `render.py`
 

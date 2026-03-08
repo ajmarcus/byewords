@@ -1,64 +1,216 @@
 import unittest
 
-from byewords.generate import generate_puzzle, load_default_inputs
+from byewords.generate import DEFAULT_DEMO_ENTRIES, build_demo_puzzle, generate_puzzle, load_default_inputs
 from byewords.grid import distinct_entries
 
 
 class TestBundledData(unittest.TestCase):
     def test_default_data_is_large_and_consistent(self) -> None:
-        lexicon_words, related_map, clue_bank = load_default_inputs()
+        lexicon_words, clue_bank = load_default_inputs()
+
+        self.assertGreaterEqual(len(lexicon_words), 1000)
+        self.assertGreaterEqual(len(clue_bank), 1000)
+        self.assertEqual(lexicon_words, tuple(sorted(lexicon_words)))
+        self.assertEqual(tuple(clue_bank), tuple(sorted(clue_bank)))
+        self.assertTrue({"snail", "water", "ozone"}.issubset(set(clue_bank)))
+        self.assertTrue(set(clue_bank).issubset(set(lexicon_words)))
+        self.assertTrue(all(clues and all(clue.strip() for clue in clues) for clues in clue_bank.values()))
+
+    def test_default_data_keeps_common_theme_clusters_and_excludes_junk(self) -> None:
+        lexicon_words, clue_bank = load_default_inputs()
         lexicon_set = set(lexicon_words)
 
-        self.assertGreaterEqual(len(lexicon_words), 150)
-        self.assertGreaterEqual(len(clue_bank), 150)
-        self.assertGreaterEqual(len(related_map), 20)
-        self.assertEqual(set(clue_bank), lexicon_set)
-
-        for related_words in related_map.values():
-            self.assertTrue(set(related_words).issubset(lexicon_set))
-
-    def test_default_data_includes_san_francisco_theme_cluster(self) -> None:
-        lexicon_words, related_map, clue_bank = load_default_inputs()
-        lexicon_set = set(lexicon_words)
-
-        expected_words = {"buses", "cable", "ikeas", "lurie", "mayor", "parks", "piers"}
+        expected_words = {"beach", "music", "ocean", "piano", "tempo", "waves", "wharf"}
         self.assertTrue(expected_words.issubset(lexicon_set))
-        self.assertTrue(expected_words.issubset(set(clue_bank)))
-        self.assertEqual(clue_bank["lurie"][0], "Daniel, San Francisco's 46th mayor")
-        self.assertEqual(clue_bank["buses"][0], "Many Muni vehicles")
-        self.assertEqual(clue_bank["ikeas"][0], "San Francisco and Emeryville furniture stores")
-        self.assertTrue({"lurie", "mayor", "buses", "cable", "ocean", "parks", "piers"}.issubset(set(related_map["lurie"])))
-        self.assertTrue({"ikeas", "civic", "metro", "parks", "plaza", "route", "urban"}.issubset(set(related_map["ikeas"])))
 
-    def test_default_snail_puzzle_uses_bundled_clues(self) -> None:
-        lexicon_words, related_map, clue_bank = load_default_inputs()
-        puzzle = generate_puzzle(("snail",), lexicon_words, related_map, clue_bank)
+        for removed_word in ("aahed", "antra", "ikeas", "lurie", "udals"):
+            self.assertNotIn(removed_word, lexicon_set)
+            self.assertNotIn(removed_word, clue_bank)
 
-        self.assertEqual(puzzle.title, "SNAIL Mini")
+    def test_default_data_excludes_offensive_and_obscure_fill(self) -> None:
+        lexicon_words, _ = load_default_inputs()
+        lexicon_set = set(lexicon_words)
+
+        removed_words = {
+            "alkyd",
+            "anent",
+            "ankhs",
+            "apses",
+            "arsed",
+            "asses",
+            "assoc",
+            "attar",
+            "auxin",
+            "ayahs",
+            "baaed",
+            "baccy",
+            "bauds",
+            "bairn",
+            "baize",
+            "bawdy",
+            "bawds",
+            "begum",
+            "besom",
+            "bimbo",
+            "bitch",
+            "bogon",
+            "boink",
+            "boner",
+            "boobs",
+            "broad",
+            "bumph",
+            "busby",
+            "caber",
+            "caffs",
+            "chink",
+            "clits",
+            "clvii",
+            "clxii",
+            "clxiv",
+            "clxix",
+            "clxvi",
+            "cocks",
+            "cohos",
+            "coons",
+            "contd",
+            "cunts",
+            "coypu",
+            "dagos",
+            "dding",
+            "deice",
+            "dhows",
+            "dicks",
+            "dildo",
+            "dipso",
+            "dykes",
+            "effed",
+            "eruct",
+            "fagot",
+            "fatso",
+            "fichu",
+            "fanny",
+            "farts",
+            "fucks",
+            "gimps",
+            "gonks",
+            "gooks",
+            "gorps",
+            "gypsy",
+            "gyved",
+            "hdqrs",
+            "homos",
+            "honky",
+            "horny",
+            "hying",
+            "ictus",
+            "iambi",
+            "instr",
+            "japed",
+            "jatos",
+            "kepis",
+            "kraut",
+            "labia",
+            "lepta",
+            "limns",
+            "limey",
+            "luffs",
+            "lxvii",
+            "mammy",
+            "micks",
+            "milfs",
+            "moues",
+            "mulct",
+            "nooky",
+            "pekoe",
+            "penis",
+            "pewit",
+            "piing",
+            "pinko",
+            "pimps",
+            "pommy",
+            "ponce",
+            "poofs",
+            "porno",
+            "prick",
+            "pubes",
+            "pubic",
+            "pubis",
+            "pussy",
+            "pyxes",
+            "pzazz",
+            "quirt",
+            "scrog",
+            "sexed",
+            "shits",
+            "shoat",
+            "spics",
+            "sperm",
+            "spunk",
+            "sputa",
+            "squaw",
+            "stdio",
+            "thews",
+            "topee",
+            "trugs",
+            "titty",
+            "twats",
+            "turds",
+            "ulnae",
+            "ukase",
+            "umiak",
+            "vised",
+            "vulva",
+            "wanks",
+            "wazoo",
+            "weest",
+            "welsh",
+            "wench",
+            "whore",
+            "whups",
+            "willy",
+            "wived",
+            "xcvii",
+            "yeggs",
+            "zebus",
+            "zorch",
+        }
+
+        self.assertTrue(removed_words.isdisjoint(lexicon_set))
+
+    def test_default_demo_puzzle_uses_fallback_clues_when_cache_is_empty(self) -> None:
+        _, clue_bank = load_default_inputs()
+        puzzle = build_demo_puzzle(clue_bank)
+
+        self.assertEqual(puzzle.title, "BYEWORDS Mini")
         self.assertEqual(len(puzzle.across), 5)
         self.assertEqual(len(puzzle.down), 5)
 
-        for clue in puzzle.across + puzzle.down:
-            self.assertIn(clue.answer.lower(), clue_bank)
-            self.assertEqual(clue.text, clue_bank[clue.answer.lower()][0])
+        for clue in puzzle.across:
+            self.assertTrue(clue.text.strip())
 
-    def test_default_data_supports_cable_cluster_seeds(self) -> None:
-        lexicon_words, related_map, clue_bank = load_default_inputs()
+        for clue in puzzle.down:
+            self.assertTrue(clue.text.strip())
 
-        for seed, title in (("cable", "CABLE Mini"), ("lurie", "LURIE Mini")):
+    def test_readme_example_generates_a_puzzle_without_seed_words(self) -> None:
+        _, clue_bank = load_default_inputs()
+
+        puzzle = build_demo_puzzle(clue_bank)
+
+        self.assertEqual(puzzle.title, "BYEWORDS Mini")
+        self.assertEqual(len(puzzle.across), 5)
+        self.assertEqual(len(puzzle.down), 5)
+        self.assertEqual(len(set(distinct_entries(puzzle.grid))), 10)
+
+    def test_demo_grid_entries_are_verified_single_seed_words(self) -> None:
+        lexicon_words, clue_bank = load_default_inputs()
+
+        for seed in DEFAULT_DEMO_ENTRIES:
             with self.subTest(seed=seed):
-                puzzle = generate_puzzle((seed,), lexicon_words, related_map, clue_bank)
+                puzzle = generate_puzzle((seed,), lexicon_words, clue_bank)
 
-                self.assertEqual(puzzle.title, title)
-                self.assertEqual(puzzle.grid.rows, ("cable", "agues", "buses", "leese", "esses"))
-                self.assertGreaterEqual(
-                    sum(entry in set(puzzle.theme_words) for entry in distinct_entries(puzzle.grid)),
-                    4,
-                )
-                self.assertEqual(puzzle.across[1].text, "Feverish chills")
-                self.assertEqual(puzzle.across[3].text, "Archaic verb meaning lose")
-                self.assertEqual(puzzle.across[4].text, "Plural of the letter S")
-
+                self.assertEqual(puzzle.title, f"{seed.upper()} Mini")
+                self.assertIn(seed, distinct_entries(puzzle.grid))
+                self.assertEqual(puzzle.grid.rows, ("ozone", "liven", "inert", "verve", "ester"))
 
 if __name__ == "__main__":
     unittest.main()

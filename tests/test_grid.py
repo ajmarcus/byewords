@@ -3,6 +3,7 @@ import unittest
 from byewords.grid import (
     distinct_entries,
     grid_columns,
+    has_unique_entries,
     is_full_grid_valid,
     make_grid,
     partial_column_prefixes,
@@ -26,11 +27,14 @@ class TestGrid(unittest.TestCase):
         )
 
     def test_is_full_grid_valid_checks_rows_and_columns(self) -> None:
-        grid = make_grid(("sator", "arepo", "tenet", "opera", "rotas"))
-        lexicon = {"sator", "arepo", "tenet", "opera", "rotas"}
+        grid = make_grid(("adieu", "booed", "antra", "snail", "eases"))
+        lexicon = {"adieu", "booed", "antra", "snail", "eases", "abase", "donna", "iotas", "eerie", "udals"}
+        duplicate_grid = make_grid(("sator", "arepo", "tenet", "opera", "rotas"))
+        duplicate_lexicon = {"sator", "arepo", "tenet", "opera", "rotas"}
 
         self.assertTrue(is_full_grid_valid(grid, lexicon))
-        self.assertFalse(is_full_grid_valid(grid, lexicon - {"rotas"}))
+        self.assertFalse(is_full_grid_valid(grid, lexicon - {"udals"}))
+        self.assertFalse(is_full_grid_valid(duplicate_grid, duplicate_lexicon))
 
     def test_distinct_entries_returns_rows_then_columns(self) -> None:
         grid = make_grid(("sator", "arepo", "tenet", "opera", "rotas"))
@@ -50,6 +54,13 @@ class TestGrid(unittest.TestCase):
                 "rotas",
             ),
         )
+
+    def test_has_unique_entries_rejects_boards_with_duplicate_answers(self) -> None:
+        duplicate_grid = make_grid(("sator", "arepo", "tenet", "opera", "rotas"))
+        unique_grid = make_grid(("adieu", "booed", "antra", "snail", "eases"))
+
+        self.assertFalse(has_unique_entries(duplicate_grid))
+        self.assertTrue(has_unique_entries(unique_grid))
 
     def test_slot_numbers_are_fixed_for_full_grid(self) -> None:
         self.assertEqual(slot_numbers(), (1, 2, 3, 4, 5))

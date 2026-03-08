@@ -13,6 +13,7 @@
       --blue: #0b63f6;
       --yellow: #f5e84b;
       --yellow-soft: #fff7b8;
+      --yellow-pastel: #fff1a3;
       --blue-soft: #eaf1ff;
       --red-soft: #ffe0de;
       --shadow-black: 3px 3px 0 0 var(--ink);
@@ -185,10 +186,17 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      color: var(--ink);
+      transition: background-color 260ms ease, color 220ms ease;
     }
 
     .clue.bounce {
       animation: clue-bounce 180ms ease-out;
+    }
+
+    .clue.solved {
+      background: var(--yellow-pastel);
+      color: var(--ink);
     }
 
     @keyframes clue-bounce {
@@ -202,6 +210,43 @@
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: rgba(17, 17, 17, 0.6);
+      display: grid;
+      align-items: center;
+      transition: color 220ms ease;
+    }
+
+    .clue.solved .clue-label {
+      color: rgba(17, 17, 17, 0.68);
+    }
+
+    .clue-label-text {
+      grid-area: 1 / 1;
+      white-space: nowrap;
+      transition: opacity 220ms ease, transform 260ms ease, letter-spacing 260ms ease;
+    }
+
+    .clue-label-base {
+      opacity: 1;
+      transform: translateX(0);
+      letter-spacing: 0.14em;
+    }
+
+    .clue.solved .clue-label-base {
+      opacity: 0;
+      transform: translateX(-6px);
+      letter-spacing: 0.18em;
+    }
+
+    .clue-label-solved {
+      opacity: 0;
+      transform: translateX(6px);
+      letter-spacing: 0.18em;
+    }
+
+    .clue.solved .clue-label-solved {
+      opacity: 1;
+      transform: translateX(0);
+      letter-spacing: 0.14em;
     }
 
     .clue-text {
@@ -222,6 +267,11 @@
       font-weight: 700;
       color: rgba(17, 17, 17, 0.58);
       flex: 0 0 auto;
+      transition: color 220ms ease;
+    }
+
+    .clue.solved .clue-meta {
+      color: rgba(17, 17, 17, 0.68);
     }
 
     .nav-btn {
@@ -516,7 +566,7 @@
         <div class="clue-nav">
           <button class="nav-btn" id="prev-clue" type="button" aria-label="Previous clue">←</button>
           <section class="clue" id="clue-card" aria-live="polite">
-            <div class="clue-label">Clue</div>
+            <div class="clue-label"><span class="clue-label-text clue-label-base">Clue</span><span class="clue-label-text clue-label-solved" id="clue-label-solved">CLUE -- SOLVED</span></div>
             <div class="clue-text" id="clue-text">Pick a cell.</div>
             <div class="clue-meta" id="clue-meta"></div>
           </section>
@@ -551,25 +601,177 @@
 
   <script>
     (function () {
-      const solution = [
-        ["A", "D", "I", "E", "U"],
-        ["B", "O", "O", "E", "D"],
-        ["A", "N", "T", "R", "A"],
-        ["S", "N", "A", "I", "L"],
-        ["E", "A", "S", "E", "S"]
-      ];
-
-      const words = [
-        { number: 1, row: 0, col: 0, len: 5, answer: "ADIEU", clue: "Parting word from Paris", direction: "across" },
-        { number: 2, row: 1, col: 0, len: 5, answer: "BOOED", clue: "Reacted badly to the comic, say", direction: "across" },
-        { number: 3, row: 2, col: 0, len: 5, answer: "ANTRA", clue: "Stomach chambers, in anatomy", direction: "across" },
-        { number: 4, row: 3, col: 0, len: 5, answer: "SNAIL", clue: "Garden crawler with a spiral shell", direction: "across" },
-        { number: 5, row: 4, col: 0, len: 5, answer: "EASES", clue: "Takes the edge off", direction: "across" },
-        { number: 1, row: 0, col: 0, len: 5, answer: "ABASE", clue: "Cut down to size", direction: "down" },
-        { number: 2, row: 0, col: 1, len: 5, answer: "DONNA", clue: "Summer of disco", direction: "down" },
-        { number: 3, row: 0, col: 2, len: 5, answer: "IOTAS", clue: "Tiny bits", direction: "down" },
-        { number: 4, row: 0, col: 3, len: 5, answer: "EERIE", clue: "Like a foggy graveyard", direction: "down" },
-        { number: 5, row: 0, col: 4, len: 5, answer: "UDALS", clue: "Old Norse freeholders", direction: "down" }
+      const puzzles = [
+        {
+          rows: ["ADIEU", "BOOED", "ANTRA", "SNAIL", "EASES"],
+          acrossClues: [
+            "French exit with more flourish than plain bye",
+            "Responded with jeers",
+            "Stomach chambers",
+            "Slow walker carrying its whole rent situation",
+            "Relieves"
+          ],
+          downClues: [
+            "Humiliate",
+            "Prima ___",
+            "Tiny amounts",
+            "Spooky",
+            "Old Norse landholders, for your nightmare trivia round"
+          ]
+        },
+        {
+          rows: ["ABASE", "DONNA", "IOTAS", "EERIE", "UDALS"],
+          acrossClues: [
+            "Cut down in rank",
+            "Female lead, in opera",
+            "Teeny bits",
+            "Unsettlingly spooky",
+            "Scottish hereditary estates"
+          ],
+          downClues: [
+            "Farewell in French",
+            "Jeered at",
+            "Plural of antrum",
+            "Shell-carrying crawler",
+            "Makes less painful"
+          ]
+        },
+        {
+          rows: ["ADIEU", "BOOED", "ANTRA", "SNAIL", "EASES"],
+          acrossClues: [
+            "Parting word in French",
+            "Greeted with catcalls",
+            "Stomach cavities",
+            "Garden mollusk",
+            "Lessens"
+          ],
+          downClues: [
+            "Belittle",
+            "Opera title woman",
+            "Minuscule amounts",
+            "Creepy",
+            "Norse-style Scottish holdings"
+          ]
+        },
+        {
+          rows: ["ABASE", "DONNA", "IOTAS", "EERIE", "UDALS"],
+          acrossClues: [
+            "Lower in dignity",
+            "Italian word for woman",
+            "Smallest bits",
+            "Chillingly strange",
+            "Old Scottish land tenures"
+          ],
+          downClues: [
+            "French word for goodbye",
+            "Met with boos",
+            "Anatomical chambers",
+            "Creature leaving a slime trail",
+            "Reduces the strain on"
+          ]
+        },
+        {
+          rows: ["ADIEU", "BOOED", "ANTRA", "SNAIL", "EASES"],
+          acrossClues: [
+            "Bye, in Bordeaux",
+            "Heckled from the seats",
+            "Hollow spaces in anatomy",
+            "Slowpoke with a shell",
+            "Makes gentler"
+          ],
+          downClues: [
+            "Make feel small",
+            "Grand ___",
+            "Tiny particles",
+            "Haunting",
+            "Hereditary Orcadian estates"
+          ]
+        },
+        {
+          rows: ["ABASE", "DONNA", "IOTAS", "EERIE", "UDALS"],
+          acrossClues: [
+            "Knock down emotionally",
+            "Lady, in Italian",
+            "Little bits",
+            "Weird in a ghostly way",
+            "Ancient land rights in Orkney"
+          ],
+          downClues: [
+            "Exit line in French",
+            "Shouted down by a crowd",
+            "Inner chambers, medically",
+            "Escargot before the garlic butter",
+            "Softens"
+          ]
+        },
+        {
+          rows: ["ADIEU", "BOOED", "ANTRA", "SNAIL", "EASES"],
+          acrossClues: [
+            "Formal French goodbye",
+            "Reacted with a Bronx cheer",
+            "Cavities in the stomach",
+            "Yard gastropod",
+            "Lightens the load on"
+          ],
+          downClues: [
+            "Degrade",
+            "Word after prima",
+            "Barely any amounts",
+            "Ominously odd",
+            "Scots property holdings of old"
+          ]
+        },
+        {
+          rows: ["ABASE", "DONNA", "IOTAS", "EERIE", "UDALS"],
+          acrossClues: [
+            "Bring low",
+            "Term for an operatic diva",
+            "Traces",
+            "Like a haunted house",
+            "Historic northern land tenures"
+          ],
+          downClues: [
+            "Goodbye said in France",
+            "Gave the performer thumbs-down noise",
+            "Antrum plural form",
+            "Spiral-shelled crawler",
+            "Calms down"
+          ]
+        },
+        {
+          rows: ["ADIEU", "BOOED", "ANTRA", "SNAIL", "EASES"],
+          acrossClues: [
+            "Parting phrase from Paris",
+            "Answered with disapproval from the audience",
+            "Body hollows, in anatomy",
+            "Creature known for moving slowly",
+            "Makes more manageable"
+          ],
+          downClues: [
+            "Reduce in standing",
+            "Leading lady at La Scala",
+            "Very small quantities",
+            "Uncannily creepy",
+            "Medieval Scottish holdings"
+          ]
+        },
+        {
+          rows: ["ABASE", "DONNA", "IOTAS", "EERIE", "UDALS"],
+          acrossClues: [
+            "Humble deeply",
+            "Name ending a prima phrase",
+            "Minute amounts",
+            "Spooky to the bone",
+            "Traditional Orcadian properties"
+          ],
+          downClues: [
+            "French send-off word",
+            "Sent off with jeers",
+            "Recesses of the stomach",
+            "Mollusk in a garden bed",
+            "Takes the pressure off"
+          ]
+        }
       ];
 
       const numbering = {
@@ -615,6 +817,84 @@
       let isFinished = false;
       let timerHandle = null;
       let activeClueIndex = 0;
+      let activePuzzleIndex = 0;
+      let pendingPuzzleIndex = null;
+      let lastRenderedClueKey = null;
+      let solution = [];
+      let words = [];
+
+      function isWordSolved(word) {
+        if (!word) return false;
+        return getWordCells(word).every(function (pair, index) {
+          return entries[pair[0]][pair[1]] === word.answer[index];
+        });
+      }
+
+      function buildSolution(rows) {
+        return rows.map(function (row) {
+          return row.split("");
+        });
+      }
+
+      function buildWords(puzzle) {
+        const columns = Array.from({ length: 5 }, function (_, col) {
+          return puzzle.rows.map(function (row) {
+            return row[col];
+          }).join("");
+        });
+
+        return puzzle.rows.map(function (answer, index) {
+          return {
+            number: index + 1,
+            row: index,
+            col: 0,
+            len: 5,
+            answer: answer,
+            clue: puzzle.acrossClues[index],
+            direction: "across"
+          };
+        }).concat(columns.map(function (answer, index) {
+          return {
+            number: index + 1,
+            row: 0,
+            col: index,
+            len: 5,
+            answer: answer,
+            clue: puzzle.downClues[index],
+            direction: "down"
+          };
+        }));
+      }
+
+      function activatePuzzle(index) {
+        activePuzzleIndex = index;
+        solution = buildSolution(puzzles[index].rows);
+        words = buildWords(puzzles[index]);
+      }
+
+      function normalizePuzzleIndex(index) {
+        return ((index % puzzles.length) + puzzles.length) % puzzles.length;
+      }
+
+      function pickPuzzleIndex(randomValue) {
+        return Math.min(puzzles.length - 1, Math.floor(randomValue * puzzles.length));
+      }
+
+      function randomPuzzleIndex() {
+        return pickPuzzleIndex(Math.random());
+      }
+
+      function pickNextPuzzleIndex(currentIndex, randomValue) {
+        if (puzzles.length < 2) {
+          return normalizePuzzleIndex(currentIndex);
+        }
+        const offset = Math.floor(randomValue * (puzzles.length - 1)) + 1;
+        return (normalizePuzzleIndex(currentIndex) + offset) % puzzles.length;
+      }
+
+      function queueNextPuzzle() {
+        pendingPuzzleIndex = pickNextPuzzleIndex(activePuzzleIndex, Math.random());
+      }
 
       function isBlackCell(row, col) {
         return solution[row][col] === "#";
@@ -639,6 +919,10 @@
         return words[activeClueIndex] || null;
       }
 
+      function getClueRenderKey(word) {
+        return word ? (activePuzzleIndex + ":" + word.direction + ":" + word.number) : "none";
+      }
+
       function getWordForCell(row, col, direction) {
         const targetDirection = direction || "across";
         return words.find(function (word) {
@@ -659,6 +943,53 @@
           }
           return [word.row, word.col + i];
         });
+      }
+
+      function cellIsInWord(row, col, word) {
+        if (!word) return false;
+        return getWordCells(word).some(function (pair) {
+          return pair[0] === row && pair[1] === col;
+        });
+      }
+
+      function getWordIndex(word) {
+        return words.findIndex(function (candidate) {
+          return word && candidate.number === word.number && candidate.direction === word.direction;
+        });
+      }
+
+      function getDirectionForKey(key) {
+        if (key === "ArrowUp" || key === "ArrowDown") {
+          return "down";
+        }
+        if (key === "ArrowLeft" || key === "ArrowRight") {
+          return "across";
+        }
+        return null;
+      }
+
+      function syncActiveClueFromCell(row, col, preferredDirection) {
+        const current = getActiveWord();
+        const targetDirection = preferredDirection || (current ? current.direction : "across");
+
+        if (current && cellIsInWord(row, col, current) && current.direction === targetDirection) {
+          return current;
+        }
+
+        const nextWord = getWordForCell(row, col, targetDirection)
+          || getWordForCell(row, col, "across")
+          || getWordForCell(row, col, "down");
+        const nextIndex = getWordIndex(nextWord);
+        if (nextIndex !== -1) {
+          activeClueIndex = nextIndex;
+        }
+        return words[activeClueIndex] || null;
+      }
+
+      function selectCell(row, col, preferredDirection) {
+        if (isBlackCell(row, col)) return;
+        selected = { row: row, col: col };
+        syncActiveClueFromCell(row, col, preferredDirection);
       }
 
       function getPreferredCellForWord(word) {
@@ -727,11 +1058,18 @@
 
       function updateClue() {
         const word = getActiveWord();
+        const nextClueKey = getClueRenderKey(word);
+        const clueChanged = nextClueKey !== lastRenderedClueKey;
+        const solved = isWordSolved(word);
         clueTextEl.textContent = word ? word.clue : "Pick a cell.";
         clueMetaEl.textContent = word ? (word.number + " · " + word.answer.length + " letters · " + word.direction) : "";
+        clueCardEl.classList.toggle("solved", solved);
         clueCardEl.classList.remove("bounce");
-        void clueCardEl.offsetWidth;
-        clueCardEl.classList.add("bounce");
+        if (clueChanged) {
+          void clueCardEl.offsetWidth;
+          clueCardEl.classList.add("bounce");
+        }
+        lastRenderedClueKey = nextClueKey;
         window.requestAnimationFrame(fitClueText);
       }
 
@@ -747,31 +1085,22 @@
       }
 
       function moveSelection(key) {
-        if (key === "ArrowLeft" || key === "ArrowUp") {
-          moveClue(-1);
-          return;
-        }
-        if (key === "ArrowRight" || key === "ArrowDown") {
-          moveClue(1);
-        }
-      }
+        const direction = getDirectionForKey(key);
+        if (!direction || !selected) return;
 
-      function syncActiveClueFromCell(row, col) {
-        const current = getActiveWord();
-        if (current) {
-          const currentCells = getWordCells(current);
-          const inCurrent = currentCells.some(function (pair) {
-            return pair[0] === row && pair[1] === col;
-          });
-          if (inCurrent) return;
-        }
-        const acrossWord = getWordForCell(row, col, "across");
-        const downWord = getWordForCell(row, col, "down");
-        const nextWord = acrossWord || downWord;
-        const nextIndex = words.findIndex(function (word) {
-          return nextWord && word.number === nextWord.number && word.direction === nextWord.direction;
-        });
-        if (nextIndex !== -1) activeClueIndex = nextIndex;
+        const offsets = {
+          ArrowLeft: [0, -1],
+          ArrowRight: [0, 1],
+          ArrowUp: [-1, 0],
+          ArrowDown: [1, 0]
+        };
+        const delta = offsets[key];
+        const nextRow = Math.max(0, Math.min(4, selected.row + delta[0]));
+        const nextCol = Math.max(0, Math.min(4, selected.col + delta[1]));
+
+        selectCell(nextRow, nextCol, direction);
+        renderBoard();
+        updateClue();
       }
 
       function renderBoard() {
@@ -801,8 +1130,12 @@
               else if (inWord) cell.classList.add("in-word");
 
               cell.addEventListener("click", function () {
-                selected = { row: r, col: c };
-                syncActiveClueFromCell(r, c);
+                const current = getActiveWord();
+                const clickedSelectedCell = selected && selected.row === r && selected.col === c;
+                const preferredDirection = clickedSelectedCell && current
+                  ? (current.direction === "across" ? "down" : "across")
+                  : (current ? current.direction : "across");
+                selectCell(r, c, preferredDirection);
                 renderBoard();
                 updateClue();
               });
@@ -840,8 +1173,9 @@
         if (isFinished || isBlackCell(selected.row, selected.col)) return;
         const row = selected.row;
         const col = selected.col;
+        const currentDirection = getActiveWord() ? getActiveWord().direction : "across";
+        const word = syncActiveClueFromCell(row, col, currentDirection);
         entries[row][col] = letter;
-        const word = getActiveWord();
         if (word) {
           const cells = getWordCells(word);
           const index = cells.findIndex(function (pair) {
@@ -869,7 +1203,8 @@
           return;
         }
 
-        const word = getActiveWord();
+        const currentDirection = getActiveWord() ? getActiveWord().direction : "across";
+        const word = syncActiveClueFromCell(row, col, currentDirection);
         if (!word) return;
         const cells = getWordCells(word);
         const index = cells.findIndex(function (pair) {
@@ -884,6 +1219,10 @@
       }
 
       function resetGame() {
+        if (pendingPuzzleIndex !== null) {
+          activatePuzzle(pendingPuzzleIndex);
+          pendingPuzzleIndex = null;
+        }
         for (let r = 0; r < 5; r += 1) {
           for (let c = 0; c < 5; c += 1) {
             if (!isBlackCell(r, c)) entries[r][c] = "";
@@ -903,7 +1242,9 @@
       }
 
       function makeBragText() {
-        return "I solved BYEWORDS in " + formatTime(seconds) + " 🌁\nADIEU / BOOED / ANTRA / SNAIL / EASES / ABASE / DONNA / IOTAS / EERIE / UDALS";
+        return "I solved BYEWORDS in " + formatTime(seconds) + " 🌁\n" + words.map(function (word) {
+          return word.answer;
+        }).join(" / ");
       }
 
       function shareBrag() {
@@ -964,6 +1305,7 @@
       function finish() {
         isFinished = true;
         stopTimer();
+        queueNextPuzzle();
         winCopyEl.textContent = "Solved in " + formatTime(seconds) + ". Go ahead and be a little annoying about it.";
         overlayEl.classList.add("show");
         overlayEl.setAttribute("aria-hidden", "false");
@@ -1011,7 +1353,12 @@
           {
             name: "getWordForCell finds across and down entries",
             run: function () {
-              return getWordForCell(0, 0, "across").answer === "ADIEU" && getWordForCell(3, 0, "across").answer === "SNAIL" && getWordForCell(0, 4, "down").answer === "UDALS";
+              const firstAcross = words.find(function (word) { return word.direction === "across" && word.number === 1; });
+              const firstDown = words.find(function (word) { return word.direction === "down" && word.number === 1; });
+              const lastDown = words.find(function (word) { return word.direction === "down" && word.number === 5; });
+              return getWordForCell(0, 0, "across").answer === firstAcross.answer
+                && getWordForCell(0, 0, "down").answer === firstDown.answer
+                && getWordForCell(0, 4, "down").answer === lastDown.answer;
             }
           },
           {
@@ -1071,11 +1418,157 @@
             }
           },
           {
-            name: "clicking cell syncs to the matching across clue",
+            name: "pickPuzzleIndex covers the full puzzle bank",
             run: function () {
-              activeClueIndex = 6;
-              syncActiveClueFromCell(3, 0);
-              return getActiveWord().answer === "SNAIL" && getActiveWord().direction === "across";
+              return pickPuzzleIndex(0) === 0
+                && pickPuzzleIndex(0.999999) === puzzles.length - 1;
+            }
+          },
+          {
+            name: "pickNextPuzzleIndex never repeats the active puzzle",
+            run: function () {
+              if (puzzles.length < 2) return pickNextPuzzleIndex(0, 0.5) === 0;
+              return pickNextPuzzleIndex(0, 0) === 1
+                && pickNextPuzzleIndex(2, 0.999999) !== 2;
+            }
+          },
+          {
+            name: "reset swaps in the queued puzzle",
+            run: function () {
+              if (puzzles.length < 2) return true;
+              const originalActivePuzzleIndex = activePuzzleIndex;
+              const originalPendingPuzzleIndex = pendingPuzzleIndex;
+              activePuzzleIndex = 0;
+              pendingPuzzleIndex = 1;
+              resetGame();
+              const resetOkay = activePuzzleIndex === 1 && pendingPuzzleIndex === null;
+              activePuzzleIndex = originalActivePuzzleIndex;
+              pendingPuzzleIndex = originalPendingPuzzleIndex;
+              activatePuzzle(originalActivePuzzleIndex);
+              return resetOkay;
+            }
+          },
+          {
+            name: "clicking selected cell toggles between across and down",
+            run: function () {
+              activeClueIndex = words.findIndex(function (word) {
+                return word.direction === "across" && word.number === 1;
+              });
+              selected = { row: 0, col: 0 };
+              boardEl.children[0].click();
+              return getActiveWord().direction === "down" && getActiveWord().number === 1;
+            }
+          },
+          {
+            name: "arrow keys move cell selection and switch direction",
+            run: function () {
+              activeClueIndex = words.findIndex(function (word) {
+                return word.direction === "across" && word.number === 1;
+              });
+              selected = { row: 0, col: 0 };
+
+              moveSelection("ArrowDown");
+              const movedDown = selected.row === 1
+                && selected.col === 0
+                && getActiveWord().direction === "down"
+                && getActiveWord().number === 1;
+
+              moveSelection("ArrowRight");
+              return movedDown
+                && selected.row === 1
+                && selected.col === 1
+                && getActiveWord().direction === "across"
+                && getActiveWord().number === 2;
+            }
+          },
+          {
+            name: "typing advances within the active direction",
+            run: function () {
+              activeClueIndex = words.findIndex(function (word) {
+                return word.direction === "down" && word.number === 2;
+              });
+              selected = { row: 0, col: 1 };
+              entries[0][1] = "";
+
+              handleLetter("D");
+              const advanced = selected.row === 1 && selected.col === 1;
+
+              entries[0][1] = "";
+              entries[1][1] = "";
+              return advanced;
+            }
+          },
+          {
+            name: "typing realigns clue to the selected cell before advancing",
+            run: function () {
+              activeClueIndex = words.findIndex(function (word) {
+                return word.direction === "across" && word.number === 5;
+              });
+              selected = { row: 0, col: 1 };
+              entries[0][1] = "";
+
+              handleLetter("D");
+              const advanced = getActiveWord().direction === "across"
+                && getActiveWord().number === 1
+                && selected.row === 0
+                && selected.col === 2;
+
+              entries[0][1] = "";
+              entries[0][2] = "";
+              return advanced;
+            }
+          },
+          {
+            name: "typing in the same clue does not rebounce the clue card",
+            run: function () {
+              const originalActiveClueIndex = activeClueIndex;
+              const originalSelected = selected ? { row: selected.row, col: selected.col } : null;
+              const originalEntry = entries[0][0];
+
+              activeClueIndex = 0;
+              selected = { row: 0, col: 0 };
+              entries[0][0] = "";
+              lastRenderedClueKey = null;
+              updateClue();
+              clueCardEl.classList.remove("bounce");
+
+              handleLetter("A");
+              const stayedStill = !clueCardEl.classList.contains("bounce");
+
+              entries[0][0] = originalEntry;
+              activeClueIndex = originalActiveClueIndex;
+              selected = originalSelected;
+              renderBoard();
+              updateClue();
+              return stayedStill;
+            }
+          },
+          {
+            name: "solved clue card stays highlighted while active word is solved",
+            run: function () {
+              const word = words[0];
+              const cells = getWordCells(word);
+              const snapshot = cells.map(function (pair) {
+                return entries[pair[0]][pair[1]];
+              });
+
+              activeClueIndex = 0;
+              selected = { row: 0, col: 0 };
+              cells.forEach(function (pair, idx) {
+                entries[pair[0]][pair[1]] = word.answer[idx];
+              });
+              updateClue();
+              const solvedState = clueCardEl.classList.contains("solved");
+
+              entries[cells[0][0]][cells[0][1]] = "";
+              updateClue();
+              const clearedState = !clueCardEl.classList.contains("solved");
+
+              cells.forEach(function (pair, idx) {
+                entries[pair[0]][pair[1]] = snapshot[idx];
+              });
+              updateClue();
+              return solvedState && clearedState;
             }
           }
         ];
@@ -1087,6 +1580,7 @@
         });
       }
 
+      activatePuzzle(randomPuzzleIndex());
       selected = getPreferredCellForWord(words[0]);
       makeKeyboardRow("row-top", keyRows.top);
       makeKeyboardRow("row-middle", keyRows.middle);
@@ -1103,7 +1597,8 @@
         makeBragText: makeBragText,
         getPreferredCellForWord: getPreferredCellForWord,
         moveClue: moveClue,
-        getActiveWord: getActiveWord
+        getActiveWord: getActiveWord,
+        isWordSolved: isWordSolved
       };
     })();
   </script>
