@@ -13,7 +13,6 @@
       --blue: #0b63f6;
       --yellow: #f5e84b;
       --yellow-soft: #fff7b8;
-      --yellow-pastel: #fff1a3;
       --blue-soft: #eaf1ff;
       --red-soft: #ffe0de;
       --shadow-black: 3px 3px 0 0 var(--ink);
@@ -144,6 +143,10 @@
     .cell:active { transform: scale(0.97); }
     .cell.black { background: var(--ink); cursor: default; }
     .cell.selected { background: var(--yellow); }
+    .cell.solved {
+      background: var(--blue);
+      color: var(--white);
+    }
     .cell.in-word { background: var(--blue-soft); }
     .cell.wrong { background: var(--red-soft); }
 
@@ -155,6 +158,10 @@
       font-weight: 800;
       line-height: 1;
       color: rgba(17, 17, 17, 0.55);
+    }
+
+    .cell.solved .cell-num {
+      color: rgba(255, 255, 255, 0.76);
     }
 
     .cell-letter {
@@ -195,7 +202,7 @@
     }
 
     .clue.solved {
-      background: var(--yellow-pastel);
+      background: var(--yellow);
       color: var(--ink);
     }
 
@@ -830,6 +837,12 @@
         });
       }
 
+      function isCellInSolvedWord(row, col) {
+        return words.some(function (word) {
+          return isWordSolved(word) && cellIsInWord(row, col, word);
+        });
+      }
+
       function buildSolution(rows) {
         return rows.map(function (row) {
           return row.split("");
@@ -1120,6 +1133,7 @@
               return pair[0] === r && pair[1] === c;
             });
             const wrong = entries[r][c] && entries[r][c] !== solution[r][c];
+            const solvedNow = isCellInSolvedWord(r, c);
 
             if (black) {
               cell.classList.add("black");
@@ -1127,6 +1141,7 @@
             } else {
               if (selectedNow) cell.classList.add("selected");
               else if (wrong) cell.classList.add("wrong");
+              else if (solvedNow) cell.classList.add("solved");
               else if (inWord) cell.classList.add("in-word");
 
               cell.addEventListener("click", function () {
@@ -1567,6 +1582,40 @@
               cells.forEach(function (pair, idx) {
                 entries[pair[0]][pair[1]] = snapshot[idx];
               });
+              updateClue();
+              return solvedState && clearedState;
+            }
+          },
+          {
+            name: "solved words tint their cells blue until cleared",
+            run: function () {
+              const word = words[0];
+              const cells = getWordCells(word);
+              const snapshot = cells.map(function (pair) {
+                return entries[pair[0]][pair[1]];
+              });
+
+              selected = { row: 4, col: 4 };
+              cells.forEach(function (pair, idx) {
+                entries[pair[0]][pair[1]] = word.answer[idx];
+              });
+              renderBoard();
+              const solvedState = Array.from(cells).every(function (pair) {
+                const index = pair[0] * 5 + pair[1];
+                return boardEl.children[index].classList.contains("solved");
+              });
+
+              entries[cells[0][0]][cells[0][1]] = "";
+              renderBoard();
+              const clearedState = Array.from(cells).some(function (pair) {
+                const index = pair[0] * 5 + pair[1];
+                return !boardEl.children[index].classList.contains("solved");
+              });
+
+              cells.forEach(function (pair, idx) {
+                entries[pair[0]][pair[1]] = snapshot[idx];
+              });
+              renderBoard();
               updateClue();
               return solvedState && clearedState;
             }

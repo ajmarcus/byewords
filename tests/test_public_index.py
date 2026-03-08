@@ -131,7 +131,7 @@ class TestPublicIndex(unittest.TestCase):
         self.assertIn("height: 100%;", html)
         self.assertIn("transition: background-color 260ms ease, color 220ms ease;", html)
         self.assertIn(".clue.solved {", html)
-        self.assertIn("background: var(--yellow-pastel);", html)
+        self.assertIn("background: var(--yellow);", html)
         self.assertIn('<span class="clue-label-text clue-label-solved" id="clue-label-solved">CLUE -- SOLVED</span>', html)
         self.assertIn(".clue-label-solved {", html)
         self.assertIn(".clue-label-text {", html)
@@ -164,6 +164,18 @@ class TestPublicIndex(unittest.TestCase):
         self.assertIn('name: "typing realigns clue to the selected cell before advancing"', html)
         self.assertIn('name: "typing in the same clue does not rebounce the clue card"', html)
         self.assertIn('name: "solved clue card stays highlighted while active word is solved"', html)
+        self.assertIn('name: "solved words tint their cells blue until cleared"', html)
+
+    def test_solved_words_use_topbar_blue_on_board(self) -> None:
+        html = INDEX_HTML.read_text(encoding="utf-8")
+
+        self.assertIn(".cell.solved {", html)
+        self.assertIn("background: var(--blue);", html)
+        self.assertIn("color: var(--white);", html)
+        self.assertIn(".cell.solved .cell-num {", html)
+        self.assertIn("function isCellInSolvedWord(row, col) {", html)
+        self.assertIn("const solvedNow = isCellInSolvedWord(r, c);", html)
+        self.assertIn('else if (solvedNow) cell.classList.add("solved");', html)
 
     def test_keyboard_handler_preserves_browser_shortcuts(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
