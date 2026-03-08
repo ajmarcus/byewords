@@ -96,6 +96,20 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(len(grids), 1)
         self.assertEqual(grids[0].rows, TEST_GRID_ROWS)
 
+    def test_search_grids_can_anchor_a_required_row_not_present_in_candidates(self) -> None:
+        prefix_index = build_prefix_index(TEST_LEXICON)
+
+        grids = search_grids(
+            candidate_words=tuple(word for word in TEST_GRID_ROWS if word != "snail"),
+            prefix_index=prefix_index,
+            beam_width=10,
+            max_candidates=5,
+            fixed_rows={3: "snail"},
+        )
+
+        self.assertEqual(len(grids), 1)
+        self.assertEqual(grids[0].rows, TEST_GRID_ROWS)
+
     def test_search_grids_can_anchor_a_required_column(self) -> None:
         prefix_index = build_prefix_index(TEST_LEXICON)
 
@@ -109,7 +123,6 @@ class TestSearch(unittest.TestCase):
 
         self.assertEqual(len(grids), 1)
         self.assertEqual(grids[0].rows, TEST_GRID_ROWS)
-
 
 if __name__ == "__main__":
     unittest.main()

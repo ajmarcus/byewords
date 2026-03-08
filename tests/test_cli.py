@@ -10,13 +10,19 @@ class TestCli(unittest.TestCase):
     def test_cli_prints_expected_message(self) -> None:
         buf = StringIO()
 
-        with redirect_stdout(buf), patch("sys.argv", ["byewords"]):
+        with (
+            redirect_stdout(buf),
+            patch("sys.argv", ["byewords"]),
+            patch("byewords.cli.load_default_inputs", return_value=((), {})),
+            patch("byewords.cli.generate_puzzle_cached") as generate_cached,
+            patch("byewords.cli.render_puzzle_text", return_value="generated puzzle"),
+        ):
+            generate_cached.return_value = object()
             main()
 
         output = buf.getvalue()
-        self.assertIn("BYEWORDS Mini", output)
-        self.assertIn("Across", output)
-        self.assertIn("Down", output)
+        generate_cached.assert_called_once_with((), (), {})
+        self.assertEqual(output, "generated puzzle\n")
 
     def test_cli_returns_error_for_seed_that_is_not_in_the_lexicon(self) -> None:
         stdout = StringIO()
@@ -26,6 +32,20 @@ class TestCli(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertIn("BYEWORDS Mini", stdout.getvalue())
+
+    def test_cli_reports_when_no_puzzle_is_possible(self) -> None:
+        stdout = StringIO()
+
+        with (
+            redirect_stdout(stdout),
+            patch("sys.argv", ["byewords"]),
+            patch("byewords.cli.load_default_inputs", return_value=((), {})),
+            patch("byewords.cli.generate_puzzle_cached", side_effect=ValueError("unable to generate a valid 5x5 puzzle from the current lexicon")),
+        ):
+            exit_code = main()
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("error: unable to generate a valid 5x5 puzzle", stdout.getvalue())
 
     def test_cli_uses_cached_generation_for_seeded_runs(self) -> None:
         stdout = StringIO()

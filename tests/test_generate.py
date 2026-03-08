@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from byewords.generate import generate_puzzle, generate_puzzle_cached
+from byewords.generate import DEFAULT_DEMO_ENTRIES, generate_puzzle, generate_puzzle_cached
 from byewords.grid import distinct_entries
 from tests.fixtures import TEST_LEXICON
 
@@ -60,6 +60,25 @@ class TestGenerate(unittest.TestCase):
 
         self.assertEqual(puzzle.title, "BYEWORDS Mini")
         self.assertNotIn("cable", distinct_entries(puzzle.grid))
+
+    def test_generate_puzzle_uses_demo_grid_when_seed_matches_demo_entry(self) -> None:
+        puzzle = generate_puzzle(
+            seeds=("ozone",),
+            lexicon_words=DEFAULT_DEMO_ENTRIES,
+            clue_bank={},
+        )
+
+        self.assertEqual(puzzle.title, "OZONE Mini")
+        self.assertEqual(puzzle.grid.rows, DEFAULT_DEMO_ENTRIES[:5])
+        self.assertIn("ozone", distinct_entries(puzzle.grid))
+
+    def test_generate_puzzle_reports_failure_when_no_grid_can_be_built(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unable to generate a valid 5x5 puzzle"):
+            generate_puzzle(
+                seeds=("beach",),
+                lexicon_words=("beach", "ozone", "liven", "inert", "verve", "ester"),
+                clue_bank={},
+            )
 
     def test_generate_puzzle_rejects_any_reused_word_in_final_puzzle(self) -> None:
         with self.assertRaises(ValueError):

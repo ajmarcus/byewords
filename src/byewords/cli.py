@@ -1,7 +1,6 @@
 import argparse
-import sys
 
-from byewords.generate import build_demo_puzzle, generate_puzzle_cached, load_default_inputs
+from byewords.generate import generate_puzzle_cached, load_default_inputs
 from byewords.render import render_puzzle_text
 
 
@@ -32,9 +31,6 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, ...]:
 
 def main() -> int:
     lexicon_words, clue_bank = load_default_inputs()
-    if len(sys.argv) == 1:
-        print(render_puzzle_text(build_demo_puzzle(clue_bank)))
-        return 0
     seeds = parse_args()
     try:
         puzzle = generate_puzzle_cached(seeds, lexicon_words, clue_bank)

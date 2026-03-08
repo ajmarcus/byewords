@@ -13,6 +13,7 @@
       --blue: #0b63f6;
       --yellow: #f5e84b;
       --yellow-soft: #fff7b8;
+      --yellow-pastel: #fff1a3;
       --blue-soft: #eaf1ff;
       --red-soft: #ffe0de;
       --shadow-black: 3px 3px 0 0 var(--ink);
@@ -194,8 +195,8 @@
     }
 
     .clue.solved {
-      background: var(--blue);
-      color: var(--white);
+      background: var(--yellow-pastel);
+      color: var(--ink);
     }
 
     @keyframes clue-bounce {
@@ -209,30 +210,43 @@
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: rgba(17, 17, 17, 0.6);
-      display: flex;
+      display: grid;
       align-items: center;
-      gap: 0;
       transition: color 220ms ease;
     }
 
     .clue.solved .clue-label {
-      color: rgba(255, 255, 255, 0.82);
+      color: rgba(17, 17, 17, 0.68);
+    }
+
+    .clue-label-text {
+      grid-area: 1 / 1;
+      white-space: nowrap;
+      transition: opacity 220ms ease, transform 260ms ease, letter-spacing 260ms ease;
+    }
+
+    .clue-label-base {
+      opacity: 1;
+      transform: translateX(0);
+      letter-spacing: 0.14em;
+    }
+
+    .clue.solved .clue-label-base {
+      opacity: 0;
+      transform: translateX(-6px);
+      letter-spacing: 0.18em;
     }
 
     .clue-label-solved {
-      display: inline-block;
-      max-width: 0;
-      overflow: hidden;
-      white-space: nowrap;
       opacity: 0;
-      transform: translateX(-6px);
-      transition: max-width 260ms ease, opacity 180ms ease, transform 260ms ease;
+      transform: translateX(6px);
+      letter-spacing: 0.18em;
     }
 
     .clue.solved .clue-label-solved {
-      max-width: 140px;
       opacity: 1;
       transform: translateX(0);
+      letter-spacing: 0.14em;
     }
 
     .clue-text {
@@ -257,7 +271,7 @@
     }
 
     .clue.solved .clue-meta {
-      color: rgba(255, 255, 255, 0.74);
+      color: rgba(17, 17, 17, 0.68);
     }
 
     .nav-btn {
@@ -552,7 +566,7 @@
         <div class="clue-nav">
           <button class="nav-btn" id="prev-clue" type="button" aria-label="Previous clue">←</button>
           <section class="clue" id="clue-card" aria-live="polite">
-            <div class="clue-label"><span>Clue</span><span class="clue-label-solved" id="clue-label-solved"> -- Solved</span></div>
+            <div class="clue-label"><span class="clue-label-text clue-label-base">Clue</span><span class="clue-label-text clue-label-solved" id="clue-label-solved">CLUE -- SOLVED</span></div>
             <div class="clue-text" id="clue-text">Pick a cell.</div>
             <div class="clue-meta" id="clue-meta"></div>
           </section>
@@ -931,6 +945,53 @@
         });
       }
 
+      function cellIsInWord(row, col, word) {
+        if (!word) return false;
+        return getWordCells(word).some(function (pair) {
+          return pair[0] === row && pair[1] === col;
+        });
+      }
+
+      function getWordIndex(word) {
+        return words.findIndex(function (candidate) {
+          return word && candidate.number === word.number && candidate.direction === word.direction;
+        });
+      }
+
+      function getDirectionForKey(key) {
+        if (key === "ArrowUp" || key === "ArrowDown") {
+          return "down";
+        }
+        if (key === "ArrowLeft" || key === "ArrowRight") {
+          return "across";
+        }
+        return null;
+      }
+
+      function syncActiveClueFromCell(row, col, preferredDirection) {
+        const current = getActiveWord();
+        const targetDirection = preferredDirection || (current ? current.direction : "across");
+
+        if (current && cellIsInWord(row, col, current) && current.direction === targetDirection) {
+          return current;
+        }
+
+        const nextWord = getWordForCell(row, col, targetDirection)
+          || getWordForCell(row, col, "across")
+          || getWordForCell(row, col, "down");
+        const nextIndex = getWordIndex(nextWord);
+        if (nextIndex !== -1) {
+          activeClueIndex = nextIndex;
+        }
+        return words[activeClueIndex] || null;
+      }
+
+      function selectCell(row, col, preferredDirection) {
+        if (isBlackCell(row, col)) return;
+        selected = { row: row, col: col };
+        syncActiveClueFromCell(row, col, preferredDirection);
+      }
+
       function getPreferredCellForWord(word) {
         const cells = getWordCells(word);
         const firstEmpty = cells.find(function (pair) {
@@ -1024,31 +1085,22 @@
       }
 
       function moveSelection(key) {
-        if (key === "ArrowLeft" || key === "ArrowUp") {
-          moveClue(-1);
-          return;
-        }
-        if (key === "ArrowRight" || key === "ArrowDown") {
-          moveClue(1);
-        }
-      }
+        const direction = getDirectionForKey(key);
+        if (!direction || !selected) return;
 
-      function syncActiveClueFromCell(row, col) {
-        const current = getActiveWord();
-        if (current) {
-          const currentCells = getWordCells(current);
-          const inCurrent = currentCells.some(function (pair) {
-            return pair[0] === row && pair[1] === col;
-          });
-          if (inCurrent) return;
-        }
-        const acrossWord = getWordForCell(row, col, "across");
-        const downWord = getWordForCell(row, col, "down");
-        const nextWord = acrossWord || downWord;
-        const nextIndex = words.findIndex(function (word) {
-          return nextWord && word.number === nextWord.number && word.direction === nextWord.direction;
-        });
-        if (nextIndex !== -1) activeClueIndex = nextIndex;
+        const offsets = {
+          ArrowLeft: [0, -1],
+          ArrowRight: [0, 1],
+          ArrowUp: [-1, 0],
+          ArrowDown: [1, 0]
+        };
+        const delta = offsets[key];
+        const nextRow = Math.max(0, Math.min(4, selected.row + delta[0]));
+        const nextCol = Math.max(0, Math.min(4, selected.col + delta[1]));
+
+        selectCell(nextRow, nextCol, direction);
+        renderBoard();
+        updateClue();
       }
 
       function renderBoard() {
@@ -1078,8 +1130,12 @@
               else if (inWord) cell.classList.add("in-word");
 
               cell.addEventListener("click", function () {
-                selected = { row: r, col: c };
-                syncActiveClueFromCell(r, c);
+                const current = getActiveWord();
+                const clickedSelectedCell = selected && selected.row === r && selected.col === c;
+                const preferredDirection = clickedSelectedCell && current
+                  ? (current.direction === "across" ? "down" : "across")
+                  : (current ? current.direction : "across");
+                selectCell(r, c, preferredDirection);
                 renderBoard();
                 updateClue();
               });
@@ -1117,8 +1173,9 @@
         if (isFinished || isBlackCell(selected.row, selected.col)) return;
         const row = selected.row;
         const col = selected.col;
+        const currentDirection = getActiveWord() ? getActiveWord().direction : "across";
+        const word = syncActiveClueFromCell(row, col, currentDirection);
         entries[row][col] = letter;
-        const word = getActiveWord();
         if (word) {
           const cells = getWordCells(word);
           const index = cells.findIndex(function (pair) {
@@ -1146,7 +1203,8 @@
           return;
         }
 
-        const word = getActiveWord();
+        const currentDirection = getActiveWord() ? getActiveWord().direction : "across";
+        const word = syncActiveClueFromCell(row, col, currentDirection);
         if (!word) return;
         const cells = getWordCells(word);
         const index = cells.findIndex(function (pair) {
@@ -1391,13 +1449,73 @@
             }
           },
           {
-            name: "clicking cell syncs to the matching across clue",
+            name: "clicking selected cell toggles between across and down",
             run: function () {
               activeClueIndex = words.findIndex(function (word) {
-                return word.direction === "down" && word.number === 1;
+                return word.direction === "across" && word.number === 1;
               });
-              syncActiveClueFromCell(3, 0);
-              return getActiveWord().direction === "across" && getActiveWord().row === 3;
+              selected = { row: 0, col: 0 };
+              boardEl.children[0].click();
+              return getActiveWord().direction === "down" && getActiveWord().number === 1;
+            }
+          },
+          {
+            name: "arrow keys move cell selection and switch direction",
+            run: function () {
+              activeClueIndex = words.findIndex(function (word) {
+                return word.direction === "across" && word.number === 1;
+              });
+              selected = { row: 0, col: 0 };
+
+              moveSelection("ArrowDown");
+              const movedDown = selected.row === 1
+                && selected.col === 0
+                && getActiveWord().direction === "down"
+                && getActiveWord().number === 1;
+
+              moveSelection("ArrowRight");
+              return movedDown
+                && selected.row === 1
+                && selected.col === 1
+                && getActiveWord().direction === "across"
+                && getActiveWord().number === 2;
+            }
+          },
+          {
+            name: "typing advances within the active direction",
+            run: function () {
+              activeClueIndex = words.findIndex(function (word) {
+                return word.direction === "down" && word.number === 2;
+              });
+              selected = { row: 0, col: 1 };
+              entries[0][1] = "";
+
+              handleLetter("D");
+              const advanced = selected.row === 1 && selected.col === 1;
+
+              entries[0][1] = "";
+              entries[1][1] = "";
+              return advanced;
+            }
+          },
+          {
+            name: "typing realigns clue to the selected cell before advancing",
+            run: function () {
+              activeClueIndex = words.findIndex(function (word) {
+                return word.direction === "across" && word.number === 5;
+              });
+              selected = { row: 0, col: 1 };
+              entries[0][1] = "";
+
+              handleLetter("D");
+              const advanced = getActiveWord().direction === "across"
+                && getActiveWord().number === 1
+                && selected.row === 0
+                && selected.col === 2;
+
+              entries[0][1] = "";
+              entries[0][2] = "";
+              return advanced;
             }
           },
           {
