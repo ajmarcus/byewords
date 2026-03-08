@@ -41,11 +41,11 @@ class TestRender(unittest.TestCase):
         self.assertIn("Down", rendered)
         self.assertIn("1. Down clue 1", rendered)
 
-    def test_render_puzzle_text_includes_title_theme_and_grid(self) -> None:
+    def test_render_puzzle_text_includes_title_seed_words_and_grid(self) -> None:
         rendered = render_puzzle_text(build_test_puzzle())
 
         self.assertIn("SNAIL Mini", rendered)
-        self.assertIn("Theme words: SNAIL, EASES", rendered)
+        self.assertIn("Seed words: SNAIL, EASES", rendered)
         self.assertIn("A D I E U", rendered)
 
     def test_puzzle_to_dict_serializes_expected_shape(self) -> None:
@@ -60,10 +60,9 @@ class TestRender(unittest.TestCase):
         self.assertEqual(down[0]["answer"], "abase")
 
     def test_load_default_inputs_reads_packaged_data(self) -> None:
-        lexicon_words, related_words, clue_bank = load_default_inputs()
+        lexicon_words, clue_bank = load_default_inputs()
 
         self.assertIn("snail", lexicon_words)
-        self.assertIn("eases", related_words["snail"])
         self.assertTrue(all(clues and all(clue.strip() for clue in clues) for clues in clue_bank.values()))
 
     def test_module_entrypoint_exits_with_main_status(self) -> None:

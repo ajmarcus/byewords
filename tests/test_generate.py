@@ -1,8 +1,10 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
-from byewords.generate import generate_puzzle
+from byewords.generate import generate_puzzle, generate_puzzle_cached
 from byewords.grid import distinct_entries
-from byewords.types import GenerateConfig
 from tests.fixtures import TEST_LEXICON
 
 
@@ -11,7 +13,6 @@ class TestGenerate(unittest.TestCase):
         puzzle = generate_puzzle(
             seeds=("snail",),
             lexicon_words=TEST_LEXICON,
-            related_map={"snail": ("snail", "adieu", "booed", "antra", "eases")},
             clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
         )
 
@@ -27,60 +28,82 @@ class TestGenerate(unittest.TestCase):
             generate_puzzle(
                 seeds=("snail",),
                 lexicon_words=("snail", "abase"),
-                related_map={"snail": ("snail",)},
                 clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
             )
 
-    def test_generate_puzzle_rejects_seeds_without_enough_theme_words(self) -> None:
-        with self.assertRaises(ValueError):
-            generate_puzzle(
-                seeds=("xxxxx",),
-                lexicon_words=TEST_LEXICON,
-                related_map={},
-                clue_bank={},
-            )
-
-    def test_generate_puzzle_rejects_seed_words_missing_from_the_lexicon(self) -> None:
-        with self.assertRaises(ValueError):
-            generate_puzzle(
-                seeds=("beach",),
-                lexicon_words=TEST_LEXICON,
-                related_map={},
-                clue_bank={},
-            )
-
-    def test_generate_puzzle_rejects_grids_that_do_not_place_the_seed_word(self) -> None:
-        with self.assertRaises(ValueError):
-            generate_puzzle(
-                seeds=("cable",),
-                lexicon_words=TEST_LEXICON + ("cable", "agues", "buses", "leese", "esses"),
-                related_map={"cable": ("cable", "agues", "buses", "leese", "esses")},
-                clue_bank={},
-            )
-
-    def test_generate_puzzle_falls_back_to_seeded_near_miss_when_theme_threshold_misses(self) -> None:
+    def test_generate_puzzle_accepts_empty_seed_list(self) -> None:
         puzzle = generate_puzzle(
-            seeds=("snail",),
-            lexicon_words=TEST_LEXICON + ("slime",),
-            related_map={"snail": ("snail", "adieu", "booed", "antra", "eases", "slime")},
-            clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
-            config=GenerateConfig(min_theme_words=6, allow_theme_fallback=True),
+            seeds=(),
+            lexicon_words=TEST_LEXICON,
+            clue_bank={},
         )
 
-        self.assertEqual(puzzle.title, "SNAIL Mini")
-        self.assertIn("snail", distinct_entries(puzzle.grid))
+        self.assertEqual(puzzle.title, "BYEWORDS Mini")
         self.assertEqual(len(set(distinct_entries(puzzle.grid))), 10)
 
-    def test_generate_puzzle_accepts_seeded_fill_without_a_theme_cluster(self) -> None:
+    def test_generate_puzzle_ignores_unknown_seed_words_when_generic_fill_exists(self) -> None:
+        puzzle = generate_puzzle(
+            seeds=("beach",),
+            lexicon_words=TEST_LEXICON,
+            clue_bank={},
+        )
+
+        self.assertEqual(puzzle.title, "BYEWORDS Mini")
+        self.assertEqual(len(set(distinct_entries(puzzle.grid))), 10)
+
+    def test_generate_puzzle_falls_back_to_generic_grid_when_requested_seed_cannot_fit(self) -> None:
+        puzzle = generate_puzzle(
+            seeds=("cable",),
+            lexicon_words=TEST_LEXICON + ("cable", "agues", "buses", "leese", "esses"),
+            clue_bank={},
+        )
+
+        self.assertEqual(puzzle.title, "BYEWORDS Mini")
+        self.assertNotIn("cable", distinct_entries(puzzle.grid))
+
+    def test_generate_puzzle_rejects_any_reused_word_in_final_puzzle(self) -> None:
+        with self.assertRaises(ValueError):
+            generate_puzzle(
+                seeds=(),
+                lexicon_words=("cable", "agues", "buses", "leese", "esses"),
+                clue_bank={},
+            )
+
+    def test_generate_puzzle_prefers_seeded_fill_when_one_is_available(self) -> None:
         puzzle = generate_puzzle(
             seeds=("snail",),
             lexicon_words=TEST_LEXICON,
-            related_map={},
             clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
         )
 
         self.assertEqual(puzzle.title, "SNAIL Mini")
         self.assertIn("snail", distinct_entries(puzzle.grid))
+
+    def test_generate_puzzle_cached_reuses_saved_puzzle(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir)
+            seeds = ("snail",)
+            clue_bank: dict[str, tuple[str, ...]] = {
+                "snail": ("Mollusk hauling its studio apartment",),
+            }
+
+            first = generate_puzzle_cached(
+                seeds=seeds,
+                lexicon_words=TEST_LEXICON,
+                clue_bank=clue_bank,
+                cache_dir=cache_dir,
+            )
+
+            with patch("byewords.generate.generate_puzzle", side_effect=AssertionError("cache miss")):
+                second = generate_puzzle_cached(
+                    seeds=seeds,
+                    lexicon_words=TEST_LEXICON,
+                    clue_bank=clue_bank,
+                    cache_dir=cache_dir,
+                )
+
+            self.assertEqual(first, second)
+            self.assertEqual(len(tuple(cache_dir.glob("*.json"))), 1)
 
 
 if __name__ == "__main__":

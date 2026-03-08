@@ -46,7 +46,5 @@ class CandidateGrid:
 class GenerateConfig:
     max_candidates: int = 500
     beam_width: int = 10
-    min_theme_words: int = 1
     allow_neutral_fill: bool = True
-    allow_theme_fallback: bool = True
     random_seed: int = 0

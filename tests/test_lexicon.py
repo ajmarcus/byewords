@@ -6,7 +6,6 @@ from pathlib import Path
 from byewords.lexicon import (
     filter_legal_words,
     load_clue_bank,
-    load_related_words,
     normalize_word,
 )
 
@@ -24,14 +23,11 @@ class TestLexicon(unittest.TestCase):
             ("snail", "eases"),
         )
 
-    def test_json_loaders_normalize_word_lists(self) -> None:
+    def test_load_clue_bank_preserves_string_clues(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            related_path = Path(directory, "related.json")
             clue_path = Path(directory, "clues.json")
-            related_path.write_text(json.dumps({"Snail": ["Slime", "trail", "bad!"]}), encoding="utf-8")
             clue_path.write_text(json.dumps({"Snail": ["Mollusk hauling its studio apartment"]}), encoding="utf-8")
 
-            self.assertEqual(load_related_words(str(related_path)), {"snail": ("slime", "trail")})
             self.assertEqual(load_clue_bank(str(clue_path)), {"snail": ("Mollusk hauling its studio apartment",)})
 
 

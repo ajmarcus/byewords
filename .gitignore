@@ -3,3 +3,4 @@ __pycache__/
 *.py[cod]
 .Python
 .venv/
+.byewords-cache/

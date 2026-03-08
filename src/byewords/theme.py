@@ -10,20 +10,6 @@ def normalize_seeds(seeds: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(normalized))
 
 
-def expand_theme_words(
-    seeds: tuple[str, ...],
-    related_map: dict[str, tuple[str, ...]],
-    lexicon: tuple[str, ...],
-) -> tuple[str, ...]:
-    lexicon_set = set(lexicon)
-    expanded: list[str] = []
-    for seed in normalize_seeds(seeds):
-        if seed in lexicon_set:
-            expanded.append(seed)
-        expanded.extend(word for word in related_map.get(seed, ()) if word in lexicon_set)
-    return rank_theme_candidates(seeds, tuple(dict.fromkeys(expanded)))
-
-
 def rank_theme_candidates(
     seeds: tuple[str, ...],
     candidates: tuple[str, ...],

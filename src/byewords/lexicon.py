@@ -22,15 +22,6 @@ def filter_legal_words(words: tuple[str, ...]) -> tuple[str, ...]:
             legal_words.append(normalized)
     return tuple(dict.fromkeys(legal_words))
 
-
-def load_related_words(path: str) -> dict[str, tuple[str, ...]]:
-    raw = json.loads(Path(path).read_text(encoding="utf-8"))
-    return {
-        key.lower(): filter_legal_words(tuple(value))
-        for key, value in raw.items()
-    }
-
-
 def load_clue_bank(path: str) -> dict[str, tuple[str, ...]]:
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
     return {
