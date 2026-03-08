@@ -1591,6 +1591,7 @@
             run: function () {
               const word = words[0];
               const cells = getWordCells(word);
+              const originalSelected = selected ? { row: selected.row, col: selected.col } : null;
               const snapshot = cells.map(function (pair) {
                 return entries[pair[0]][pair[1]];
               });
@@ -1615,6 +1616,7 @@
               cells.forEach(function (pair, idx) {
                 entries[pair[0]][pair[1]] = snapshot[idx];
               });
+              selected = originalSelected;
               renderBoard();
               updateClue();
               return solvedState && clearedState;
