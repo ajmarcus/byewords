@@ -3,12 +3,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import sys
-from collections.abc import Mapping, Sequence
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+import time
+from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
-from datetime import UTC, date, datetime
 from importlib import resources
+from pathlib import Path
 from typing import Any, Protocol, TextIO
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -18,9 +21,13 @@ from byewords.lexicon import load_clue_bank, load_word_list, normalize_word
 
 MODEL_NAME = "openai/gpt-oss-120b"
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
-DEFAULT_CLUE_COUNT = 5
-DEFAULT_PARALLELISM = 8
+DEFAULT_CLUE_COUNT = 2
+DEFAULT_PARALLELISM = 5
 DEFAULT_TIMEOUT_SECONDS = 60.0
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
 QUALITY_EXAMPLES = (
     "Example 1\n"
     "Answer: TRADE\n"
@@ -40,21 +47,10 @@ QUALITY_EXAMPLES = (
 
 
 @dataclass(frozen=True)
-class ClueOption:
-    clue: str
-    angle: str
-    freshness: str
-    why_it_works: str
-
-
-@dataclass(frozen=True)
 class CluePackage:
     answer: str
-    research_verdict: str
-    recent_hook_summary: str
-    editor_note: str
-    best_index: int
-    clues: tuple[ClueOption, ...]
+    cached: bool
+    clues: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -63,8 +59,52 @@ class AnswerSelection:
     skipped_answers: tuple[str, ...]
 
 
+class GracefulExit(Exception):
+    def __init__(self, completed: int, total: int) -> None:
+        super().__init__(f"Stopped after {completed} out of {total} words completed.")
+        self.completed = completed
+        self.total = total
+
+
+class StatusReporter:
+    def __init__(self, stream: TextIO, total: int) -> None:
+        self.stream = stream
+        self.total = total
+        self.completed = 0
+        self._lock = threading.Lock()
+        self._stop_noted = False
+
+    def completed_word(self) -> None:
+        with self._lock:
+            self.completed += 1
+            should_log = self.completed % 50 == 0 or (
+                self.total >= 50 and self.completed == self.total
+            )
+            message = f"{self.completed} out of {self.total} words completed" if should_log else None
+        if message is not None:
+            print(message, file=self.stream)
+
+    def rate_limited(self, retry_after_seconds: float) -> None:
+        print(
+            f"Rate limited by Groq. Waiting {retry_after_seconds:g} seconds before retrying.",
+            file=self.stream,
+        )
+
+    def stop_requested(self) -> None:
+        with self._lock:
+            if self._stop_noted:
+                return
+            self._stop_noted = True
+        print("Graceful stop requested. Finishing in-flight requests before exit.", file=self.stream)
+
+
 class CompletionClient(Protocol):
     def create_chat_completion(self, payload: dict[str, Any]) -> dict[str, Any]: ...
+
+
+class UnavailableClient:
+    def create_chat_completion(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise RuntimeError("Groq client was not configured for uncached clue generation.")
 
 
 class GroqClient:
@@ -73,10 +113,14 @@ class GroqClient:
         api_key: str,
         api_url: str = API_URL,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        rate_limit_callback: Callable[[float], None] | None = None,
+        sleep_fn: Callable[[float], None] = time.sleep,
     ) -> None:
         self.api_key = api_key
         self.api_url = api_url
         self.timeout_seconds = timeout_seconds
+        self.rate_limit_callback = rate_limit_callback
+        self.sleep_fn = sleep_fn
 
     def create_chat_completion(self, payload: dict[str, Any]) -> dict[str, Any]:
         request_body = json.dumps(payload).encode("utf-8")
@@ -86,17 +130,26 @@ class GroqClient:
             headers={
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
+                "User-Agent": DEFAULT_USER_AGENT,
             },
             method="POST",
         )
 
-        try:
-            with urlopen(request, timeout=self.timeout_seconds) as response:
-                response_body = response.read().decode("utf-8")
-        except HTTPError as exc:
-            raise RuntimeError(_format_http_error(exc)) from exc
-        except URLError as exc:
-            raise RuntimeError(f"Could not reach the Groq API: {exc.reason}") from exc
+        while True:
+            try:
+                with urlopen(request, timeout=self.timeout_seconds) as response:
+                    response_body = response.read().decode("utf-8")
+            except HTTPError as exc:
+                retry_after_seconds = _retry_after_seconds(exc)
+                if exc.code == 429 and retry_after_seconds is not None:
+                    if self.rate_limit_callback is not None:
+                        self.rate_limit_callback(retry_after_seconds)
+                    self.sleep_fn(retry_after_seconds)
+                    continue
+                raise RuntimeError(_format_http_error(exc)) from exc
+            except URLError as exc:
+                raise RuntimeError(f"Could not reach the Groq API: {exc.reason}") from exc
+            break
 
         parsed = json.loads(response_body)
         if not isinstance(parsed, dict):
@@ -106,7 +159,7 @@ class GroqClient:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="byewords-groq-clues",
+        prog="byewords-generate-clues",
         description="Generate sharp crossword clues with Groq's GPT OSS 120B model.",
     )
     parser.add_argument(
@@ -117,20 +170,20 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--theme",
         default="",
-        help="Optional puzzle theme or editorial framing.",
+        help="Ignored. Clues are now standalone rather than theme-driven.",
     )
     parser.add_argument(
         "--recent-context",
         action="append",
         dest="recent_context",
         default=[],
-        help="Extra recent-events context to bias the clue search. May be passed multiple times.",
+        help="Ignored. Clues are now timeless rather than tied to recent context.",
     )
     parser.add_argument(
         "--count",
         type=int,
         default=DEFAULT_CLUE_COUNT,
-        help=f"How many clue options to request per answer. Default: {DEFAULT_CLUE_COUNT}.",
+        help=f"How many clue options to request per answer. Must be {DEFAULT_CLUE_COUNT}.",
     )
     parser.add_argument(
         "--parallelism",
@@ -150,8 +203,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Print structured JSON instead of formatted text.",
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
-    if args.count < 1:
-        parser.error("--count must be at least 1")
+    if args.count != DEFAULT_CLUE_COUNT:
+        parser.error(f"--count must be exactly {DEFAULT_CLUE_COUNT}")
     if args.parallelism < 1:
         parser.error("--parallelism must be at least 1")
     if args.limit < 0:
@@ -170,78 +223,23 @@ def require_api_key(env: Mapping[str, str] | None = None) -> str:
     )
 
 
-def today_utc() -> date:
-    return datetime.now(UTC).date()
-
-
-def build_research_payload(
-    answer: str,
-    theme: str,
-    recent_context: Sequence[str],
-    current_date: date,
-) -> dict[str, Any]:
-    theme_text = theme or "None"
-    context_lines = "\n".join(f"- {item}" for item in recent_context) or "- None supplied"
-    date_text = _format_date(current_date)
-    return {
-        "model": MODEL_NAME,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are researching clue angles for a first-rate New York Times crossword editor. "
-                    "Use browser search to find timely hooks tied to the answer. Focus on the last 45 days when possible. "
-                    "Do not write clues. Return plain text with exactly these sections:\n"
-                    "VERDICT: RECENT or HYBRID or TIMELESS\n"
-                    "HOOKS:\n"
-                    "- bullet points with concrete current hooks or a direct statement that no fair timely hook exists\n"
-                    "RISKS:\n"
-                    "- bullet points describing fairness traps, stale angles, or ambiguity risks\n"
-                    "Keep the whole response under 180 words."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"Answer: {answer.strip()}\n"
-                    f"Theme: {theme_text}\n"
-                    f"Today's date: {date_text}\n"
-                    "Extra recent context to consider:\n"
-                    f"{context_lines}\n"
-                    "Find timely but fair clue angles. If the answer has no clean recent-news hook, say so plainly."
-                ),
-            },
-        ],
-        "tool_choice": "required",
-        "tools": [{"type": "browser_search"}],
-        "max_completion_tokens": 700,
-    }
-
-
 def build_clue_payload(
     answer: str,
-    theme: str,
-    recent_context: Sequence[str],
-    research_notes: str,
     count: int,
-    current_date: date,
 ) -> dict[str, Any]:
-    theme_text = theme or "None"
-    context_lines = "\n".join(f"- {item}" for item in recent_context) or "- None supplied"
-    date_text = _format_date(current_date)
     return {
         "model": MODEL_NAME,
         "messages": [
             {
                 "role": "system",
                 "content": (
-                    "You are a first-rate New York Times crossword editor. "
-                    "Write clues that are spicy, precise, memorable, and fair. "
-                    "Every clue must point cleanly to the exact answer. "
-                    "Use a current-events angle only when the research notes support it clearly. "
-                    "Never invent or exaggerate a recent event. "
-                    "Avoid dull dictionary definitions, fill-in-the-blank prompts, partials, giveaway spelling cues, and niche fan-wiki trivia. "
-                    "Return distinct options with at least one safer clue and one bolder clue.\n\n"
+                    "You are an one of the best crossword editors of all time on par with Will Shortz, "
+                    "Anna Shechtman, Brendan Emmett Quigley and Patrick Berry. "
+                    "Your work has been published in The New York Times, The Wall Street Journal, and The New Yorker. "
+                    "Write two funny, memorable and precise clues for the provided answer. "
+                    "Review your work by evaluating whether each clue is a clear reference to the provided answer. "
+                    "The clue should present some challenge to the player but not be an obsure reference. "
+                    "Return only a JSON object with one key, 'clues', whose value is an array of two distinct clue strings.\n\n"
                     "Study these contrasting examples of high-quality clues and match their standard of specificity and snap:\n"
                     f"{QUALITY_EXAMPLES}"
                 ),
@@ -250,14 +248,8 @@ def build_clue_payload(
                 "role": "user",
                 "content": (
                     f"Answer: {answer.strip()}\n"
-                    f"Theme: {theme_text}\n"
-                    f"Today's date: {date_text}\n"
-                    "Extra recent context:\n"
-                    f"{context_lines}\n"
-                    "Research notes:\n"
-                    f"{research_notes}\n"
-                    f"Return exactly {count} clue options. "
-                    "If no fair timely clue exists, say that in the summaries and produce the strongest timeless or hybrid clue instead."
+                    f"Return exactly {count} standalone clues. "
+                    "Return only a JSON object with one key, 'clues'."
                 ),
             },
         ],
@@ -269,40 +261,14 @@ def build_clue_payload(
                 "schema": {
                     "type": "object",
                     "properties": {
-                        "answer": {"type": "string"},
-                        "research_verdict": {
-                            "type": "string",
-                            "enum": ["RECENT", "HYBRID", "TIMELESS"],
-                        },
-                        "recent_hook_summary": {"type": "string"},
-                        "editor_note": {"type": "string"},
-                        "best_index": {"type": "integer"},
                         "clues": {
                             "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "clue": {"type": "string"},
-                                    "angle": {"type": "string"},
-                                    "freshness": {
-                                        "type": "string",
-                                        "enum": ["recent_event", "hybrid", "timeless"],
-                                    },
-                                    "why_it_works": {"type": "string"},
-                                },
-                                "required": ["clue", "angle", "freshness", "why_it_works"],
-                                "additionalProperties": False,
-                            },
-                        },
+                            "minItems": DEFAULT_CLUE_COUNT,
+                            "maxItems": DEFAULT_CLUE_COUNT,
+                            "items": {"type": "string"},
+                        }
                     },
-                    "required": [
-                        "answer",
-                        "research_verdict",
-                        "recent_hook_summary",
-                        "editor_note",
-                        "best_index",
-                        "clues",
-                    ],
+                    "required": ["clues"],
                     "additionalProperties": False,
                 },
             },
@@ -330,75 +296,48 @@ def extract_message_content(response: Mapping[str, Any]) -> str:
     return content
 
 
-def parse_clue_package(payload: str) -> CluePackage:
+def parse_clue_package(payload: str) -> tuple[str, ...]:
     raw = json.loads(payload)
-    if not isinstance(raw, dict):
-        raise RuntimeError("Structured clue response was not a JSON object.")
-    raw_clues = raw.get("clues")
-    if not isinstance(raw_clues, list) or not raw_clues:
-        raise RuntimeError("Structured clue response did not include any clue options.")
-    clues = []
-    for raw_clue in raw_clues:
-        if not isinstance(raw_clue, dict):
-            raise RuntimeError("Structured clue response included an invalid clue option.")
-        clues.append(
-            ClueOption(
-                clue=str(raw_clue["clue"]),
-                angle=str(raw_clue["angle"]),
-                freshness=str(raw_clue["freshness"]),
-                why_it_works=str(raw_clue["why_it_works"]),
-            )
+    if isinstance(raw, Mapping):
+        raw = raw.get("clues")
+    if not isinstance(raw, list) or len(raw) != DEFAULT_CLUE_COUNT:
+        raise RuntimeError(
+            f"Structured clue response did not include exactly {DEFAULT_CLUE_COUNT} clue options."
         )
-
-    best_index = raw.get("best_index", 0)
-    if not isinstance(best_index, int) or not 0 <= best_index < len(clues):
-        best_index = 0
-
-    return CluePackage(
-        answer=str(raw.get("answer", "")),
-        research_verdict=str(raw.get("research_verdict", "TIMELESS")),
-        recent_hook_summary=str(raw.get("recent_hook_summary", "")),
-        editor_note=str(raw.get("editor_note", "")),
-        best_index=best_index,
-        clues=tuple(clues),
-    )
+    clues = []
+    for raw_clue in raw:
+        if not isinstance(raw_clue, str):
+            raise RuntimeError("Structured clue response included an invalid clue option.")
+        clue = raw_clue.strip()
+        if not clue:
+            raise RuntimeError("Structured clue response included an empty clue option.")
+        clues.append(clue)
+    return tuple(clues)
 
 
 def generate_clue_package(
     client: CompletionClient,
     answer: str,
-    theme: str = "",
-    recent_context: Sequence[str] = (),
+    clue_bank: dict[str, tuple[str, ...]],
+    clue_bank_path: str,
+    lock: threading.Lock,
     count: int = DEFAULT_CLUE_COUNT,
-    current_date: date | None = None,
 ) -> CluePackage:
-    effective_date = current_date or today_utc()
-    research_payload = build_research_payload(answer, theme, recent_context, effective_date)
-    research_response = client.create_chat_completion(research_payload)
-    research_notes = extract_message_content(research_response)
+    cached_clues = cached_clues_for_answer(answer, clue_bank)
+    if cached_clues:
+        return CluePackage(answer=answer.strip(), cached=True, clues=cached_clues)
 
     clue_payload = build_clue_payload(
         answer=answer,
-        theme=theme,
-        recent_context=recent_context,
-        research_notes=research_notes,
         count=count,
-        current_date=effective_date,
     )
     clue_response = client.create_chat_completion(clue_payload)
     clue_content = extract_message_content(clue_response)
-    package = parse_clue_package(clue_content)
-
-    if not package.answer.strip():
-        return CluePackage(
-            answer=answer.strip(),
-            research_verdict=package.research_verdict,
-            recent_hook_summary=package.recent_hook_summary,
-            editor_note=package.editor_note,
-            best_index=package.best_index,
-            clues=package.clues,
-    )
-    return package
+    clues = parse_clue_package(clue_content)
+    with lock:
+        clue_bank[answer.strip()] = clues
+        persist_clue_bank(clue_bank_path, clue_bank)
+    return CluePackage(answer=answer.strip(), cached=False, clues=clues)
 
 
 def load_default_answer_inputs() -> tuple[tuple[str, ...], dict[str, tuple[str, ...]]]:
@@ -407,11 +346,34 @@ def load_default_answer_inputs() -> tuple[tuple[str, ...], dict[str, tuple[str, 
     return load_word_list(words_path), load_clue_bank(clue_bank_path)
 
 
+def default_clue_bank_path() -> str:
+    return str(resources.files("byewords").joinpath("data", "clue_bank.json"))
+
+
 def answer_needs_new_clue(answer: str, clue_bank: Mapping[str, tuple[str, ...]]) -> bool:
-    clues = clue_bank.get(answer, ())
+    return cached_clues_for_answer(answer, clue_bank) is None
+
+
+def cached_clues_for_answer(
+    answer: str,
+    clue_bank: Mapping[str, tuple[str, ...]],
+) -> tuple[str, ...] | None:
+    clues = tuple(
+        clue.strip()
+        for clue in clue_bank.get(answer, ())
+        if clue.strip() and not is_generic_clue(clue)
+    )
     if not clues:
-        return True
-    return not any(clue.strip() and not is_generic_clue(clue) for clue in clues)
+        return None
+    return clues
+
+
+def persist_clue_bank(path: str, clue_bank: Mapping[str, tuple[str, ...]]) -> None:
+    serializable = {
+        answer: list(clues)
+        for answer, clues in sorted(clue_bank.items())
+    }
+    Path(path).write_text(json.dumps(serializable, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def select_answers_to_clue(
@@ -422,6 +384,9 @@ def select_answers_to_clue(
 ) -> AnswerSelection:
     if requested_answers:
         source_answers = _normalize_requested_answers(requested_answers)
+        if limit > 0:
+            source_answers = source_answers[:limit]
+        return AnswerSelection(queued_answers=source_answers, skipped_answers=())
     else:
         source_answers = lexicon_words
 
@@ -441,39 +406,59 @@ def select_answers_to_clue(
 def generate_clue_packages_parallel(
     client: CompletionClient,
     answers: Sequence[str],
-    theme: str = "",
-    recent_context: Sequence[str] = (),
+    clue_bank: dict[str, tuple[str, ...]],
+    clue_bank_path: str,
     count: int = DEFAULT_CLUE_COUNT,
     parallelism: int = DEFAULT_PARALLELISM,
-    current_date: date | None = None,
+    reporter: StatusReporter | None = None,
+    stop_event: threading.Event | None = None,
 ) -> tuple[CluePackage, ...]:
     if not answers:
         return ()
 
-    effective_date = current_date or today_utc()
     results: list[CluePackage | None] = [None for _ in answers]
     failures: list[str] = []
     worker_count = min(parallelism, len(answers))
+    lock = threading.Lock()
+    pending_jobs = list(enumerate(answers))
+    next_job_index = 0
+    completed = 0
 
-    with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        future_to_job = {
-            executor.submit(
+    def submit_next_jobs(
+        executor: ThreadPoolExecutor,
+        future_to_job: dict[Future[CluePackage], tuple[int, str]],
+    ) -> None:
+        nonlocal next_job_index
+        while next_job_index < len(pending_jobs) and len(future_to_job) < worker_count:
+            if stop_event is not None and stop_event.is_set():
+                return
+            index, answer = pending_jobs[next_job_index]
+            next_job_index += 1
+            future = executor.submit(
                 generate_clue_package,
                 client,
                 answer,
-                theme,
-                recent_context,
+                clue_bank,
+                clue_bank_path,
+                lock,
                 count,
-                effective_date,
-            ): (index, answer)
-            for index, answer in enumerate(answers)
-        }
-        for future in as_completed(future_to_job):
-            index, answer = future_to_job[future]
+            )
+            future_to_job[future] = (index, answer)
+
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        future_to_job: dict[Future[CluePackage], tuple[int, str]] = {}
+        submit_next_jobs(executor, future_to_job)
+        while future_to_job:
+            future = next(as_completed(future_to_job))
+            index, answer = future_to_job.pop(future)
             try:
                 results[index] = future.result()
             except RuntimeError as exc:
                 failures.append(f"{answer}: {exc}")
+            completed += 1
+            if reporter is not None:
+                reporter.completed_word()
+            submit_next_jobs(executor, future_to_job)
 
     if failures:
         preview = "\n".join(failures[:10])
@@ -481,30 +466,21 @@ def generate_clue_packages_parallel(
         suffix = "" if remainder <= 0 else f"\n... and {remainder} more failures"
         raise RuntimeError(f"Failed to generate clues for {len(failures)} answers:\n{preview}{suffix}")
 
+    if stop_event is not None and stop_event.is_set() and next_job_index < len(pending_jobs):
+        raise GracefulExit(completed=completed, total=len(answers))
+
     return tuple(result for result in results if result is not None)
 
 
 def clue_package_to_dict(package: CluePackage) -> dict[str, Any]:
-    data = asdict(package)
-    data["best_clue"] = package.clues[package.best_index].clue
-    return data
+    return asdict(package)
 
 
 def format_clue_package(package: CluePackage) -> str:
-    lines = [
-        package.answer.upper(),
-        f"Best: {package.clues[package.best_index].clue}",
-        f"Freshness: {package.research_verdict}",
-        f"Hook: {package.recent_hook_summary}",
-    ]
-    if package.editor_note:
-        lines.append(f"Note: {package.editor_note}")
-    lines.append("Options:")
+    lines = [package.answer.upper()]
+    lines.append(f"Cached: {'yes' if package.cached else 'no'}")
     for index, clue in enumerate(package.clues, start=1):
-        best_marker = " [best]" if index - 1 == package.best_index else ""
-        lines.append(
-            f"{index}. {clue.clue}{best_marker} ({clue.freshness}; {clue.angle})"
-        )
+        lines.append(f"{index}. {clue}")
     return "\n".join(lines)
 
 
@@ -521,6 +497,7 @@ def main(
     try:
         lexicon_words, clue_bank = load_default_answer_inputs()
         selection = select_answers_to_clue(args.answers, lexicon_words, clue_bank, limit=args.limit)
+        clue_bank_path = default_clue_bank_path()
     except ValueError as exc:
         print(f"error: {exc}", file=errors)
         return 1
@@ -537,11 +514,30 @@ def main(
             output.write("No answers need new non-generic clues.\n")
         return 0
 
-    try:
-        api_key = require_api_key(env)
-    except ValueError as exc:
-        print(f"error: {exc}", file=errors)
-        return 1
+    needs_generation = any(answer_needs_new_clue(answer, clue_bank) for answer in selection.queued_answers)
+    if needs_generation:
+        try:
+            api_key = require_api_key(env)
+        except ValueError as exc:
+            print(f"error: {exc}", file=errors)
+            return 1
+        reporter = StatusReporter(errors, total=len(selection.queued_answers))
+        stop_event = threading.Event()
+        previous_sigint = signal.getsignal(signal.SIGINT)
+        previous_sigterm = signal.getsignal(signal.SIGTERM)
+
+        def _request_stop(signum: int, frame: object) -> None:
+            del signum, frame
+            reporter.stop_requested()
+            stop_event.set()
+
+        signal.signal(signal.SIGINT, _request_stop)
+        signal.signal(signal.SIGTERM, _request_stop)
+        client = GroqClient(api_key, rate_limit_callback=reporter.rate_limited)
+    else:
+        reporter = StatusReporter(errors, total=len(selection.queued_answers))
+        stop_event = threading.Event()
+        client = UnavailableClient()
 
     if selection.skipped_answers:
         print(
@@ -549,19 +545,30 @@ def main(
             file=errors,
         )
 
-    client = GroqClient(api_key)
     try:
         packages = generate_clue_packages_parallel(
             client=client,
             answers=selection.queued_answers,
-            theme=args.theme,
-            recent_context=tuple(args.recent_context),
+            clue_bank=clue_bank,
+            clue_bank_path=clue_bank_path,
             count=args.count,
             parallelism=args.parallelism,
+            reporter=reporter,
+            stop_event=stop_event,
         )
+    except GracefulExit as exc:
+        print(
+            f"Graceful stop complete: {exc.completed} out of {exc.total} words completed.",
+            file=errors,
+        )
+        return 130
     except RuntimeError as exc:
         print(f"error: {exc}", file=errors)
         return 1
+    finally:
+        if needs_generation:
+            signal.signal(signal.SIGINT, previous_sigint)
+            signal.signal(signal.SIGTERM, previous_sigterm)
 
     if args.json:
         json.dump([clue_package_to_dict(package) for package in packages], output, indent=2)
@@ -595,8 +602,17 @@ def _format_http_error(error: HTTPError) -> str:
     return f"Groq API request failed with HTTP {error.code}."
 
 
-def _format_date(value: date) -> str:
-    return f"{value:%B} {value.day}, {value:%Y}"
+def _retry_after_seconds(error: HTTPError) -> float | None:
+    retry_after = error.headers.get("Retry-After")
+    if retry_after is None:
+        return None
+    try:
+        seconds = float(retry_after.strip())
+    except ValueError:
+        return None
+    if seconds < 0:
+        return None
+    return seconds
 
 
 def _normalize_requested_answers(requested_answers: Sequence[str]) -> tuple[str, ...]:

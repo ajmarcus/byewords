@@ -1,6 +1,5 @@
 import unittest
 
-from byewords.clue_bank import preferred_clue_words
 from byewords.generate import build_demo_puzzle, generate_puzzle, load_default_inputs
 from byewords.grid import distinct_entries
 
@@ -11,10 +10,9 @@ class TestBundledData(unittest.TestCase):
         lexicon_set = set(lexicon_words)
 
         self.assertGreaterEqual(len(lexicon_words), 5000)
-        self.assertEqual(len(clue_bank), len(lexicon_words))
         self.assertGreaterEqual(len(related_map), 20)
         self.assertTrue(set(clue_bank).issubset(lexicon_set))
-        self.assertTrue(all(len(clues) == 1 and clues[0].strip() for clues in clue_bank.values()))
+        self.assertTrue(all(clues and all(clue.strip() for clue in clues) for clues in clue_bank.values()))
 
         for related_words in related_map.values():
             self.assertTrue(set(related_words).issubset(lexicon_set))
@@ -25,9 +23,6 @@ class TestBundledData(unittest.TestCase):
 
         expected_words = {"beach", "music", "ocean", "piano", "tempo", "waves", "wharf"}
         self.assertTrue(expected_words.issubset(lexicon_set))
-        self.assertTrue(expected_words.issubset(set(clue_bank)))
-        self.assertEqual(clue_bank["beach"][0], "Place to catch some rays")
-        self.assertEqual(clue_bank["music"][0], "Art form with scales and chords")
         self.assertTrue({"beach", "ocean", "shore", "waves", "wharf"}.issubset(set(related_map["beach"])))
         self.assertTrue({"music", "album", "opera", "piano", "tempo"}.issubset(set(related_map["music"])))
 
@@ -35,17 +30,7 @@ class TestBundledData(unittest.TestCase):
             self.assertNotIn(removed_word, lexicon_set)
             self.assertNotIn(removed_word, clue_bank)
 
-    def test_default_data_prefers_handwritten_clues(self) -> None:
-        _, _, clue_bank = load_default_inputs()
-        preferred_words = set(preferred_clue_words(clue_bank))
-
-        self.assertIn("snail", preferred_words)
-        self.assertIn("trade", preferred_words)
-        self.assertNotIn("asked", preferred_words)
-        self.assertEqual(clue_bank["asked"][0], 'Past tense of "ask"')
-        self.assertTrue(clue_bank["aback"][0].startswith('Bundled-lexicon entry between "'))
-
-    def test_default_demo_puzzle_uses_bundled_clues(self) -> None:
+    def test_default_demo_puzzle_uses_fallback_clues_when_cache_is_empty(self) -> None:
         _, related_map, clue_bank = load_default_inputs()
         puzzle = build_demo_puzzle(related_map, clue_bank)
 
@@ -54,11 +39,9 @@ class TestBundledData(unittest.TestCase):
         self.assertEqual(len(puzzle.down), 5)
 
         for clue in puzzle.across:
-            self.assertIn(clue.answer.lower(), clue_bank)
-            self.assertEqual(clue.text, clue_bank[clue.answer.lower()][0])
+            self.assertTrue(clue.text.strip())
 
         for clue in puzzle.down:
-            self.assertIn(clue.answer.lower(), clue_bank)
             self.assertTrue(clue.text.strip())
 
     def test_readme_seed_example_generates_a_puzzle(self) -> None:

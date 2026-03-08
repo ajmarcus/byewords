@@ -64,7 +64,7 @@ class TestRender(unittest.TestCase):
 
         self.assertIn("snail", lexicon_words)
         self.assertIn("eases", related_words["snail"])
-        self.assertEqual(clue_bank["snail"][0], "Slow walker carrying its whole rent situation")
+        self.assertTrue(all(clues and all(clue.strip() for clue in clues) for clues in clue_bank.values()))
 
     def test_module_entrypoint_exits_with_main_status(self) -> None:
         with patch("byewords.cli.main", return_value=7):

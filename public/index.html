@@ -185,10 +185,17 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      color: var(--ink);
+      transition: background-color 260ms ease, color 220ms ease;
     }
 
     .clue.bounce {
       animation: clue-bounce 180ms ease-out;
+    }
+
+    .clue.solved {
+      background: var(--blue);
+      color: var(--white);
     }
 
     @keyframes clue-bounce {
@@ -202,6 +209,30 @@
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: rgba(17, 17, 17, 0.6);
+      display: flex;
+      align-items: center;
+      gap: 0;
+      transition: color 220ms ease;
+    }
+
+    .clue.solved .clue-label {
+      color: rgba(255, 255, 255, 0.82);
+    }
+
+    .clue-label-solved {
+      display: inline-block;
+      max-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translateX(-6px);
+      transition: max-width 260ms ease, opacity 180ms ease, transform 260ms ease;
+    }
+
+    .clue.solved .clue-label-solved {
+      max-width: 140px;
+      opacity: 1;
+      transform: translateX(0);
     }
 
     .clue-text {
@@ -222,6 +253,11 @@
       font-weight: 700;
       color: rgba(17, 17, 17, 0.58);
       flex: 0 0 auto;
+      transition: color 220ms ease;
+    }
+
+    .clue.solved .clue-meta {
+      color: rgba(255, 255, 255, 0.74);
     }
 
     .nav-btn {
@@ -516,7 +552,7 @@
         <div class="clue-nav">
           <button class="nav-btn" id="prev-clue" type="button" aria-label="Previous clue">←</button>
           <section class="clue" id="clue-card" aria-live="polite">
-            <div class="clue-label">Clue</div>
+            <div class="clue-label"><span>Clue</span><span class="clue-label-solved" id="clue-label-solved"> -- Solved</span></div>
             <div class="clue-text" id="clue-text">Pick a cell.</div>
             <div class="clue-meta" id="clue-meta"></div>
           </section>
@@ -773,6 +809,13 @@
       let solution = [];
       let words = [];
 
+      function isWordSolved(word) {
+        if (!word) return false;
+        return getWordCells(word).every(function (pair, index) {
+          return entries[pair[0]][pair[1]] === word.answer[index];
+        });
+      }
+
       function buildSolution(rows) {
         return rows.map(function (row) {
           return row.split("");
@@ -956,8 +999,10 @@
         const word = getActiveWord();
         const nextClueKey = getClueRenderKey(word);
         const clueChanged = nextClueKey !== lastRenderedClueKey;
+        const solved = isWordSolved(word);
         clueTextEl.textContent = word ? word.clue : "Pick a cell.";
         clueMetaEl.textContent = word ? (word.number + " · " + word.answer.length + " letters · " + word.direction) : "";
+        clueCardEl.classList.toggle("solved", solved);
         clueCardEl.classList.remove("bounce");
         if (clueChanged) {
           void clueCardEl.offsetWidth;
@@ -1379,6 +1424,34 @@
               updateClue();
               return stayedStill;
             }
+          },
+          {
+            name: "solved clue card stays highlighted while active word is solved",
+            run: function () {
+              const word = words[0];
+              const cells = getWordCells(word);
+              const snapshot = cells.map(function (pair) {
+                return entries[pair[0]][pair[1]];
+              });
+
+              activeClueIndex = 0;
+              selected = { row: 0, col: 0 };
+              cells.forEach(function (pair, idx) {
+                entries[pair[0]][pair[1]] = word.answer[idx];
+              });
+              updateClue();
+              const solvedState = clueCardEl.classList.contains("solved");
+
+              entries[cells[0][0]][cells[0][1]] = "";
+              updateClue();
+              const clearedState = !clueCardEl.classList.contains("solved");
+
+              cells.forEach(function (pair, idx) {
+                entries[pair[0]][pair[1]] = snapshot[idx];
+              });
+              updateClue();
+              return solvedState && clearedState;
+            }
           }
         ];
 
@@ -1406,7 +1479,8 @@
         makeBragText: makeBragText,
         getPreferredCellForWord: getPreferredCellForWord,
         moveClue: moveClue,
-        getActiveWord: getActiveWord
+        getActiveWord: getActiveWord,
+        isWordSolved: isWordSolved
       };
     })();
   </script>
