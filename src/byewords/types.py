@@ -45,7 +45,6 @@ class CandidateGrid:
 @dataclass(frozen=True)
 class GenerateConfig:
     max_candidates: int = 500
-    beam_width: int = 100
-    min_theme_words: int = 4
+    beam_width: int = 25
     allow_neutral_fill: bool = True
     random_seed: int = 0

@@ -95,6 +95,18 @@ Treat the puzzle as a 5×5 letter matrix where each row is an across answer and 
 - needs a good 5-letter lexicon
 - full-grid fills can fail if the themed candidate pool is too narrow
 
+### Comparison: `Phil`
+
+[`Phil`](https://github.com/keiranking/Phil) is solving a different problem.
+It is a general crossword-construction tool for arbitrary blocked grids, partial fills, and interactive autofill. Its README and source show a browser UI that sends the current grid plus a word list into a WebAssembly build of the Glucose SAT solver (`xw_worker.js`), and a quick mode that can surface forced letters before a full fill is found.
+
+That differs materially from this project:
+
+- **Phil**: blocked-grid constructor assistant, arbitrary slot lengths, partial words, symmetry tooling, SAT-backed fill, large custom word list
+- **Byewords**: theme-first 5×5 mini generator, no blocks, all entries length 5, deterministic prefix-pruned search, puzzle scoring after fill generation
+
+This distinction matters because SAT is attractive once the grid shape is arbitrary, the fill is partial, and the constructor wants interactive feedback. For a fixed 5×5 full grid, however, row-by-row prefix pruning is the simpler and better fit.
+
 ## Best approach
 
 Use **Option D**:
@@ -102,6 +114,8 @@ Use **Option D**:
 > Generate a 5×5 full grid using prefix-pruned backtracking over 5-letter candidate words, then score candidate fills for theme coherence, word quality, and clueability.
 
 This is the simplest approach that still gives high puzzle quality.
+
+Phil does not change that recommendation. A SAT-backed solver would add substantial machinery, a custom build pipeline, and more opaque debugging without solving the main problem here, which is selecting a strong themed 5-letter pool and ranking entertaining fills.
 
 ## Proposed architecture
 
@@ -217,6 +231,11 @@ Use strong ordering:
 #### Why this beats generic CSP here
 
 A general CSP engine is a valid abstraction, but for a **5×5 full grid**, prefix-pruned row construction is just a specialized CSP with much less machinery and clearer tests.
+
+Phil is useful as a boundary marker:
+
+- once we allow arbitrary black-square patterns, the problem starts looking much more like Phil's SAT-style fill problem
+- while we stay with full 5×5 word-square-style generation, the current specialized search remains the right default
 
 ### 5) Scoring function
 
@@ -341,6 +360,8 @@ Build:
 - beam search or bounded DFS
 - top-k candidate collection
 - best-puzzle selection
+- search diagnostics that explain why a candidate pool failed
+- optional "forced letter" reporting for partial searches and debugging
 
 Deliverable:
 - robust generation rather than brittle single-path fill
@@ -374,6 +395,8 @@ Test at four levels.
 Use stdlib only for the generator.  
 If richer theme expansion is needed later, make it an optional offline preprocessing step.
 
+Phil reinforces this tradeoff. Its SAT path depends on a compiled Glucose WebAssembly build, which makes sense for an interactive constructor but is a poor fit for a small pure-Python mini generator unless we expand the scope significantly.
+
 ### Prefer full-grid 5×5 over blocked-grid 5×5
 For this exact use case, it is simpler and better.
 
@@ -386,6 +409,23 @@ Do not hope they emerge by chance from a good fill.
 ### Bundle a curated 5-letter lexicon
 Crossword quality rises or falls with the word list.
 
+This is the clearest lesson from Phil. Its solving workflow assumes a serious constructor word list. Our current algorithm is good enough for 5×5 minis, but it will only be as good as the lexicon and metadata it searches.
+
+### Learn from Phil without copying Phil wholesale
+
+Adopt:
+
+- stronger lexicon curation and per-entry quality metadata
+- structured search diagnostics instead of silent failure
+- optional "forced" letter or allowed-letter reporting for debugging impossible seeds
+- a future escape hatch for blocked-grid support behind a separate solver interface
+
+Avoid for now:
+
+- a SAT solver dependency for the default 5×5 generator
+- arbitrary blocked-grid construction in v1
+- browser-oriented interactive constructor features that do not improve puzzle quality directly
+
 ## Main risks
 
 ### 1) Candidate pool too small
@@ -395,6 +435,7 @@ Mitigation:
 - add neutral support words
 - widen semantic radius
 - maintain a larger curated common-word fallback pool
+- report which column prefixes or positions became impossible so the failure is actionable
 
 ### 2) Valid but boring fill
 A pure satisfiability solver will happily produce dull boards.
@@ -422,6 +463,14 @@ Mitigation:
 Use:
 
 > **A full 5×5 word-square-style generator using prefix-pruned backtracking plus a scoring layer for theme coherence and strong standalone clues.**
+
+Steal from Phil at the edges, not at the core:
+
+- better constructor-grade word data
+- better diagnostics
+- a solver abstraction that could support blocked grids later
+
+Do not replace the core search with SAT unless the product goal changes from "generate themed 5×5 minis" to "assist interactive construction of arbitrary crossword layouts."
 
 It provides the best balance of:
 

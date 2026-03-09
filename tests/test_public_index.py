@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import re
 import unittest
@@ -19,15 +20,68 @@ class TestPublicIndex(unittest.TestCase):
         self.assertGreater(len(icon), 100)
         self.assertEqual(icon[:4], b"\x00\x00\x01\x00")
 
-    def test_embedded_demo_puzzle_matches_snail_sample(self) -> None:
+    def test_embedded_puzzle_bank_uses_ten_distinct_boards(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
-        self.assertIn('["A", "D", "I", "E", "U"]', html)
-        self.assertIn('answer: "ADIEU", clue: "Parting word from Paris", direction: "across"', html)
-        self.assertIn('answer: "SNAIL", clue: "Garden crawler with a spiral shell", direction: "across"', html)
-        self.assertIn('answer: "UDALS", clue: "Old Norse freeholders", direction: "down"', html)
-        self.assertIn("ADIEU / BOOED / ANTRA / SNAIL / EASES / ABASE / DONNA / IOTAS / EERIE / UDALS", html)
-        self.assertNotIn('answer: "BUSES"', html)
+        boards = re.findall(r'rows: \["([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})"\]', html)
+        self.assertEqual(len(boards), 10)
+        self.assertEqual(len(set(boards)), 10)
+        self.assertIn("words.map(function (word) {", html)
+        self.assertIn('}).join(" / ");', html)
+
+    def test_embedded_puzzle_bank_has_ten_full_grids(self) -> None:
+        html = INDEX_HTML.read_text(encoding="utf-8")
+
+        self.assertEqual(len(re.findall(r'rows: \["[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}"\]', html)), 10)
+        self.assertIn("const puzzles = [", html)
+        self.assertIn("function randomPuzzleIndex() {", html)
+
+    def test_embedded_puzzle_bank_never_repeats_clue_text(self) -> None:
+        html = INDEX_HTML.read_text(encoding="utf-8")
+
+        clue_blocks = re.findall(r'(?:acrossClues|downClues): \[(.*?)\]', html, re.S)
+        clues = []
+        for block in clue_blocks:
+            encoded_clues = re.findall(r'"(?:[^"\\]|\\.)*"', block)
+            clues.extend(json.loads(clue) for clue in encoded_clues)
+
+        self.assertEqual(len(clues), 100)
+        self.assertEqual(len(clues), len(set(clues)))
+
+    def test_embedded_puzzle_bank_uses_unique_entries_per_board(self) -> None:
+        html = INDEX_HTML.read_text(encoding="utf-8")
+
+        boards = re.findall(r'rows: \["([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})"\]', html)
+        self.assertEqual(len(boards), 10)
+
+        for rows in boards:
+            columns = tuple("".join(row[index] for row in rows) for index in range(5))
+            entries = rows + columns
+            self.assertEqual(len(entries), 10)
+            self.assertEqual(len(set(entries)), 10)
+
+    def test_random_selection_logic_uses_no_persistent_cursor(self) -> None:
+        html = INDEX_HTML.read_text(encoding="utf-8")
+
+        self.assertIn("function normalizePuzzleIndex(index) {", html)
+        self.assertIn("function pickPuzzleIndex(randomValue) {", html)
+        self.assertIn("Math.floor(randomValue * puzzles.length)", html)
+        self.assertIn("function randomPuzzleIndex() {", html)
+        self.assertIn("return pickPuzzleIndex(Math.random());", html)
+        self.assertIn("function pickNextPuzzleIndex(currentIndex, randomValue) {", html)
+        self.assertIn("const offset = Math.floor(randomValue * (puzzles.length - 1)) + 1;", html)
+        self.assertIn("function queueNextPuzzle() {", html)
+        self.assertIn("pendingPuzzleIndex = pickNextPuzzleIndex(activePuzzleIndex, Math.random());", html)
+        self.assertIn("queueNextPuzzle();", html)
+        self.assertIn("activatePuzzle(randomPuzzleIndex());", html)
+        self.assertIn("if (pendingPuzzleIndex !== null) {", html)
+        self.assertIn("activatePuzzle(pendingPuzzleIndex);", html)
+        self.assertIn("pickPuzzleIndex covers the full puzzle bank", html)
+        self.assertIn("pickNextPuzzleIndex never repeats the active puzzle", html)
+        self.assertIn("reset swaps in the queued puzzle", html)
+        self.assertNotIn("window.localStorage.getItem", html)
+        self.assertNotIn("window.localStorage.setItem", html)
+        self.assertNotIn("PUZZLE_CURSOR_KEY", html)
 
     def test_mobile_layout_fills_dynamic_viewport_height(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
@@ -75,6 +129,16 @@ class TestPublicIndex(unittest.TestCase):
         self.assertIn("grid-auto-rows: var(--clue-height);", html)
         self.assertIn(".clue {", html)
         self.assertIn("height: 100%;", html)
+        self.assertIn("transition: background-color 260ms ease, color 220ms ease;", html)
+        self.assertIn(".clue.solved {", html)
+        self.assertIn("background: var(--yellow);", html)
+        self.assertIn('<span class="clue-label-text clue-label-solved" id="clue-label-solved">CLUE -- SOLVED</span>', html)
+        self.assertIn(".clue-label-solved {", html)
+        self.assertIn(".clue-label-text {", html)
+        self.assertIn("transition: opacity 220ms ease, transform 260ms ease, letter-spacing 260ms ease;", html)
+        self.assertIn(".clue-label-base {", html)
+        self.assertIn(".clue.solved .clue-label-base {", html)
+        self.assertIn(".clue.solved .clue-label-solved {", html)
         self.assertIn(".nav-btn {", html)
         self.assertIn("font-size: var(--clue-text-max);", html)
         self.assertIn("function fitClueText() {", html)
@@ -83,6 +147,50 @@ class TestPublicIndex(unittest.TestCase):
         self.assertIn("window.requestAnimationFrame(fitClueText);", html)
         self.assertIn('window.addEventListener("resize", fitClueText);', html)
         self.assertIn("overflow: hidden;", html)
+        self.assertIn("function isWordSolved(word) {", html)
+        self.assertIn('clueCardEl.classList.toggle("solved", solved);', html)
+        self.assertIn("function getClueRenderKey(word) {", html)
+        self.assertIn('return word ? (activePuzzleIndex + ":" + word.direction + ":" + word.number) : "none";', html)
+        self.assertIn("const clueChanged = nextClueKey !== lastRenderedClueKey;", html)
+        self.assertIn("if (clueChanged) {", html)
+        self.assertIn("function cellIsInWord(row, col, word) {", html)
+        self.assertIn("function getDirectionForKey(key) {", html)
+        self.assertIn("function selectCell(row, col, preferredDirection) {", html)
+        self.assertIn('const targetDirection = preferredDirection || (current ? current.direction : "across");', html)
+        self.assertIn('const currentDirection = getActiveWord() ? getActiveWord().direction : "across";', html)
+        self.assertIn('name: "clicking selected cell toggles between across and down"', html)
+        self.assertIn('name: "arrow keys move cell selection and switch direction"', html)
+        self.assertIn('name: "typing advances within the active direction"', html)
+        self.assertIn('name: "typing realigns clue to the selected cell before advancing"', html)
+        self.assertIn('name: "typing in the same clue does not rebounce the clue card"', html)
+        self.assertIn('name: "score pill increments when a word is newly solved"', html)
+        self.assertIn('name: "solved clue card stays highlighted while active word is solved"', html)
+        self.assertIn('name: "solved words keep board cells neutral until cleared"', html)
+
+    def test_score_pill_tracks_solved_words_without_tinting_board_blue(self) -> None:
+        html = INDEX_HTML.read_text(encoding="utf-8")
+
+        self.assertIn('<div class="status-strip">', html)
+        self.assertIn('<div class="score-pill" id="score-pill" aria-live="polite" aria-atomic="true" aria-label="Solved words">', html)
+        self.assertIn('<span class="score-label">X</span>', html)
+        self.assertIn('<span class="score-count" id="score-count">0</span>', html)
+        self.assertIn('<span class="score-total" id="score-total">10</span>', html)
+        self.assertIn('<span class="score-burst" id="score-burst" aria-hidden="true">+1</span>', html)
+        self.assertIn(".score-pill.celebrate {", html)
+        self.assertIn("@keyframes score-pill-pop {", html)
+        self.assertIn("@keyframes score-pill-spark {", html)
+        self.assertIn("@keyframes score-pill-ring {", html)
+        self.assertIn("@keyframes score-burst-float {", html)
+        self.assertIn("function updateScorePill(gainedCount) {", html)
+        self.assertIn("function syncSolvedProgress(shouldCelebrate) {", html)
+        self.assertIn("scoreCountEl.textContent = String(solvedWordKeys.size);", html)
+        self.assertIn('scoreBurstEl.textContent = "+" + String(gainedCount);', html)
+        self.assertIn("syncSolvedProgress(true);", html)
+        self.assertIn("syncSolvedProgress(false);", html)
+        self.assertNotIn(".cell.solved {", html)
+        self.assertNotIn("function isCellInSolvedWord(row, col) {", html)
+        self.assertNotIn("const solvedNow = isCellInSolvedWord(r, c);", html)
+        self.assertNotIn('cell.classList.add("solved")', html)
 
     def test_keyboard_handler_preserves_browser_shortcuts(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")

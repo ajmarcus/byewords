@@ -1,18 +1,18 @@
 import argparse
 
-from byewords.generate import generate_puzzle, load_default_inputs
+from byewords.generate import generate_puzzle_cached, load_default_inputs
 from byewords.render import render_puzzle_text
 
 
 def parse_args(argv: list[str] | None = None) -> tuple[str, ...]:
     parser = argparse.ArgumentParser(
         prog="byewords",
-        description="Generate a 5x5 mini crossword from seed words.",
+        description="Generate a 5x5 mini crossword.",
     )
     parser.add_argument(
         "seeds",
         nargs="*",
-        help="Seed words to steer the puzzle theme.",
+        help="Optional seed words to nudge fill selection.",
     )
     parser.add_argument(
         "-s",
@@ -26,12 +26,16 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, ...]:
     if args.seed_flags and args.seeds:
         parser.error("use either positional seeds or repeated --seed flags, not both")
     seeds = tuple(args.seed_flags) + tuple(args.seeds)
-    return seeds or ("snail",)
+    return seeds
 
 
 def main() -> int:
+    lexicon_words, clue_bank = load_default_inputs()
     seeds = parse_args()
-    lexicon_words, related_map, clue_bank = load_default_inputs()
-    puzzle = generate_puzzle(seeds, lexicon_words, related_map, clue_bank)
+    try:
+        puzzle = generate_puzzle_cached(seeds, lexicon_words, clue_bank)
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return 1
     print(render_puzzle_text(puzzle))
     return 0
