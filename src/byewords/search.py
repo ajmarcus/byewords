@@ -1,12 +1,33 @@
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import cast
 
 from byewords.grid import GRID_SIZE, grid_columns, has_unique_entries, make_grid, partial_column_prefixes
 from byewords.prefixes import has_prefix
 from byewords.types import Grid
 
-PositionLetterIndex = tuple[dict[str, frozenset[str]], ...]
+PositionLetterIndex = tuple[dict[str, int], ...]
 PrefixExtensionIndex = dict[str, frozenset[str]]
+PrefixRowMaskIndex = tuple[dict[str, int], ...]
+
+
+@dataclass(frozen=True)
+class SearchIndex:
+    candidate_words: tuple[str, ...]
+    row_bits: dict[str, int]
+    all_rows_mask: int
+    position_letter_index: PositionLetterIndex
+    prefix_extension_index: PrefixExtensionIndex
+    prefix_row_mask_index: PrefixRowMaskIndex
+
+
+@dataclass(slots=True)
+class SearchStats:
+    states_visited: int = 0
+    dead_ends: int = 0
+    mask_intersections: int = 0
+    candidate_rows_ranked: int = 0
+    fixed_row_shortcuts: int = 0
 
 
 def _next_prefixes(partial_rows: tuple[str, ...], next_row: str) -> tuple[str, str, str, str, str]:
@@ -29,14 +50,12 @@ def _prefix_branching_score(
 
 
 def _build_position_letter_index(words: tuple[str, ...]) -> PositionLetterIndex:
-    buckets: list[dict[str, set[str]]] = [defaultdict(set) for _ in range(GRID_SIZE)]
-    for word in words:
+    buckets: list[dict[str, int]] = [defaultdict(int) for _ in range(GRID_SIZE)]
+    for row_index, word in enumerate(words):
+        row_bit = 1 << row_index
         for index, letter in enumerate(word):
-            buckets[index][letter].add(word)
-    return tuple(
-        {letter: frozenset(matches) for letter, matches in bucket.items()}
-        for bucket in buckets
-    )
+            buckets[index][letter] |= row_bit
+    return tuple(dict(bucket) for bucket in buckets)
 
 
 def _build_prefix_extension_index(
@@ -50,25 +69,79 @@ def _build_prefix_extension_index(
     return extensions
 
 
-def _rows_matching_letters(
-    candidate_words: tuple[str, ...],
-    allowed_letters: tuple[frozenset[str], ...],
+def _build_prefix_row_mask_index(
+    prefix_extension_index: PrefixExtensionIndex,
     position_letter_index: PositionLetterIndex,
-) -> frozenset[str]:
-    matching_rows = frozenset(candidate_words)
-    if not matching_rows:
-        return matching_rows
-    constrained_positions: list[tuple[int, frozenset[str]]] = []
-    for index, letters in enumerate(allowed_letters):
-        rows_for_position = frozenset().union(
-            *(position_letter_index[index].get(letter, frozenset()) for letter in letters)
-        )
-        constrained_positions.append((len(rows_for_position), rows_for_position))
-    for _, rows_for_position in sorted(constrained_positions, key=lambda item: item[0]):
-        matching_rows &= rows_for_position
-        if not matching_rows:
-            return frozenset()
-    return matching_rows
+) -> PrefixRowMaskIndex:
+    prefix_row_masks: list[dict[str, int]] = []
+    for position_index in range(GRID_SIZE):
+        masks_for_position: dict[str, int] = {}
+        for prefix, letters in prefix_extension_index.items():
+            row_mask = 0
+            for letter in letters:
+                row_mask |= position_letter_index[position_index].get(letter, 0)
+            if row_mask:
+                masks_for_position[prefix] = row_mask
+        prefix_row_masks.append(masks_for_position)
+    return tuple(prefix_row_masks)
+
+
+def build_search_index(
+    candidate_words: tuple[str, ...],
+    prefix_index: dict[str, tuple[str, ...]],
+) -> SearchIndex:
+    ordered_candidates = tuple(dict.fromkeys(word.lower() for word in candidate_words))
+    row_bits = {word: 1 << row_index for row_index, word in enumerate(ordered_candidates)}
+    position_letter_index = _build_position_letter_index(ordered_candidates)
+    prefix_extension_index = _build_prefix_extension_index(prefix_index)
+    prefix_row_mask_index = _build_prefix_row_mask_index(
+        prefix_extension_index,
+        position_letter_index,
+    )
+    return SearchIndex(
+        candidate_words=ordered_candidates,
+        row_bits=row_bits,
+        all_rows_mask=(1 << len(ordered_candidates)) - 1,
+        position_letter_index=position_letter_index,
+        prefix_extension_index=prefix_extension_index,
+        prefix_row_mask_index=prefix_row_mask_index,
+    )
+
+
+def _matching_row_mask(
+    prefixes: tuple[str, str, str, str, str],
+    next_index: int,
+    search_index: SearchIndex,
+    fixed_columns: dict[int, str] | None,
+    remaining_rows_mask: int,
+    stats: SearchStats | None,
+) -> int:
+    matching_rows_mask = remaining_rows_mask
+    for column_index, prefix in enumerate(prefixes):
+        rows_for_prefix = search_index.prefix_row_mask_index[column_index].get(prefix, 0)
+        if fixed_columns is not None and column_index in fixed_columns:
+            fixed_word = fixed_columns[column_index].lower()
+            rows_for_prefix &= search_index.position_letter_index[column_index].get(
+                fixed_word[next_index],
+                0,
+            )
+        matching_rows_mask &= rows_for_prefix
+        if stats is not None:
+            stats.mask_intersections += 1
+        if not matching_rows_mask:
+            return 0
+    return matching_rows_mask
+
+
+def _iter_masked_rows(rows_mask: int, candidate_words: tuple[str, ...]) -> tuple[str, ...]:
+    rows: list[str] = []
+    remaining_mask = rows_mask
+    while remaining_mask:
+        row_bit = remaining_mask & -remaining_mask
+        row_index = row_bit.bit_length() - 1
+        rows.append(candidate_words[row_index])
+        remaining_mask ^= row_bit
+    return tuple(rows)
 
 
 def _fixed_row_candidates(
@@ -83,7 +156,7 @@ def _fixed_row_candidates(
     next_index = len(partial_rows)
     if fixed_columns is not None:
         if any(
-            normalized[column_index] != fixed_word[next_index]
+            normalized[column_index] != fixed_word.lower()[next_index]
             for column_index, fixed_word in fixed_columns.items()
         ):
             return ()
@@ -99,41 +172,38 @@ def valid_next_rows(
     prefix_index: dict[str, tuple[str, ...]],
     fixed_rows: dict[int, str] | None = None,
     fixed_columns: dict[int, str] | None = None,
-    position_letter_index: PositionLetterIndex | None = None,
-    prefix_extension_index: PrefixExtensionIndex | None = None,
+    search_index: SearchIndex | None = None,
+    stats: SearchStats | None = None,
 ) -> tuple[str, ...]:
     next_index = len(partial_rows)
     if fixed_rows is not None and next_index in fixed_rows:
+        if stats is not None:
+            stats.fixed_row_shortcuts += 1
         return _fixed_row_candidates(partial_rows, fixed_rows[next_index], prefix_index, fixed_columns)
 
+    if search_index is None:
+        search_index = build_search_index(candidate_words, prefix_index)
+
     prefixes = partial_column_prefixes(partial_rows)
-    if position_letter_index is None:
-        position_letter_index = _build_position_letter_index(candidate_words)
-    if prefix_extension_index is None:
-        prefix_extension_index = _build_prefix_extension_index(prefix_index)
-
-    allowed_letters: list[frozenset[str]] = []
-    for column_index, prefix in enumerate(prefixes):
-        letters = prefix_extension_index.get(prefix, frozenset())
-        if fixed_columns is not None and column_index in fixed_columns:
-            letters = letters & frozenset({fixed_columns[column_index][next_index]})
-        if not letters:
-            return ()
-        allowed_letters.append(letters)
-    allowed_letters_tuple: tuple[frozenset[str], ...] = tuple(allowed_letters)
-
-    used_rows = set(partial_rows)
-    matching_rows = _rows_matching_letters(
-        candidate_words,
-        allowed_letters_tuple,
-        position_letter_index,
+    matching_rows_mask = _matching_row_mask(
+        prefixes=prefixes,
+        next_index=next_index,
+        search_index=search_index,
+        fixed_columns=fixed_columns,
+        remaining_rows_mask=search_index.all_rows_mask & ~sum(
+            search_index.row_bits.get(row, 0) for row in partial_rows
+        ),
+        stats=stats,
     )
+    if not matching_rows_mask:
+        return ()
+
     valid_rows: list[tuple[tuple[int, int, tuple[int, ...]], str]] = []
-    for candidate in matching_rows:
-        if candidate in used_rows:
-            continue
+    for candidate in _iter_masked_rows(matching_rows_mask, search_index.candidate_words):
         next_prefixes = _next_prefixes(partial_rows, candidate)
         valid_rows.append((_prefix_branching_score(next_prefixes, prefix_index), candidate))
+        if stats is not None:
+            stats.candidate_rows_ranked += 1
     valid_rows.sort(key=lambda item: (item[0], item[1]))
     return tuple(row for _, row in valid_rows)
 
@@ -145,34 +215,73 @@ def search_grids(
     max_candidates: int,
     fixed_rows: dict[int, str] | None = None,
     fixed_columns: dict[int, str] | None = None,
+    search_index: SearchIndex | None = None,
+    stats: SearchStats | None = None,
 ) -> tuple[Grid, ...]:
-    ordered_candidates = tuple(dict.fromkeys(word.lower() for word in candidate_words))
-    position_letter_index = _build_position_letter_index(ordered_candidates)
-    prefix_extension_index = _build_prefix_extension_index(prefix_index)
+    if search_index is None:
+        search_index = build_search_index(candidate_words, prefix_index)
     found_grids: list[Grid] = []
 
-    def search(partial_rows: tuple[str, ...]) -> None:
+    def search(partial_rows: tuple[str, ...], remaining_rows_mask: int) -> None:
+        if stats is not None:
+            stats.states_visited += 1
         if len(found_grids) >= max_candidates:
             return
         if len(partial_rows) == GRID_SIZE:
             grid = make_grid(cast(tuple[str, str, str, str, str], partial_rows))
             if has_unique_entries(grid) and all(has_prefix(prefix_index, column) for column in grid_columns(grid)):
                 found_grids.append(grid)
+            else:
+                if stats is not None:
+                    stats.dead_ends += 1
             return
 
-        next_rows = valid_next_rows(
-            partial_rows,
-            ordered_candidates,
-            prefix_index,
-            fixed_rows=fixed_rows,
-            fixed_columns=fixed_columns,
-            position_letter_index=position_letter_index,
-            prefix_extension_index=prefix_extension_index,
-        )
+        next_index = len(partial_rows)
+        if fixed_rows is not None and next_index in fixed_rows:
+            next_rows = _fixed_row_candidates(
+                partial_rows,
+                fixed_rows[next_index],
+                prefix_index,
+                fixed_columns,
+            )
+            if stats is not None:
+                stats.fixed_row_shortcuts += 1
+        else:
+            prefixes = partial_column_prefixes(partial_rows)
+            matching_rows_mask = _matching_row_mask(
+                prefixes=prefixes,
+                next_index=next_index,
+                search_index=search_index,
+                fixed_columns=fixed_columns,
+                remaining_rows_mask=remaining_rows_mask,
+                stats=stats,
+            )
+            next_rows = ()
+            if matching_rows_mask:
+                ranked_rows: list[tuple[tuple[int, int, tuple[int, ...]], str, int]] = []
+                for candidate in _iter_masked_rows(matching_rows_mask, search_index.candidate_words):
+                    row_bit = search_index.row_bits[candidate]
+                    next_prefixes = _next_prefixes(partial_rows, candidate)
+                    ranked_rows.append(
+                        (_prefix_branching_score(next_prefixes, prefix_index), candidate, row_bit)
+                    )
+                    if stats is not None:
+                        stats.candidate_rows_ranked += 1
+                ranked_rows.sort(key=lambda item: (item[0], item[1]))
+                for _, candidate, row_bit in ranked_rows[:beam_width]:
+                    search(partial_rows + (candidate,), remaining_rows_mask & ~row_bit)
+                    if len(found_grids) >= max_candidates:
+                        return
+                return
+        if not next_rows:
+            if stats is not None:
+                stats.dead_ends += 1
+            return
         for next_row in next_rows[:beam_width]:
-            search(partial_rows + (next_row,))
+            next_row_bit = search_index.row_bits.get(next_row, 0)
+            search(partial_rows + (next_row,), remaining_rows_mask & ~next_row_bit)
             if len(found_grids) >= max_candidates:
                 return
 
-    search(())
+    search((), search_index.all_rows_mask)
     return tuple(found_grids)
