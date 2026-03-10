@@ -1990,7 +1990,6 @@ hewed
 hewer
 hexed
 hexes
-hicks
 hided
 hider
 hides

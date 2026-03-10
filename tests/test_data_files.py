@@ -98,6 +98,7 @@ class TestBundledData(unittest.TestCase):
             "gypsy",
             "gyved",
             "hdqrs",
+            "hicks",
             "homos",
             "honky",
             "horny",
