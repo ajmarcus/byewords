@@ -1,9 +1,11 @@
 import argparse
 import sys
 import time
+from pathlib import Path
 from typing import TextIO
 
 from byewords.generate import generate_puzzle_cached, load_default_inputs
+from byewords.puz import puzzle_to_puz_bytes
 from byewords.render import render_puzzle_text
 from byewords.types import ProgressUpdate
 
@@ -64,7 +66,7 @@ class BuildAnimator:
         return [f"{spinner} {progress.message}"] + rows
 
 
-def parse_args(argv: list[str] | None = None) -> tuple[str, ...]:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="byewords",
         description="Generate a 5x5 mini crossword.",
@@ -82,31 +84,69 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, ...]:
         default=[],
         help="Add a seed word. May be passed multiple times.",
     )
+    parser.add_argument(
+        "--format",
+        choices=("text", "puz"),
+        default="text",
+        help="Choose the output format.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        help="Write the puzzle to a file instead of stdout.",
+    )
     args = parser.parse_args(argv)
     if args.seed_flags and args.seeds:
         parser.error("use either positional seeds or repeated --seed flags, not both")
-    seeds = tuple(args.seed_flags) + tuple(args.seeds)
-    return seeds
+    args.seeds = tuple(args.seed_flags) + tuple(args.seeds)
+    return args
+
+
+def _write_text_output(text: str, output_path: str | None, stdout: TextIO) -> None:
+    if output_path is None:
+        print(text)
+        return
+    Path(output_path).write_text(text + "\n", encoding="utf-8")
+
+
+def _write_puz_output(payload: bytes, output_path: str | None) -> None:
+    if output_path is not None:
+        Path(output_path).write_bytes(payload)
+        return
+    if sys.stdout.isatty():
+        raise ValueError("refusing to write binary .puz data to an interactive terminal; use --output")
+    buffer = getattr(sys.stdout, "buffer", None)
+    if buffer is None:
+        raise ValueError("binary .puz output requires a binary stdout buffer or --output")
+    buffer.write(payload)
+    buffer.flush()
 
 
 def main() -> int:
     lexicon_words, clue_bank = load_default_inputs()
-    seeds = parse_args()
+    args = parse_args()
     animator = BuildAnimator(sys.stderr)
     try:
         if animator.enabled:
             puzzle = generate_puzzle_cached(
-                seeds,
+                args.seeds,
                 lexicon_words,
                 clue_bank,
                 progress_callback=animator.update,
             )
         else:
-            puzzle = generate_puzzle_cached(seeds, lexicon_words, clue_bank)
+            puzzle = generate_puzzle_cached(args.seeds, lexicon_words, clue_bank)
     except ValueError as exc:
         animator.finish()
         print(f"error: {exc}")
         return 1
     animator.finish()
-    print(render_puzzle_text(puzzle))
+    if args.format == "puz":
+        try:
+            _write_puz_output(puzzle_to_puz_bytes(puzzle), args.output)
+        except ValueError as exc:
+            print(f"error: {exc}")
+            return 1
+        return 0
+    _write_text_output(render_puzzle_text(puzzle), args.output, sys.stdout)
     return 0
