@@ -2,107 +2,76 @@
 
 ## Current status
 
-Completed:
-- immutable core types, grid helpers, prefix index, and constrained 5x5 search
-- seed normalization and theme expansion from bundled related-word data
-- grid scoring and deterministic ranking
-- CLI wiring and text rendering
-- curated clue-bank clue generation with deterministic fallbacks
-- unit coverage for each implemented module plus end-to-end generation tests
+The codebase now implements a complete bundled-data 5x5 mini generator with:
 
-Current limitations:
-- the bundled lexicon is still tiny and includes weak fill such as `antra` and `udals`
-- clue quality is now meaningfully better, but overall puzzle quality is capped by the fill set
-- theme expansion is still mostly hand-authored and does not yet support a broad seed vocabulary
+- deterministic seed normalization
+- bundled lexicon and clue-bank loading
+- candidate-pool ranking from seeds and clue quality
+- reusable bitmask-based search indexes
+- seeded row and column anchoring
+- simple grid scoring
+- clue-bank-backed clue writing with fallbacks
+- cache-backed CLI generation
 
-## Comparison with `Phil`
+The implementation is working and well covered by unit tests.
 
-[`Phil`](https://github.com/keiranking/Phil) is a general constructor and autofill tool, not a direct peer to this generator. Its public code paths use:
+## Current limitations
 
-- arbitrary blocked grids rather than a fixed full 5×5
-- symmetry-aware pattern generation
-- a WebAssembly build of the Glucose SAT solver for autofill
-- "quick" solving that can return forced letters before a full fill lands
-- a large external word list as the primary quality lever
+The main gaps are product quality, not missing plumbing:
 
-By contrast, this project currently does:
-
-- fixed-size full-grid search only
-- deterministic row-by-row prefix pruning
-- scoring after generating candidate fills
-- theme expansion before search rather than slot-by-slot fill assistance
-
-That means the correct takeaway is not "replace the solver." The correct takeaway is:
-
-- keep the current specialized search for the default 5×5 path
-- borrow Phil's emphasis on constructor-grade word data and debugging feedback
-- preserve an abstraction boundary so a blocked-grid solver can be added later without infecting the small core
-
-## What is next
-
-Next priority:
-- replace the toy lexicon with a stronger, cleaner 5-letter word list so generated grids contain more clueable entries
-- add search diagnostics that explain impossible seeds in terms of dead prefixes and over-constrained positions
-- expose optional "forced letter" style hints during debugging, inspired by Phil's quick autofill mode
-
-After that:
-- expand the clue bank alongside the better lexicon
-- improve theme coverage so more user-supplied seeds lead to non-fallback themed grids
-- revisit scoring so familiarity and clueability matter more directly during grid selection
-- define a separate solver interface before considering blocked-grid layouts or a SAT/CP backend
-
-## Target shape
-
-A small package with a strict separation between:
-
-- pure domain/data types
-- pure generation logic
-- lexicon/theme inputs
-- rendering/output
-- a thin orchestration layer
-
-That keeps almost everything testable without mocks.
+- grid scoring is still shallow
+- theme expansion is based on letter overlap rather than a richer semantic source
+- bundled fill quality still determines puzzle quality
+- search diagnostics are limited to test counters rather than user-facing explanations
+- only full 5x5 grids are supported
 
 ## Directory layout
 
 ```text
 src/byewords/
 ├── __init__.py
+├── __main__.py
+├── cache.py
 ├── cli.py
-├── types.py
-├── lexicon.py
-├── theme.py
-├── prefixes.py
-├── grid.py
-├── search.py
-├── score.py
+├── clue_bank.py
 ├── clues.py
+├── data_maintenance.py
 ├── generate.py
+├── grid.py
+├── groq_clues.py
+├── lexicon.py
+├── prefixes.py
 ├── render.py
+├── score.py
+├── search.py
+├── theme.py
+├── types.py
 └── data/
-    ├── words_5.txt
-    ├── related_words.json
     ├── clue_bank.json
-    └── stopwords.txt
+    └── words_5.txt
 
 tests/
+├── fixtures.py
 ├── test_cli.py
-├── test_lexicon.py
-├── test_theme.py
-├── test_prefixes.py
-├── test_grid.py
-├── test_search.py
-├── test_score.py
 ├── test_clues.py
+├── test_data_files.py
+├── test_data_maintenance.py
 ├── test_generate.py
-└── fixtures.py
+├── test_grid.py
+├── test_groq_clues.py
+├── test_lexicon.py
+├── test_prefixes.py
+├── test_public_index.py
+├── test_render.py
+├── test_score.py
+├── test_search.py
+├── test_theme.py
+└── test_wrangler_config.py
 ```
 
-## Module responsibilities
+## Data model
 
-### `types.py`
-
-Owns all immutable data structures.
+`types.py` defines the core immutable structures:
 
 ```python
 from dataclasses import dataclass
@@ -146,74 +115,67 @@ class CandidateGrid:
 @dataclass(frozen=True)
 class GenerateConfig:
     max_candidates: int = 500
-    beam_width: int = 100
-    min_theme_words: int = 4
+    beam_width: int = 25
     allow_neutral_fill: bool = True
     random_seed: int = 0
 ```
 
+## Module responsibilities
+
 ### `lexicon.py`
 
-Loads and filters word sources.
-
 Responsibilities:
-- load base 5-letter lexicon
-- normalize casing
-- reject junk, proper nouns, rare abbreviations
-- optionally attach metadata like familiarity or tags
 
-Core functions:
+- load the bundled word list
+- normalize words to lowercase ASCII alphabetic 5-letter entries
+- filter invalid entries
+- load the clue bank JSON
+
+Current API:
 
 ```python
 def load_word_list(path: str) -> tuple[str, ...]: ...
 def normalize_word(word: str) -> str | None: ...
 def filter_legal_words(words: tuple[str, ...]) -> tuple[str, ...]: ...
-def load_related_words(path: str) -> dict[str, tuple[str, ...]]: ...
 def load_clue_bank(path: str) -> dict[str, tuple[str, ...]]: ...
 ```
 
 ### `theme.py`
 
-Expands seed words into a ranked candidate pool.
-
 Responsibilities:
-- normalize seeds
-- derive related words
-- rank by closeness to seeds
-- split words into themed vs neutral support fill
 
-Core functions:
+- normalize seed words
+- rank theme candidates
+- build the search candidate pool
+
+The current theme system is heuristic, not semantic. It prioritizes exact seeds first, then words with shared letters or matching positions, then the rest of the lexicon.
+
+Current API:
 
 ```python
 def normalize_seeds(seeds: tuple[str, ...]) -> tuple[str, ...]: ...
-def expand_theme_words(
-    seeds: tuple[str, ...],
-    related_map: dict[str, tuple[str, ...]],
-    lexicon: tuple[str, ...],
-) -> tuple[str, ...]: ...
-
 def rank_theme_candidates(
     seeds: tuple[str, ...],
     candidates: tuple[str, ...],
 ) -> tuple[str, ...]: ...
-
 def build_candidate_pool(
     seeds: tuple[str, ...],
     theme_words: tuple[str, ...],
     lexicon: tuple[str, ...],
     allow_neutral_fill: bool,
+    preferred_words: tuple[str, ...] = (),
 ) -> tuple[str, ...]: ...
 ```
 
 ### `prefixes.py`
 
-Provides trie-like prefix lookup.
-
 Responsibilities:
-- fast prefix pruning during search
-- minimal API
 
-Core functions:
+- build prefix buckets for the lexicon
+- answer prefix-existence checks
+- list words matching a prefix
+
+Current API:
 
 ```python
 def build_prefix_index(words: tuple[str, ...]) -> dict[str, tuple[str, ...]]: ...
@@ -226,48 +188,71 @@ def words_with_prefix(
 
 ### `grid.py`
 
-Pure grid operations.
-
 Responsibilities:
-- construct/read 5×5 grids
-- extract columns
-- validate rows/columns
-- compute incremental prefixes during row-by-row build
 
-Core functions:
+- construct and validate 5x5 grids
+- derive column words
+- derive partial column prefixes
+- check entry uniqueness
+
+Important helpers:
 
 ```python
+GRID_SIZE = 5
+
 def make_grid(rows: tuple[str, str, str, str, str]) -> Grid: ...
 def grid_columns(grid: Grid) -> tuple[str, str, str, str, str]: ...
 def partial_column_prefixes(rows: tuple[str, ...]) -> tuple[str, str, str, str, str]: ...
-def is_full_grid_valid(grid: Grid, lexicon_set: set[str]) -> bool: ...
 def distinct_entries(grid: Grid) -> tuple[str, ...]: ...
-def slot_numbers() -> tuple[int, int, int, int, int]: ...
+def has_unique_entries(grid: Grid) -> bool: ...
 ```
-
-For a full 5×5 with no blocks, numbering is fixed:
-- across 1–5 = rows top to bottom
-- down 1–5 = columns left to right
 
 ### `search.py`
 
-Core fill generation.
-
 Responsibilities:
-- row-by-row constrained search
-- prefix pruning
-- ranked search order
-- top-k candidate collection
-- search diagnostics for failed branches
-- optional forced-letter summaries for partial fills
 
-Core functions:
+- precompute reusable candidate search state
+- find valid next rows under prefix and fixed-row/fixed-column constraints
+- search complete 5x5 grids
+- expose deterministic search counters for tests
+
+Important types:
 
 ```python
+@dataclass(frozen=True)
+class SearchIndex:
+    candidate_words: tuple[str, ...]
+    row_bits: dict[str, int]
+    all_rows_mask: int
+    position_letter_index: tuple[dict[str, int], ...]
+    prefix_extension_index: dict[str, frozenset[str]]
+    prefix_row_mask_index: tuple[dict[str, int], ...]
+
+@dataclass(slots=True)
+class SearchStats:
+    states_visited: int = 0
+    dead_ends: int = 0
+    mask_intersections: int = 0
+    candidate_rows_ranked: int = 0
+    fixed_row_shortcuts: int = 0
+```
+
+Current API:
+
+```python
+def build_search_index(
+    candidate_words: tuple[str, ...],
+    prefix_index: dict[str, tuple[str, ...]],
+) -> SearchIndex: ...
+
 def valid_next_rows(
     partial_rows: tuple[str, ...],
     candidate_words: tuple[str, ...],
     prefix_index: dict[str, tuple[str, ...]],
+    fixed_rows: dict[int, str] | None = None,
+    fixed_columns: dict[int, str] | None = None,
+    search_index: SearchIndex | None = None,
+    stats: SearchStats | None = None,
 ) -> tuple[str, ...]: ...
 
 def search_grids(
@@ -275,354 +260,137 @@ def search_grids(
     prefix_index: dict[str, tuple[str, ...]],
     beam_width: int,
     max_candidates: int,
+    fixed_rows: dict[int, str] | None = None,
+    fixed_columns: dict[int, str] | None = None,
+    search_index: SearchIndex | None = None,
+    stats: SearchStats | None = None,
 ) -> tuple[Grid, ...]: ...
-
-def analyze_search_failure(
-    candidate_words: tuple[str, ...],
-    prefix_index: dict[str, tuple[str, ...]],
-) -> SearchDiagnostics: ...
-```
-
-Internal helpers:
-
-```python
-def _next_prefixes(partial_rows: tuple[str, ...], next_row: str) -> tuple[str, ...]: ...
-def _is_prefix_compatible(prefixes: tuple[str, ...], prefix_index: dict[str, tuple[str, ...]]) -> bool: ...
-def _forced_letters(partial_rows: tuple[str, ...], prefix_index: dict[str, tuple[str, ...]]) -> tuple[frozenset[str], ...]: ...
-def _search_dfs(...): ...
-def _search_beam(...): ...
-```
-
-Expose one public strategy initially, likely beam search with deterministic ordering.
-
-Phil suggests one implementation detail worth copying here: do not let failure remain opaque. Even if we keep the search simple, we should return enough structured information to show which prefixes died, which columns have only one legal next letter, and whether the candidate pool itself was too narrow.
-
-Suggested diagnostics model:
-
-```python
-@dataclass(frozen=True)
-class SearchDiagnostics:
-    deepest_row: int
-    dead_prefixes: tuple[str, ...]
-    forced_letters_by_column: tuple[frozenset[str], ...]
-    surviving_rows: tuple[str, ...]
 ```
 
 ### `score.py`
 
-Ranks valid grids.
+Responsibilities:
+
+- score fill quality by letter diversity and repetition
+- rank grids deterministically
+
+The scoring is intentionally simple and does not yet model theme coherence directly.
+
+### `clue_bank.py`
 
 Responsibilities:
-- score fill quality
-- score theme density
-- score diversity / non-duplication
-- use lexicon metadata when available
-- return decomposed scoring for debugging and tests
 
-Core functions:
-
-```python
-def score_fill_quality(grid: Grid) -> float: ...
-def score_theme_density(grid: Grid, theme_words: set[str]) -> float: ...
-def score_entry_diversity(grid: Grid) -> float: ...
-def score_grid(grid: Grid, theme_words: set[str]) -> CandidateGrid: ...
-def rank_grids(grids: tuple[Grid, ...], theme_words: set[str]) -> tuple[CandidateGrid, ...]: ...
-```
-
-Phil's strongest lesson for scoring is indirect: solver sophistication matters less than word-list quality. `score_fill_quality` should eventually consume entry metadata such as familiarity, clueability, part-of-speech variety, and constructor blacklists so the search does not keep surfacing technically valid but editorially weak fills.
+- identify overly generic clue patterns
+- expose the words whose leading clue looks specific enough to prefer during fill
 
 ### `clues.py`
 
-Builds clue text from answers plus a curated clue bank.
-
 Responsibilities:
-- direct answer-level clues from the bundled bank
-- themed standalone clues when appropriate
-- fallback clue heuristics
-- answer-aware surface realization
-- deterministic clue generation
 
-Core functions:
+- choose a clue for each slot
+- avoid reusing clue text within a puzzle
+- provide deterministic fallback clue variants
 
-```python
-def make_across_clues(
-    grid: Grid,
-    clue_bank: dict[str, tuple[str, ...]],
-) -> tuple[Clue, ...]: ...
-
-def make_down_clues(
-    grid: Grid,
-    clue_bank: dict[str, tuple[str, ...]],
-) -> tuple[Clue, ...]: ...
-
-def clue_for_slot(
-    slot: Slot,
-    clue_bank: dict[str, tuple[str, ...]],
-) -> Clue: ...
-```
-
-Internals:
-
-```python
-def _best_clue(answer: str, clue_bank: dict[str, tuple[str, ...]]) -> str: ...
-def _fallback_clue(answer: str) -> str: ...
-```
+Across and down clues are derived directly from the final grid rows and columns.
 
 ### `generate.py`
 
-Thin orchestration and public API.
+Responsibilities:
+
+- load bundled default inputs
+- build candidate windows
+- try seeded searches first
+- reuse `SearchIndex` instances across search attempts
+- rank candidate grids
+- build final `Puzzle` values
+- provide cached generation
+
+Notable behavior:
+
+- candidate windows expand through increasing limits
+- a built-in demo grid is used for a known good fallback path
+- when a seed can be anchored into a result, seeded grids are preferred
+
+### `cache.py`
 
 Responsibilities:
-- wire the pipeline together
-- keep side effects at the boundary
-- return a complete `Puzzle`
 
-Core function:
+- serialize generated puzzles
+- read and write cached puzzle JSON keyed by seeds and config
 
-```python
-def generate_puzzle(
-    seeds: tuple[str, ...],
-    lexicon_words: tuple[str, ...],
-    related_map: dict[str, tuple[str, ...]],
-    clue_bank: dict[str, tuple[str, ...]],
-    config: GenerateConfig = GenerateConfig(),
-) -> Puzzle: ...
-```
-
-Pipeline:
-
-1. normalize seeds
-2. expand theme words
-3. build candidate pool
-4. build prefix index
-5. search valid grids
-6. score and rank grids
-7. generate clues
-8. build the final puzzle
-
-If search fails, return structured diagnostics internally and surface a concise explanation at the CLI boundary. That keeps the core pure while giving users the kind of actionable feedback Phil provides during construction.
-
-### `render.py`
-
-Formatting only.
+### `data_maintenance.py`
 
 Responsibilities:
-- ASCII rendering for tests/debugging
-- clue list rendering
-- optional JSON export
 
-Core functions:
+- sort the bundled lexicon
+- normalize and prune the clue bank
+- drop clue entries whose answers are no longer in the lexicon
 
-```python
-def render_grid_ascii(grid: Grid) -> str: ...
-def render_clues(puzzle: Puzzle) -> str: ...
-def render_puzzle_text(puzzle: Puzzle) -> str: ...
-def puzzle_to_dict(puzzle: Puzzle) -> dict: ...
-```
+This is the source of truth for keeping `words_5.txt` and `clue_bank.json` in sync.
 
-## Dependency direction
+### `cli.py` and `render.py`
 
-This should stay one-way:
+Responsibilities:
 
-```text
-types
-  ↑
-lexicon   prefixes   grid
-   ↑         ↑        ↑
- theme ---- search ---|
-   ↑         ↑
-   score   clues
-      \     /
-       generate
-          ↑
-        render
-```
+- parse seed arguments
+- call cached generation
+- render a printable text form of the puzzle
 
-`generate.py` is the composition root.  
-`render.py` should never be imported by search or scoring logic.
+## Fill pipeline
 
-## Functional style rules
+The actual fill pipeline in the current code is:
 
-To keep it testable:
+1. load the bundled lexicon and clue bank
+2. normalize input seeds
+3. derive preferred clue-backed words
+4. build the candidate pool
+5. build a lexicon prefix index
+6. build reusable search indexes for several candidate windows
+7. search seed-anchored grids when seeds are available
+8. fall back to generic search if needed
+9. rank resulting grids
+10. choose the best seeded result, or the best result overall
+11. write clues and return a `Puzzle`
 
-- all domain objects immutable
-- no hidden globals
-- no random calls except through a passed-in seeded RNG or deterministic sort key
-- IO only in loader/render entry points
-- search, scoring, and clue generation are pure functions
+## Data maintenance workflow
 
-Bad:
+When bundled data changes:
 
-```python
-WORDS = load_word_list(...)
-random.shuffle(candidates)
-```
+1. edit `src/byewords/data/words_5.txt`
+2. run `uv run python tools/sort_bundled_data.py`
+3. let the script sort the word list and prune orphan clue entries
+4. run the test suite
 
-Good:
+That keeps the word list and clue bank synchronized.
 
-```python
-def rank_candidates(candidates: tuple[str, ...], seed: int) -> tuple[str, ...]: ...
-```
+## Testing strategy
 
-Better still: avoid randomness entirely until it is needed.
+The tests currently cover:
 
-## Public API surface
+- parsing and rendering
+- word and clue data integrity
+- data maintenance behavior
+- theme ranking
+- prefix index behavior
+- grid validation
+- search correctness and search-work bounds
+- scoring
+- clue generation
+- end-to-end puzzle generation
 
-Keep it tiny:
+The most important search-regression protection is in `tests/test_search.py`, which checks:
 
-```python
-from crossword.generate import generate_puzzle
-from crossword.render import render_puzzle_text
-```
+- expected fills on a known corpus
+- anchored row and column behavior
+- reusable `SearchIndex` support
+- bounded search work using `SearchStats`
 
-Everything else can remain internal-ish while still being directly testable.
+## Next work
 
-## Test layout
+The next implementation steps should follow the actual code shape:
 
-### `test_lexicon.py`
-Checks normalization and filtering.
-
-Examples:
-- rejects non-alpha
-- keeps only 5-letter words
-- lowercases consistently
-
-### `test_theme.py`
-Checks theme expansion behavior.
-
-Examples:
-- seed normalization
-- related words intersect with lexicon only
-- deterministic ranking
-
-### `test_prefixes.py`
-Checks prefix index correctness.
-
-Examples:
-- known prefixes resolve
-- impossible prefixes fail
-- empty prefix supported if chosen
-
-### `test_grid.py`
-Checks grid helpers.
-
-Examples:
-- row to column conversion
-- partial prefixes at each depth
-- full validity check
-
-### `test_search.py`
-Checks search engine.
-
-Examples:
-- finds a valid grid from a known small corpus
-- returns empty tuple on impossible corpus
-- deterministic candidate ordering
-
-### `test_score.py`
-Checks ranking.
-
-Examples:
-- theme-dense grid outranks bland grid
-- duplicate penalty works
-- score decomposition is stable
-
-### `test_clues.py`
-Checks clue text generation.
-
-Examples:
-- answer-specific clues are preferred when available
-- clue strings are deterministic
-- no answer leakage in clue text unless explicitly intended
-
-### `test_generate.py`
-End-to-end.
-
-Examples:
-- given fixed seeds + tiny lexicon, produces exact expected puzzle
-- output has 5 across and 5 down
-- every clue maps to an actual answer
-
-## Minimal first milestone
-
-Before full entertainment logic, build in this order:
-
-1. `types.py`
-2. `grid.py`
-3. `prefixes.py`
-4. `search.py`
-5. `score.py`
-6. `theme.py`
-7. `clues.py`
-8. `generate.py`
-9. `render.py`
-
-That is the fastest path to a valid, testable core.
-
-## Suggested v1/v2 split
-
-### v1
-- full 5×5 no-block grid
-- all answers length 5
-- seed-based candidate pool
-- deterministic prefix-pruned search
-- curated clue bank plus deterministic fallbacks
-
-### v2
-- optional blocked 5×5 layouts
-- richer theme-specific clue generation
-- multiple clue styles per answer
-- difficulty tuning
-- export to web UI / JSON schema
-
-## Concrete file skeleton
-
-```python
-# crossword/generate.py
-
-from crossword.types import GenerateConfig, Puzzle
-from crossword.theme import normalize_seeds, expand_theme_words, build_candidate_pool
-from crossword.prefixes import build_prefix_index
-from crossword.search import search_grids
-from crossword.score import rank_grids
-from crossword.clues import make_across_clues, make_down_clues
-
-def generate_puzzle(
-    seeds: tuple[str, ...],
-    lexicon_words: tuple[str, ...],
-    related_map: dict[str, tuple[str, ...]],
-    clue_bank: dict[str, tuple[str, ...]],
-    config: GenerateConfig = GenerateConfig(),
-) -> Puzzle:
-    normalized = normalize_seeds(seeds)
-    theme_words = expand_theme_words(normalized, related_map, lexicon_words)
-    candidate_pool = build_candidate_pool(
-        normalized,
-        theme_words,
-        lexicon_words,
-        allow_neutral_fill=config.allow_neutral_fill,
-    )
-    prefix_index = build_prefix_index(candidate_pool)
-    grids = search_grids(
-        candidate_pool,
-        prefix_index,
-        beam_width=config.beam_width,
-        max_candidates=config.max_candidates,
-    )
-    ranked = rank_grids(grids, set(theme_words))
-    best = ranked[0].grid
-    across = make_across_clues(best, clue_bank)
-    down = make_down_clues(best, clue_bank)
-
-    return Puzzle(
-        grid=best,
-        across=across,
-        down=down,
-        theme_words=tuple(theme_words),
-        title=" / ".join(normalized),
-    )
-```
-
-## Recommendation
-
-For the first implementation, keep the entire core under roughly 600 lines excluding tests and data files. This structure is enough to stay clean without becoming framework-heavy.
+- improve the bundled lexicon and clue bank
+- make theme expansion more meaningful than letter-overlap heuristics
+- strengthen scoring before final grid selection
+- add better diagnostics for failed seed requests
+- keep performance tests based on search counters rather than timing
