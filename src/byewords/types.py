@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Callable, Literal, TypeAlias
 
 Direction = Literal["across", "down"]
+ProgressStage = Literal["cache_hit", "search", "seed_search", "solution", "window"]
 
 
 @dataclass(frozen=True)
@@ -48,3 +49,13 @@ class GenerateConfig:
     beam_width: int = 25
     allow_neutral_fill: bool = True
     random_seed: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class ProgressUpdate:
+    stage: ProgressStage
+    message: str
+    partial_rows: tuple[str, ...] = ()
+
+
+ProgressCallback: TypeAlias = Callable[[ProgressUpdate], None]

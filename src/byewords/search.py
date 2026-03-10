@@ -4,7 +4,7 @@ from typing import cast
 
 from byewords.grid import GRID_SIZE, grid_columns, has_unique_entries, make_grid, partial_column_prefixes
 from byewords.prefixes import has_prefix
-from byewords.types import Grid
+from byewords.types import Grid, ProgressCallback, ProgressUpdate
 
 PositionLetterIndex = tuple[dict[str, int], ...]
 PrefixExtensionIndex = dict[str, frozenset[str]]
@@ -217,6 +217,7 @@ def search_grids(
     fixed_columns: dict[int, str] | None = None,
     search_index: SearchIndex | None = None,
     stats: SearchStats | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> tuple[Grid, ...]:
     if search_index is None:
         search_index = build_search_index(candidate_words, prefix_index)
@@ -225,12 +226,28 @@ def search_grids(
     def search(partial_rows: tuple[str, ...], remaining_rows_mask: int) -> None:
         if stats is not None:
             stats.states_visited += 1
+        if progress_callback is not None and partial_rows:
+            progress_callback(
+                ProgressUpdate(
+                    stage="search",
+                    message=f"Locked {len(partial_rows)}/{GRID_SIZE} rows",
+                    partial_rows=partial_rows,
+                )
+            )
         if len(found_grids) >= max_candidates:
             return
         if len(partial_rows) == GRID_SIZE:
             grid = make_grid(cast(tuple[str, str, str, str, str], partial_rows))
             if has_unique_entries(grid) and all(has_prefix(prefix_index, column) for column in grid_columns(grid)):
                 found_grids.append(grid)
+                if progress_callback is not None:
+                    progress_callback(
+                        ProgressUpdate(
+                            stage="solution",
+                            message="Locked the final grid",
+                            partial_rows=grid.rows,
+                        )
+                    )
             else:
                 if stats is not None:
                     stats.dead_ends += 1
