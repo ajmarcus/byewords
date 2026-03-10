@@ -8,7 +8,7 @@ from byewords.grid import GRID_SIZE, distinct_entries, grid_columns, make_grid
 from byewords.lexicon import load_clue_bank, load_word_list
 from byewords.prefixes import build_prefix_index
 from byewords.score import rank_grids
-from byewords.search import search_grids
+from byewords.search import SearchIndex, build_search_index, search_grids
 from byewords.theme import build_candidate_pool, normalize_seeds
 from byewords.types import GenerateConfig, Grid, Puzzle
 
@@ -79,7 +79,7 @@ def _merge_unique_grids(existing: tuple[Grid, ...], additions: tuple[Grid, ...])
 
 
 def _search_seeded_grids(
-    candidate_words: tuple[str, ...],
+    search_index: SearchIndex,
     prefix_index: dict[str, tuple[str, ...]],
     seed_words: tuple[str, ...],
     beam_width: int,
@@ -87,6 +87,7 @@ def _search_seeded_grids(
 ) -> tuple[Grid, ...]:
     seeded_grids: tuple[Grid, ...] = ()
     per_anchor_limit = max(1, min(max_candidates, 10))
+    candidate_words = search_index.candidate_words
     for seed in seed_words:
         for row_index in range(GRID_SIZE):
             seeded_grids = _merge_unique_grids(
@@ -97,6 +98,7 @@ def _search_seeded_grids(
                     beam_width=beam_width,
                     max_candidates=per_anchor_limit,
                     fixed_rows={row_index: seed},
+                    search_index=search_index,
                 ),
             )
             if len(seeded_grids) >= max_candidates:
@@ -110,6 +112,7 @@ def _search_seeded_grids(
                     beam_width=beam_width,
                     max_candidates=per_anchor_limit,
                     fixed_columns={column_index: seed},
+                    search_index=search_index,
                 ),
             )
             if len(seeded_grids) >= max_candidates:
@@ -123,6 +126,13 @@ def _select_title(seeds: tuple[str, ...], grid: Grid) -> str:
         if seed in entries:
             return f"{seed.upper()} Mini"
     return "BYEWORDS Mini"
+
+
+def _candidate_window_indexes(
+    candidate_windows: tuple[tuple[str, ...], ...],
+    prefix_index: dict[str, tuple[str, ...]],
+) -> tuple[SearchIndex, ...]:
+    return tuple(build_search_index(candidate_window, prefix_index) for candidate_window in candidate_windows)
 
 
 def generate_puzzle(
@@ -149,10 +159,11 @@ def generate_puzzle(
     grids: tuple[Grid, ...] = ()
     seed_word_set = set(available_seeds)
     candidate_windows = _candidate_windows(candidate_words)
+    candidate_window_indexes = _candidate_window_indexes(candidate_windows, prefix_index)
     if seed_word_set:
-        for candidate_window in candidate_windows:
+        for search_index in candidate_window_indexes:
             attempt = _search_seeded_grids(
-                candidate_words=candidate_window,
+                search_index=search_index,
                 prefix_index=prefix_index,
                 seed_words=available_seeds,
                 beam_width=config.beam_width,
@@ -162,12 +173,13 @@ def generate_puzzle(
                 grids = attempt
                 break
     if not grids:
-        for candidate_window in candidate_windows:
+        for search_index in candidate_window_indexes:
             attempt = search_grids(
-                candidate_words=candidate_window,
+                candidate_words=search_index.candidate_words,
                 prefix_index=prefix_index,
                 beam_width=config.beam_width,
                 max_candidates=config.max_candidates,
+                search_index=search_index,
             )
             if attempt:
                 grids = attempt
@@ -175,9 +187,9 @@ def generate_puzzle(
     if not grids and len(candidate_words) > config.beam_width:
         broadened_beam_width = min(len(candidate_words), config.beam_width * 5)
         if seed_word_set:
-            for candidate_window in candidate_windows:
+            for search_index in candidate_window_indexes:
                 attempt = _search_seeded_grids(
-                    candidate_words=candidate_window,
+                    search_index=search_index,
                     prefix_index=prefix_index,
                     seed_words=available_seeds,
                     beam_width=broadened_beam_width,
@@ -187,12 +199,13 @@ def generate_puzzle(
                     grids = attempt
                     break
         if not grids:
-            for candidate_window in candidate_windows:
+            for search_index in candidate_window_indexes:
                 attempt = search_grids(
-                    candidate_words=candidate_window,
+                    candidate_words=search_index.candidate_words,
                     prefix_index=prefix_index,
                     beam_width=broadened_beam_width,
                     max_candidates=config.max_candidates,
+                    search_index=search_index,
                 )
                 if attempt:
                     grids = attempt
