@@ -4,6 +4,12 @@ from io import StringIO
 from unittest.mock import patch
 
 from byewords.cli import main, parse_args
+from byewords.types import ProgressUpdate
+
+
+class FakeTty(StringIO):
+    def isatty(self) -> bool:
+        return True
 
 
 class TestCli(unittest.TestCase):
@@ -63,6 +69,50 @@ class TestCli(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         generate_cached.assert_called_once_with(("snail",), (), {})
         self.assertEqual(stdout.getvalue(), "cached puzzle\n")
+
+    def test_cli_renders_animation_to_stderr_when_interactive(self) -> None:
+        stdout = StringIO()
+        stderr = FakeTty()
+
+        def fake_generate(
+            seeds: tuple[str, ...],
+            lexicon_words: tuple[str, ...],
+            clue_bank: dict[str, tuple[str, ...]],
+            *,
+            progress_callback,
+        ) -> object:
+            self.assertEqual(seeds, ("snail",))
+            progress_callback(
+                ProgressUpdate(
+                    stage="search",
+                    message="Locked 1/5 rows",
+                    partial_rows=("snail",),
+                )
+            )
+            progress_callback(
+                ProgressUpdate(
+                    stage="solution",
+                    message="Locked the final grid",
+                    partial_rows=("snail", "oases", "atone", "ileum", "lends"),
+                )
+            )
+            return object()
+
+        with (
+            redirect_stdout(stdout),
+            patch("sys.stderr", stderr),
+            patch("sys.argv", ["byewords", "--seed", "snail"]),
+            patch("byewords.cli.load_default_inputs", return_value=((), {})),
+            patch("byewords.cli.generate_puzzle_cached", side_effect=fake_generate),
+            patch("byewords.cli.render_puzzle_text", return_value="animated puzzle"),
+        ):
+            exit_code = main()
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stdout.getvalue(), "animated puzzle\n")
+        self.assertIn("Locked the final grid", stderr.getvalue())
+        self.assertIn("S N A I L", stderr.getvalue())
+        self.assertIn("\x1b[?25l", stderr.getvalue())
 
     def test_parse_args_supports_positional_seeds(self) -> None:
         self.assertEqual(parse_args(["snail", "eases"]), ("snail", "eases"))

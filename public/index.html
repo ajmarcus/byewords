@@ -19,13 +19,13 @@
       --clue-height: 156px;
       --clue-text-max: 28px;
       --clue-text-min: 16px;
-      --cell-size: min(15.8vw, 74px);
+      --cell-size: min(15.1vw, 70px);
       --cell-min: 52px;
       --cell-edge: max(var(--cell-min), var(--cell-size));
       --board-gap: 2px;
-      --key-gap: 6px;
+      --key-gap: 7px;
       --key-font: 14px;
-      --key-pad-y: 11px;
+      --key-pad-y: 12px;
       --key-side-pad: 0px;
       --frame-width: min(100%, 420px);
     }
@@ -63,7 +63,7 @@
     .topbar {
       background: var(--blue);
       color: var(--white);
-      padding: 10px 14px;
+      padding: 8px 12px;
       border-bottom: 2px solid var(--ink);
       display: flex;
       justify-content: space-between;
@@ -619,7 +619,7 @@
     @media (max-width: 420px) {
       :root {
         --frame-width: 100%;
-        --mobile-topbar-height: 48px;
+        --mobile-topbar-height: 44px;
         --mobile-pad-x: 12px;
         --mobile-pad-top: 12px;
         --mobile-pad-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
@@ -634,9 +634,9 @@
           calc((100dvh - var(--mobile-topbar-height) - var(--mobile-pad-top) - var(--mobile-pad-bottom) - (var(--mobile-gap-y) * 2) - var(--mobile-clue-height) - var(--mobile-keyboard-height) - 22px) / 5)
         );
         --cell-min: 0px;
-        --key-gap: 8px;
+        --key-gap: 9px;
         --key-font: 12px;
-        --key-pad-y: 12px;
+        --key-pad-y: 13px;
       }
 
       .app { height: 100vh; height: 100dvh; min-height: 100dvh; padding: 0; align-items: stretch; }
@@ -668,7 +668,7 @@
 
     @media (max-width: 420px) and (max-height: 760px) {
       :root {
-        --mobile-topbar-height: 46px;
+        --mobile-topbar-height: 42px;
         --mobile-pad-x: 10px;
         --mobile-pad-top: 10px;
         --mobile-pad-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
@@ -676,12 +676,12 @@
         --mobile-clue-height: 112px;
         --clue-text-max: 20px;
         --clue-text-min: 14px;
-        --key-gap: 6px;
+        --key-gap: 7px;
         --key-font: 11px;
-        --key-pad-y: 11px;
+        --key-pad-y: 12px;
       }
 
-      .topbar { padding: 8px 12px; }
+      .topbar { padding: 7px 11px; }
       .status-strip { gap: 6px; }
       .score-pill { min-width: 54px; padding: 6px 9px; font-size: 12px; }
       .timer { min-width: 68px; padding: 6px 8px; font-size: 13px; }
@@ -690,12 +690,12 @@
 
     @media (max-width: 360px) {
       :root {
-        --key-gap: 6px;
+        --key-gap: 7px;
         --key-font: 11px;
-        --key-pad-y: 12px;
+        --key-pad-y: 13px;
       }
 
-      .topbar { padding: 8px 12px; }
+      .topbar { padding: 7px 11px; }
       .status-strip { gap: 6px; }
       .score-pill { min-width: 54px; padding: 6px 9px; font-size: 12px; }
       .timer { min-width: 68px; padding: 6px 8px; font-size: 13px; }
@@ -1073,6 +1073,10 @@
         return solution[row][col] === "#";
       }
 
+      function cellNeedsEntry(row, col) {
+        return !isBlackCell(row, col) && entries[row][col] !== solution[row][col];
+      }
+
       function makeKeyboardRow(targetId, keys) {
         const container = document.getElementById(targetId);
         container.innerHTML = "";
@@ -1171,14 +1175,25 @@
 
       function getPreferredCellForWord(word) {
         const cells = getWordCells(word);
-        const firstEmpty = cells.find(function (pair) {
-          return entries[pair[0]][pair[1]] === "";
+        const firstUnresolved = cells.find(function (pair) {
+          return cellNeedsEntry(pair[0], pair[1]);
         });
-        if (firstEmpty) {
-          return { row: firstEmpty[0], col: firstEmpty[1] };
+        if (firstUnresolved) {
+          return { row: firstUnresolved[0], col: firstUnresolved[1] };
         }
         const last = cells[cells.length - 1];
         return { row: last[0], col: last[1] };
+      }
+
+      function getNextCellNeedingEntry(word, startIndex) {
+        const cells = getWordCells(word);
+        const next = cells.slice(startIndex + 1).find(function (pair) {
+          return cellNeedsEntry(pair[0], pair[1]);
+        });
+        if (!next) {
+          return null;
+        }
+        return { row: next[0], col: next[1] };
       }
 
       function formatTime(totalSeconds) {
@@ -1390,9 +1405,12 @@
           const index = cells.findIndex(function (pair) {
             return pair[0] === row && pair[1] === col;
           });
-          const next = cells[index + 1];
+          const next = getNextCellNeedingEntry(word, index);
           if (next) {
-            selected = { row: next[0], col: next[1] };
+            selected = next;
+          } else {
+            activeClueIndex = (activeClueIndex + 1) % words.length;
+            selected = getPreferredCellForWord(words[activeClueIndex]);
           }
         }
         renderBoard();
@@ -1589,13 +1607,16 @@
             }
           },
           {
-            name: "preferred clue cell picks first empty cell",
+            name: "preferred clue cell picks first unresolved cell",
             run: function () {
-              entries[0][0] = "A";
-              entries[0][1] = "D";
+              const word = words[0];
+              entries[0][0] = word.answer[0];
+              entries[0][1] = word.answer[1];
+              entries[0][2] = "X";
               const preferred = getPreferredCellForWord(words[0]);
               entries[0][0] = "";
               entries[0][1] = "";
+              entries[0][2] = "";
               return preferred.row === 0 && preferred.col === 2;
             }
           },
@@ -1615,13 +1636,15 @@
             }
           },
           {
-            name: "down preferred cell walks vertically",
+            name: "down preferred cell skips solved crossings",
             run: function () {
               const downWord = words.find(function (word) { return word.direction === "down" && word.number === 2; });
-              entries[0][1] = "D";
+              entries[0][1] = downWord.answer[0];
+              entries[1][1] = downWord.answer[1];
               const preferred = getPreferredCellForWord(downWord);
               entries[0][1] = "";
-              return preferred.row === 1 && preferred.col === 1;
+              entries[1][1] = "";
+              return preferred.row === 2 && preferred.col === 1;
             }
           },
           {
@@ -1710,6 +1733,43 @@
 
               entries[0][1] = "";
               entries[1][1] = "";
+              return advanced;
+            }
+          },
+          {
+            name: "typing skips solved crossing letters before advancing",
+            run: function () {
+              const word = words[0];
+              activeClueIndex = 0;
+              selected = { row: 0, col: 0 };
+              entries[0][0] = "";
+              entries[0][1] = word.answer[1];
+              entries[0][2] = "";
+
+              handleLetter(word.answer[0]);
+              const skipped = selected.row === 0 && selected.col === 2;
+
+              entries[0][0] = "";
+              entries[0][1] = "";
+              entries[0][2] = "";
+              return skipped;
+            }
+          },
+          {
+            name: "typing last cell advances to the next clue",
+            run: function () {
+              const word = words[0];
+              activeClueIndex = 0;
+              selected = { row: 0, col: 4 };
+              entries[0][4] = "";
+
+              handleLetter(word.answer[4]);
+              const advanced = getActiveWord().direction === "across"
+                && getActiveWord().number === 2
+                && selected.row === 1
+                && selected.col === 0;
+
+              entries[0][4] = "";
               return advanced;
             }
           },

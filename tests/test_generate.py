@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from byewords.generate import DEFAULT_DEMO_ENTRIES, generate_puzzle, generate_puzzle_cached
 from byewords.grid import distinct_entries
+from byewords.types import ProgressUpdate
 from tests.fixtures import TEST_LEXICON
 
 
@@ -98,6 +99,26 @@ class TestGenerate(unittest.TestCase):
         self.assertEqual(puzzle.title, "SNAIL Mini")
         self.assertIn("snail", distinct_entries(puzzle.grid))
 
+    def test_generate_puzzle_reports_progress_updates(self) -> None:
+        updates: list[ProgressUpdate] = []
+
+        puzzle = generate_puzzle(
+            seeds=("snail",),
+            lexicon_words=TEST_LEXICON,
+            clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
+            progress_callback=updates.append,
+        )
+
+        self.assertTrue(any(update.stage == "window" for update in updates))
+        self.assertTrue(any(update.stage == "search" and update.partial_rows for update in updates))
+        solution_rows = {
+            update.partial_rows
+            for update in updates
+            if update.stage == "solution"
+        }
+        self.assertTrue(solution_rows)
+        self.assertIn(puzzle.grid.rows, solution_rows)
+
     def test_generate_puzzle_cached_reuses_saved_puzzle(self) -> None:
         with TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
@@ -123,6 +144,63 @@ class TestGenerate(unittest.TestCase):
 
             self.assertEqual(first, second)
             self.assertEqual(len(tuple(cache_dir.glob("*.json"))), 1)
+
+    def test_generate_puzzle_cached_reports_cache_hits(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir)
+            updates: list[ProgressUpdate] = []
+            seeds = ("snail",)
+            clue_bank: dict[str, tuple[str, ...]] = {
+                "snail": ("Mollusk hauling its studio apartment",),
+            }
+
+            generate_puzzle_cached(
+                seeds=seeds,
+                lexicon_words=TEST_LEXICON,
+                clue_bank=clue_bank,
+                cache_dir=cache_dir,
+            )
+
+            with patch("byewords.generate.generate_puzzle", side_effect=AssertionError("cache miss")):
+                cached = generate_puzzle_cached(
+                    seeds=seeds,
+                    lexicon_words=TEST_LEXICON,
+                    clue_bank=clue_bank,
+                    cache_dir=cache_dir,
+                    progress_callback=updates.append,
+                )
+
+            self.assertEqual(len(updates), 1)
+            self.assertEqual(updates[0].stage, "cache_hit")
+            self.assertEqual(updates[0].partial_rows, cached.grid.rows)
+
+    def test_generate_puzzle_cached_invalidates_cache_when_data_changes(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir)
+            seeds = ("snail",)
+            first_clue_bank: dict[str, tuple[str, ...]] = {
+                "snail": ("First clue",),
+            }
+            second_clue_bank: dict[str, tuple[str, ...]] = {
+                "snail": ("Second clue",),
+            }
+
+            generate_puzzle_cached(
+                seeds=seeds,
+                lexicon_words=TEST_LEXICON,
+                clue_bank=first_clue_bank,
+                cache_dir=cache_dir,
+            )
+
+            second = generate_puzzle_cached(
+                seeds=seeds,
+                lexicon_words=TEST_LEXICON,
+                clue_bank=second_clue_bank,
+                cache_dir=cache_dir,
+            )
+
+            self.assertEqual(second.across[3].text, "Second clue")
+            self.assertEqual(len(tuple(cache_dir.glob("*.json"))), 2)
 
 
 if __name__ == "__main__":

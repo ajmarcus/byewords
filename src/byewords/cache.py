@@ -35,10 +35,11 @@ def default_cache_dir() -> Path:
     return Path.cwd() / DEFAULT_CACHE_DIRNAME
 
 
-def cache_key(seeds: tuple[str, ...], config: GenerateConfig) -> str:
+def cache_key(seeds: tuple[str, ...], config: GenerateConfig, version: str = "") -> str:
     payload = {
         "seeds": normalize_seeds(seeds),
         "config": asdict(config),
+        "version": version,
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
@@ -48,18 +49,20 @@ def cache_path(
     seeds: tuple[str, ...],
     config: GenerateConfig,
     cache_dir: Path | None = None,
+    version: str = "",
 ) -> Path:
     normalized_seeds = normalize_seeds(seeds)
     label = "-".join(normalized_seeds) if normalized_seeds else "empty"
-    return (cache_dir or default_cache_dir()) / f"{label}-{cache_key(seeds, config)}.json"
+    return (cache_dir or default_cache_dir()) / f"{label}-{cache_key(seeds, config, version)}.json"
 
 
 def load_cached_puzzle(
     seeds: tuple[str, ...],
     config: GenerateConfig,
     cache_dir: Path | None = None,
+    version: str = "",
 ) -> Puzzle | None:
-    path = cache_path(seeds, config, cache_dir)
+    path = cache_path(seeds, config, cache_dir, version)
     if not path.exists():
         return None
     payload = cast(PuzzlePayload, json.loads(path.read_text(encoding="utf-8")))
@@ -71,8 +74,9 @@ def save_cached_puzzle(
     config: GenerateConfig,
     puzzle: Puzzle,
     cache_dir: Path | None = None,
+    version: str = "",
 ) -> Path:
-    path = cache_path(seeds, config, cache_dir)
+    path = cache_path(seeds, config, cache_dir, version)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(puzzle_to_dict(puzzle), indent=2), encoding="utf-8")
     return path
