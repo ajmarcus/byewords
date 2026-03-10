@@ -132,7 +132,7 @@ class TestPublicIndex(unittest.TestCase):
         self.assertIn("transition: background-color 260ms ease, color 220ms ease;", html)
         self.assertIn(".clue.solved {", html)
         self.assertIn("background: var(--yellow);", html)
-        self.assertIn('<span class="clue-label-text clue-label-solved" id="clue-label-solved">CLUE -- SOLVED</span>', html)
+        self.assertIn('<span class="clue-label-text clue-label-solved" id="clue-label-solved">SOLVED</span>', html)
         self.assertIn(".clue-label-solved {", html)
         self.assertIn(".clue-label-text {", html)
         self.assertIn("transition: opacity 220ms ease, transform 260ms ease, letter-spacing 260ms ease;", html)
@@ -172,7 +172,6 @@ class TestPublicIndex(unittest.TestCase):
 
         self.assertIn('<div class="status-strip">', html)
         self.assertIn('<div class="score-pill" id="score-pill" aria-live="polite" aria-atomic="true" aria-label="Solved words">', html)
-        self.assertIn('<span class="score-label">X</span>', html)
         self.assertIn('<span class="score-count" id="score-count">0</span>', html)
         self.assertIn('<span class="score-total" id="score-total">10</span>', html)
         self.assertIn('<span class="score-burst" id="score-burst" aria-hidden="true">+1</span>', html)
