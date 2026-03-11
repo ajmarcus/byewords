@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from byewords.cli import main, parse_args
 from byewords.types import ProgressUpdate
+from tests.test_puz import build_test_puzzle
 
 
 class FakeTty(StringIO):
@@ -15,22 +16,20 @@ class FakeTty(StringIO):
 
 
 class TestCli(unittest.TestCase):
-    def test_cli_prints_expected_message(self) -> None:
+    def test_cli_without_arguments_builds_batch_cache(self) -> None:
         buf = StringIO()
 
         with (
             redirect_stdout(buf),
             patch("sys.argv", ["byewords"]),
             patch("byewords.cli.load_default_inputs", return_value=((), {})),
-            patch("byewords.cli.generate_puzzle_cached") as generate_cached,
-            patch("byewords.cli.render_puzzle_text", return_value="generated puzzle"),
+            patch("byewords.cli.build_batch_puzzle_cache", return_value=(Path("/tmp/puzzles.json"), 2, 2)) as build_batch,
         ):
-            generate_cached.return_value = object()
             main()
 
         output = buf.getvalue()
-        generate_cached.assert_called_once_with((), (), {})
-        self.assertEqual(output, "generated puzzle\n")
+        build_batch.assert_called_once_with((), {})
+        self.assertIn("Cached 2 puzzles in /tmp/puzzles.json (2 generated in this run).", output)
 
     def test_cli_writes_text_output_to_file(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -38,16 +37,12 @@ class TestCli(unittest.TestCase):
             with (
                 patch("sys.argv", ["byewords", "--output", str(output_path)]),
                 patch("byewords.cli.load_default_inputs", return_value=((), {})),
-                patch("byewords.cli.generate_puzzle_cached") as generate_cached,
-                patch("byewords.cli.render_puzzle_text", return_value="generated puzzle"),
+                patch("byewords.cli.build_batch_puzzle_cache"),
             ):
-                generate_cached.return_value = object()
                 exit_code = main()
 
-            written_text = output_path.read_text(encoding="utf-8")
-
-        self.assertEqual(exit_code, 0)
-        self.assertEqual(written_text, "generated puzzle\n")
+        self.assertEqual(exit_code, 1)
+        self.assertFalse(output_path.exists())
 
     def test_cli_writes_puz_output_to_file(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -55,23 +50,19 @@ class TestCli(unittest.TestCase):
             with (
                 patch("sys.argv", ["byewords", "--format", "puz", "--output", str(output_path)]),
                 patch("byewords.cli.load_default_inputs", return_value=((), {})),
-                patch("byewords.cli.generate_puzzle_cached") as generate_cached,
-                patch("byewords.cli.puzzle_to_puz_bytes", return_value=b"puz-bytes"),
+                patch("byewords.cli.build_batch_puzzle_cache"),
             ):
-                generate_cached.return_value = object()
                 exit_code = main()
 
-            written_bytes = output_path.read_bytes()
-
-        self.assertEqual(exit_code, 0)
-        self.assertEqual(written_bytes, b"puz-bytes")
+        self.assertEqual(exit_code, 1)
+        self.assertFalse(output_path.exists())
 
     def test_cli_rejects_binary_output_to_terminal(self) -> None:
         stdout = FakeTty()
 
         with (
             patch("sys.stdout", stdout),
-            patch("sys.argv", ["byewords", "--format", "puz"]),
+            patch("sys.argv", ["byewords", "--seed", "snail", "--format", "puz"]),
             patch("byewords.cli.load_default_inputs", return_value=((), {})),
             patch("byewords.cli.generate_puzzle_cached") as generate_cached,
             patch("byewords.cli.puzzle_to_puz_bytes", return_value=b"puz-bytes"),
@@ -96,7 +87,7 @@ class TestCli(unittest.TestCase):
 
         with (
             redirect_stdout(stdout),
-            patch("sys.argv", ["byewords"]),
+            patch("sys.argv", ["byewords", "--seed", "snail"]),
             patch("byewords.cli.load_default_inputs", return_value=((), {})),
             patch("byewords.cli.generate_puzzle_cached", side_effect=ValueError("unable to generate a valid 5x5 puzzle from the current lexicon")),
         ):
@@ -121,6 +112,27 @@ class TestCli(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         generate_cached.assert_called_once_with(("snail",), (), {})
         self.assertEqual(stdout.getvalue(), "cached puzzle\n")
+
+    def test_cli_regenerates_clues_for_seeded_runs(self) -> None:
+        stdout = StringIO()
+        puzzle = build_test_puzzle()
+
+        with (
+            redirect_stdout(stdout),
+            patch("sys.argv", ["byewords", "--seed", "snail", "--regenerate-clues"]),
+            patch("byewords.cli.load_default_inputs", return_value=((), {})),
+            patch("byewords.cli.generate_puzzle_cached") as generate_cached,
+            patch("byewords.cli.run_clue_regeneration") as regenerate,
+            patch("byewords.cli.render_puzzle_text", return_value="regenerated puzzle"),
+            patch("byewords.cli._refresh_puzzle_clues", side_effect=lambda current, clue_bank: current) as refresh,
+        ):
+            generate_cached.return_value = puzzle
+            exit_code = main()
+
+        self.assertEqual(exit_code, 0)
+        regenerate.assert_called_once()
+        refresh.assert_called_once()
+        self.assertEqual(stdout.getvalue(), "regenerated puzzle\n")
 
     def test_cli_renders_animation_to_stderr_when_interactive(self) -> None:
         stdout = StringIO()
@@ -172,6 +184,7 @@ class TestCli(unittest.TestCase):
         self.assertEqual(args.seeds, ("snail", "eases"))
         self.assertEqual(args.format, "text")
         self.assertIsNone(args.output)
+        self.assertFalse(args.regenerate_clues)
 
     def test_parse_args_supports_repeated_seed_flags(self) -> None:
         args = parse_args(["--seed", "snail", "--seed", "eases"])
@@ -188,6 +201,11 @@ class TestCli(unittest.TestCase):
 
         self.assertEqual(args.format, "puz")
         self.assertEqual(args.output, "mini.puz")
+
+    def test_parse_args_accepts_regenerate_clues(self) -> None:
+        args = parse_args(["--seed", "snail", "--regenerate-clues"])
+
+        self.assertTrue(args.regenerate_clues)
 
     def test_parse_args_rejects_mixed_seed_styles(self) -> None:
         with self.assertRaises(SystemExit), patch("sys.stderr", new_callable=StringIO):

@@ -4,10 +4,13 @@ import time
 from pathlib import Path
 from typing import TextIO
 
+from byewords.clues import make_across_clues, make_down_clues
 from byewords.generate import generate_puzzle_cached, load_default_inputs
+from byewords.groq_clues import default_clue_bank_path, regenerate_clues as run_clue_regeneration
 from byewords.puz import puzzle_to_puz_bytes
+from byewords.puzzle_store import build_batch_puzzle_cache
 from byewords.render import render_puzzle_text
-from byewords.types import ProgressUpdate
+from byewords.types import ProgressUpdate, Puzzle
 
 
 class BuildAnimator:
@@ -95,6 +98,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output",
         help="Write the puzzle to a file instead of stdout.",
     )
+    parser.add_argument(
+        "--regenerate-clues",
+        action="store_true",
+        help="Force Groq clue regeneration for the generated puzzle before rendering output.",
+    )
     args = parser.parse_args(argv)
     if args.seed_flags and args.seeds:
         parser.error("use either positional seeds or repeated --seed flags, not both")
@@ -125,6 +133,22 @@ def _write_puz_output(payload: bytes, output_path: str | None) -> None:
 def main() -> int:
     lexicon_words, clue_bank = load_default_inputs()
     args = parse_args()
+    if not args.seeds:
+        if args.format != "text":
+            print("error: batch mode only supports text output")
+            return 1
+        if args.output is not None:
+            print("error: batch mode does not support --output")
+            return 1
+        if args.regenerate_clues:
+            print("error: batch mode does not support --regenerate-clues")
+            return 1
+        store_path, total_records, generated_records = build_batch_puzzle_cache(lexicon_words, clue_bank)
+        print(
+            f"Cached {total_records} puzzles in {store_path} "
+            f"({generated_records} generated in this run)."
+        )
+        return 0
     animator = BuildAnimator(sys.stderr)
     try:
         if animator.enabled:
@@ -141,6 +165,20 @@ def main() -> int:
         print(f"error: {exc}")
         return 1
     animator.finish()
+    if args.regenerate_clues:
+        try:
+            run_clue_regeneration(
+                answers=tuple(dict.fromkeys(clue.answer for clue in puzzle.across + puzzle.down)),
+                clue_bank=clue_bank,
+                clue_bank_path=default_clue_bank_path(),
+                env=None,
+                errors=sys.stderr,
+                force=True,
+            )
+        except (RuntimeError, ValueError) as exc:
+            print(f"error: {exc}")
+            return 1
+        puzzle = _refresh_puzzle_clues(puzzle, clue_bank)
     if args.format == "puz":
         try:
             _write_puz_output(puzzle_to_puz_bytes(puzzle), args.output)
@@ -150,3 +188,14 @@ def main() -> int:
         return 0
     _write_text_output(render_puzzle_text(puzzle), args.output, sys.stdout)
     return 0
+
+
+def _refresh_puzzle_clues(puzzle: Puzzle, clue_bank: dict[str, tuple[str, ...]]) -> Puzzle:
+    used_clues: set[str] = set()
+    return Puzzle(
+        grid=puzzle.grid,
+        across=make_across_clues(puzzle.grid, clue_bank, used_clues),
+        down=make_down_clues(puzzle.grid, clue_bank, used_clues),
+        theme_words=puzzle.theme_words,
+        title=puzzle.title,
+    )

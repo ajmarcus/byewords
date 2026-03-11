@@ -38,6 +38,9 @@ Implemented now:
 - `benchmark_generation()` mirrors the current generation path and records per-window search attempts
 - `SearchStatsSnapshot` captures deterministic counters without mutating the runtime search behavior
 - regression tests cover seeded, unseeded, and demo-grid benchmark cases
+- Stage 2 vector loading now exists with a bundled `word_vectors.json` table and deterministic whole-lexicon ranking APIs
+- the CLI now supports an offline-first cache build that writes lexicon-wide puzzle records to `src/byewords/data/puzzles.json`
+- clue regeneration can now be forced from both the Groq clue tool and the main puzzle CLI, but clue quality is still intentionally out of the ranking path until the top-100 offline stage
 
 What remains before Stage 1 is fully closed:
 
@@ -293,9 +296,10 @@ Practical interpretation:
 
 After answer-only ranking:
 
-1. first choose the best 100 puzzles based only on their answers
-2. generate clues for those 100 puzzles
-3. rerank those 100 using clue quality and clue/theme coherence
+1. first use `clue_bank.json` while generating and storing candidate puzzles for all bundled seed words
+2. after the full seed corpus has been generated, choose the best 100 puzzles based only on their answers
+3. regenerate clues for those 100 puzzles
+4. only then rerank those 100 using clue quality and clue/theme coherence
 
 Clue quality may affect the final ordering of already-strong puzzles. It must not rescue a weak grid.
 
@@ -313,14 +317,15 @@ The batch process should:
 
 1. iterate over every bundled word as a seed
 2. generate candidate puzzles for that seed in parallel
-3. reject any candidate that fails fill quality or uniqueness requirements
-4. select the theme-bearing subset for each surviving grid
-5. reject any surviving grid whose weakest-link coherence is too low
-6. rank surviving puzzles by answer/theme coherence and diversity-aware theme quality
-7. run an intrusion-style evaluation corpus against the scorer
-8. retain the best answer-only puzzles per seed
-9. run the top-100 clue stage
-10. store the final curated winners and their scoring metadata
+3. store the generated puzzles in `puzzles.json` together with their seed metadata
+4. reject any candidate that fails fill quality or uniqueness requirements
+5. select the theme-bearing subset for each surviving grid
+6. reject any surviving grid whose weakest-link coherence is too low
+7. rank surviving puzzles by answer/theme coherence and diversity-aware theme quality
+8. run an intrusion-style evaluation corpus against the scorer
+9. retain the best answer-only puzzles per seed
+10. after the full-seed batch is complete, regenerate clues only for the top 100 puzzles
+11. only after regeneration, evaluate clue quality and store the final curated winners and their scoring metadata
 
 This work is CPU-bound and should use process-based parallelism rather than threads.
 
@@ -514,9 +519,9 @@ Decision gate:
 
 Implement:
 
-- clue generation for the top 100 answer-only puzzles
+- clue regeneration for the top 100 answer-only puzzles, using `clue_bank.json` first and Groq only after answer-only selection
 - clue validation
-- final reranking with clue quality included
+- final reranking with clue quality included only after regeneration
 - clue-quality regression checks on a small reviewed corpus
 
 Unknown resolved:
@@ -587,6 +592,31 @@ Change the seeded path so that it:
 - tracks a provisional theme-bearing subset during search
 - enforces a time budget
 - falls back cleanly if the budget is exceeded
+
+### `src/byewords/puzzle_store.py`
+
+Add a deterministic puzzle-record store for offline batch output.
+
+It should:
+
+- write lexicon-wide cached puzzle records to `src/byewords/data/puzzles.json`
+- preserve a stable puzzle id and canonical UUID per stored record
+- support lookups by stored puzzle id for later clue-regeneration work
+
+### `src/byewords/cli.py`
+
+The default CLI should now support two modes:
+
+- with explicit seeds: generate one puzzle, optionally forcing clue regeneration afterward
+- with no seeds: build or refresh the offline `puzzles.json` cache for the full bundled lexicon in CPU-sized batches
+
+### `src/byewords/groq_clues.py`
+
+The clue-regeneration CLI should now support:
+
+- `--force` to regenerate clues even when non-generic clue-bank entries already exist
+- an optional `<puzzle_uuid>` argument that can resolve answers from `puzzles.json`
+- puzzle-level regeneration flows that reuse the same regeneration path as the main CLI
 
 ### Offline builder
 

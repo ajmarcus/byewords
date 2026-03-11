@@ -27,6 +27,7 @@ from byewords.groq_clues import (
     main,
     parse_clue_package,
     parse_args,
+    regenerate_clues,
     require_api_key,
     select_answers_to_clue,
 )
@@ -84,11 +85,24 @@ class TestGroqClues(unittest.TestCase):
     def test_parse_args_allows_empty_answer_list_for_bulk_mode(self) -> None:
         args = parse_args(["--parallelism", "3", "--limit", "2", "--json"])
 
-        self.assertEqual(args.answers, [])
+        self.assertEqual(args.answers, ())
+        self.assertIsNone(args.puzzle_uuid)
         self.assertEqual(args.count, DEFAULT_CLUE_COUNT)
         self.assertEqual(args.parallelism, 3)
         self.assertEqual(args.limit, 2)
         self.assertTrue(args.json)
+
+    def test_parse_args_extracts_optional_puzzle_uuid(self) -> None:
+        args = parse_args(["019577fd-8d7e-7a3d-9a4b-c2f6b6a1d233", "snail"])
+
+        self.assertEqual(args.puzzle_uuid, "019577fd-8d7e-7a3d-9a4b-c2f6b6a1d233")
+        self.assertEqual(args.answers, ("snail",))
+
+    def test_parse_args_accepts_force_regeneration(self) -> None:
+        args = parse_args(["--force", "snail"])
+
+        self.assertTrue(args.force)
+        self.assertEqual(args.answers, ("snail",))
 
     def test_parse_args_rejects_counts_other_than_two(self) -> None:
         with self.assertRaises(SystemExit):
@@ -208,6 +222,18 @@ class TestGroqClues(unittest.TestCase):
 
         self.assertEqual(selection.queued_answers, ("asked", "abase"))
         self.assertEqual(selection.skipped_answers, ("snail",))
+
+    def test_select_answers_to_clue_force_mode_queues_full_lexicon(self) -> None:
+        selection = select_answers_to_clue(
+            requested_answers=(),
+            lexicon_words=("snail", "asked", "abase"),
+            clue_bank={"snail": ("Slow walker carrying its whole rent situation",)},
+            limit=0,
+            force=True,
+        )
+
+        self.assertEqual(selection.queued_answers, ("snail", "asked", "abase"))
+        self.assertEqual(selection.skipped_answers, ())
 
     def test_select_answers_to_clue_keeps_requested_answers_even_when_cached(self) -> None:
         selection = select_answers_to_clue(
@@ -352,6 +378,23 @@ class TestGroqClues(unittest.TestCase):
             ),
         )
 
+    def test_generate_clue_package_force_regenerates_even_with_cached_clues(self) -> None:
+        client = FakeGroqClient()
+
+        package = generate_clue_package(
+            client=client,
+            answer="snail",
+            clue_bank={"snail": ("Slow walker carrying its whole rent situation",)},
+            clue_bank_path="/tmp/test_clue_bank.json",
+            lock=threading.Lock(),
+            count=DEFAULT_CLUE_COUNT,
+            force=True,
+        )
+
+        self.assertEqual(len(client.payloads), 1)
+        self.assertFalse(package.cached)
+        self.assertEqual(package.clues, ("Snail option A", "Snail option B"))
+
     def test_generate_clue_package_writes_generated_clues_to_clue_bank(self) -> None:
         client = FakeGroqClient()
 
@@ -481,6 +524,95 @@ class TestGroqClues(unittest.TestCase):
         parsed = json.loads(stdout.getvalue())
         self.assertEqual(parsed[0]["cached"], True)
         self.assertEqual(stderr.getvalue(), "")
+
+    def test_regenerate_clues_returns_cached_packages_without_api_key_when_force_is_false(self) -> None:
+        packages = regenerate_clues(
+            answers=("snail",),
+            clue_bank={"snail": ("Slow walker carrying its whole rent situation",)},
+            clue_bank_path="/tmp/test_clue_bank.json",
+            env={},
+            errors=StringIO(),
+            force=False,
+        )
+
+        self.assertEqual(len(packages), 1)
+        self.assertTrue(packages[0].cached)
+
+    def test_main_force_regenerates_cached_requested_answer(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+
+        with (
+            patch(
+                "byewords.groq_clues.load_default_answer_inputs",
+                return_value=(
+                    ("snail",),
+                    {"snail": ("Slow walker carrying its whole rent situation",)},
+                ),
+            ),
+            patch("byewords.groq_clues.default_clue_bank_path", return_value="/tmp/test_clue_bank.json"),
+            patch("byewords.groq_clues.GroqClient", return_value=FakeGroqClient()),
+            patch("byewords.groq_clues.persist_clue_bank"),
+        ):
+            exit_code = main(
+                ["--json", "--force", "snail"],
+                env={"GROQ_API_KEY": "test-key"},
+                stdout=stdout,
+                stderr=stderr,
+            )
+
+        self.assertEqual(exit_code, 0)
+        parsed = json.loads(stdout.getvalue())
+        self.assertEqual(parsed[0]["cached"], False)
+        self.assertEqual(parsed[0]["clues"], ["Snail option A", "Snail option B"])
+
+    def test_main_json_output_wraps_packages_when_puzzle_uuid_is_supplied(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+
+        with (
+            patch(
+                "byewords.groq_clues.load_default_answer_inputs",
+                return_value=(
+                    ("snail",),
+                    {"snail": ("Slow walker carrying its whole rent situation",)},
+                ),
+            ),
+            patch("byewords.groq_clues.default_clue_bank_path", return_value="/tmp/test_clue_bank.json"),
+        ):
+            exit_code = main(
+                ["--json", "019577fd-8d7e-7a3d-9a4b-c2f6b6a1d233", "snail"],
+                env={},
+                stdout=stdout,
+                stderr=stderr,
+            )
+
+        self.assertEqual(exit_code, 0)
+        parsed = json.loads(stdout.getvalue())
+        self.assertEqual(parsed["puzzle_uuid"], "019577fd-8d7e-7a3d-9a4b-c2f6b6a1d233")
+        self.assertEqual(parsed["packages"][0]["answer"], "snail")
+
+    def test_main_uses_puzzle_uuid_to_lookup_answers_when_none_are_supplied(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+
+        with (
+            patch(
+                "byewords.groq_clues.load_default_answer_inputs",
+                return_value=(("snail",), {"snail": ("Slow walker carrying its whole rent situation",)}),
+            ),
+            patch("byewords.groq_clues.puzzle_answers_for_id", return_value=("snail",)) as puzzle_answers,
+            patch("byewords.groq_clues.default_clue_bank_path", return_value="/tmp/test_clue_bank.json"),
+        ):
+            exit_code = main(
+                ["--json", "019577fd-8d7e-7a3d-9a4b-c2f6b6a1d233"],
+                env={},
+                stdout=stdout,
+                stderr=stderr,
+            )
+
+        self.assertEqual(exit_code, 0)
+        puzzle_answers.assert_called_once_with("019577fd-8d7e-7a3d-9a4b-c2f6b6a1d233")
 
 
 def _answer_from_payload(payload: dict[str, object]) -> str:

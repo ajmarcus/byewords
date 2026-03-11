@@ -3,10 +3,16 @@ byewords
 
 A 5x5 crossword generator in python. See the docs folder for `plan.md` and `implementation.md`.
 
-Run the CLI with no arguments to generate any available 5x5:
+Run the CLI with no arguments to build or refresh the offline `puzzles.json` cache for the full bundled lexicon:
 
 ```bash
 uv run byewords
+```
+
+Run the CLI with explicit seed words to generate one puzzle at a time:
+
+```bash
+uv run byewords --seed snail
 ```
 
 Five reliable single-word seeds with end-to-end regression coverage:
@@ -21,11 +27,7 @@ ester
 
 Those five are the starter puzzle's across entries, and the test suite verifies that each one regenerates the same seeded demo grid.
 
-You can still pass seed words if you want to nudge the fill toward specific entries:
-
-```bash
-uv run byewords --seed snail
-```
+If you want to force fresh Groq clues for a generated puzzle, add `--regenerate-clues` to a seeded run.
 
 Created puzzles are cached on disk in `.byewords-cache/` by normalized seed set and generation config, so rerunning the same request reuses the saved puzzle instead of searching again. Set `BYEWORDS_CACHE_DIR` to place the cache somewhere else.
 

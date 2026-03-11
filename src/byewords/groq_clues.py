@@ -15,9 +15,11 @@ from pathlib import Path
 from typing import Any, Protocol, TextIO
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from uuid import UUID
 
 from byewords.clue_bank import is_generic_clue
 from byewords.lexicon import load_clue_bank, load_word_list, normalize_word
+from byewords.puzzle_store import puzzle_answers_for_id
 
 MODEL_NAME = "openai/gpt-oss-120b"
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -163,9 +165,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         description="Generate sharp crossword clues with Groq's GPT OSS 120B model.",
     )
     parser.add_argument(
-        "answers",
+        "targets",
         nargs="*",
-        help="Optional bundled five-letter answers to clue. If omitted, the script scans the full bundled word list.",
+        help="Optional puzzle UUID followed by bundled five-letter answers. If answers are omitted, the script scans the full bundled word list.",
     )
     parser.add_argument(
         "--theme",
@@ -202,6 +204,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Print structured JSON instead of formatted text.",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Regenerate clues through the API even when non-generic clue-bank entries already exist.",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
     if args.count != DEFAULT_CLUE_COUNT:
         parser.error(f"--count must be exactly {DEFAULT_CLUE_COUNT}")
@@ -209,6 +216,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         parser.error("--parallelism must be at least 1")
     if args.limit < 0:
         parser.error("--limit must be 0 or greater")
+    args.puzzle_uuid, args.answers = _split_targets(args.targets)
+    del args.targets
     return args
 
 
@@ -322,9 +331,10 @@ def generate_clue_package(
     clue_bank_path: str,
     lock: threading.Lock,
     count: int = DEFAULT_CLUE_COUNT,
+    force: bool = False,
 ) -> CluePackage:
     cached_clues = cached_clues_for_answer(answer, clue_bank)
-    if cached_clues:
+    if cached_clues and not force:
         return CluePackage(answer=answer.strip(), cached=True, clues=cached_clues)
 
     clue_payload = build_clue_payload(
@@ -381,14 +391,18 @@ def select_answers_to_clue(
     lexicon_words: tuple[str, ...],
     clue_bank: Mapping[str, tuple[str, ...]],
     limit: int = 0,
+    force: bool = False,
 ) -> AnswerSelection:
     if requested_answers:
         source_answers = _normalize_requested_answers(requested_answers)
         if limit > 0:
             source_answers = source_answers[:limit]
         return AnswerSelection(queued_answers=source_answers, skipped_answers=())
-    else:
-        source_answers = lexicon_words
+    if force:
+        source_answers = lexicon_words[:limit] if limit > 0 else lexicon_words
+        return AnswerSelection(queued_answers=source_answers, skipped_answers=())
+
+    source_answers = lexicon_words
 
     queued = []
     skipped = []
@@ -412,6 +426,7 @@ def generate_clue_packages_parallel(
     parallelism: int = DEFAULT_PARALLELISM,
     reporter: StatusReporter | None = None,
     stop_event: threading.Event | None = None,
+    force: bool = False,
 ) -> tuple[CluePackage, ...]:
     if not answers:
         return ()
@@ -442,6 +457,7 @@ def generate_clue_packages_parallel(
                 clue_bank_path,
                 lock,
                 count,
+                force,
             )
             future_to_job[future] = (index, answer)
 
@@ -484,6 +500,61 @@ def format_clue_package(package: CluePackage) -> str:
     return "\n".join(lines)
 
 
+def regenerate_clues(
+    answers: Sequence[str],
+    clue_bank: dict[str, tuple[str, ...]],
+    clue_bank_path: str,
+    *,
+    env: Mapping[str, str] | None = None,
+    errors: TextIO | None = None,
+    force: bool = False,
+    count: int = DEFAULT_CLUE_COUNT,
+    parallelism: int = DEFAULT_PARALLELISM,
+) -> tuple[CluePackage, ...]:
+    if not answers:
+        return ()
+
+    error_stream = errors if errors is not None else sys.stderr
+    reporter = StatusReporter(error_stream, total=len(answers))
+    stop_event = threading.Event()
+    needs_generation = force or any(answer_needs_new_clue(answer, clue_bank) for answer in answers)
+
+    previous_sigint = None
+    previous_sigterm = None
+    if needs_generation:
+        api_key = require_api_key(env)
+
+        def _request_stop(signum: int, frame: object) -> None:
+            del signum, frame
+            reporter.stop_requested()
+            stop_event.set()
+
+        previous_sigint = signal.getsignal(signal.SIGINT)
+        previous_sigterm = signal.getsignal(signal.SIGTERM)
+        signal.signal(signal.SIGINT, _request_stop)
+        signal.signal(signal.SIGTERM, _request_stop)
+        client: CompletionClient = GroqClient(api_key, rate_limit_callback=reporter.rate_limited)
+    else:
+        client = UnavailableClient()
+
+    try:
+        return generate_clue_packages_parallel(
+            client=client,
+            answers=answers,
+            clue_bank=clue_bank,
+            clue_bank_path=clue_bank_path,
+            count=count,
+            parallelism=parallelism,
+            reporter=reporter,
+            stop_event=stop_event,
+            force=force,
+        )
+    finally:
+        if needs_generation:
+            signal.signal(signal.SIGINT, previous_sigint)
+            signal.signal(signal.SIGTERM, previous_sigterm)
+
+
 def main(
     argv: Sequence[str] | None = None,
     env: Mapping[str, str] | None = None,
@@ -496,7 +567,16 @@ def main(
 
     try:
         lexicon_words, clue_bank = load_default_answer_inputs()
-        selection = select_answers_to_clue(args.answers, lexicon_words, clue_bank, limit=args.limit)
+        requested_answers = args.answers
+        if args.puzzle_uuid is not None and not requested_answers:
+            requested_answers = puzzle_answers_for_id(args.puzzle_uuid)
+        selection = select_answers_to_clue(
+            requested_answers,
+            lexicon_words,
+            clue_bank,
+            limit=args.limit,
+            force=args.force,
+        )
         clue_bank_path = default_clue_bank_path()
     except ValueError as exc:
         print(f"error: {exc}", file=errors)
@@ -514,31 +594,6 @@ def main(
             output.write("No answers need new non-generic clues.\n")
         return 0
 
-    needs_generation = any(answer_needs_new_clue(answer, clue_bank) for answer in selection.queued_answers)
-    if needs_generation:
-        try:
-            api_key = require_api_key(env)
-        except ValueError as exc:
-            print(f"error: {exc}", file=errors)
-            return 1
-        reporter = StatusReporter(errors, total=len(selection.queued_answers))
-        stop_event = threading.Event()
-        previous_sigint = signal.getsignal(signal.SIGINT)
-        previous_sigterm = signal.getsignal(signal.SIGTERM)
-
-        def _request_stop(signum: int, frame: object) -> None:
-            del signum, frame
-            reporter.stop_requested()
-            stop_event.set()
-
-        signal.signal(signal.SIGINT, _request_stop)
-        signal.signal(signal.SIGTERM, _request_stop)
-        client = GroqClient(api_key, rate_limit_callback=reporter.rate_limited)
-    else:
-        reporter = StatusReporter(errors, total=len(selection.queued_answers))
-        stop_event = threading.Event()
-        client = UnavailableClient()
-
     if selection.skipped_answers:
         print(
             f"Skipping {len(selection.skipped_answers)} answers that already have non-generic clues.",
@@ -546,15 +601,15 @@ def main(
         )
 
     try:
-        packages = generate_clue_packages_parallel(
-            client=client,
+        packages = regenerate_clues(
             answers=selection.queued_answers,
             clue_bank=clue_bank,
             clue_bank_path=clue_bank_path,
+            env=env,
+            errors=errors,
+            force=args.force,
             count=args.count,
             parallelism=args.parallelism,
-            reporter=reporter,
-            stop_event=stop_event,
         )
     except GracefulExit as exc:
         print(
@@ -565,16 +620,26 @@ def main(
     except RuntimeError as exc:
         print(f"error: {exc}", file=errors)
         return 1
-    finally:
-        if needs_generation:
-            signal.signal(signal.SIGINT, previous_sigint)
-            signal.signal(signal.SIGTERM, previous_sigterm)
+    except ValueError as exc:
+        print(f"error: {exc}", file=errors)
+        return 1
 
     if args.json:
-        json.dump([clue_package_to_dict(package) for package in packages], output, indent=2)
+        payload: Any
+        package_dicts = [clue_package_to_dict(package) for package in packages]
+        if args.puzzle_uuid is None:
+            payload = package_dicts
+        else:
+            payload = {
+                "puzzle_uuid": args.puzzle_uuid,
+                "packages": package_dicts,
+            }
+        json.dump(payload, output, indent=2)
         output.write("\n")
         return 0
 
+    if args.puzzle_uuid is not None:
+        output.write(f"Puzzle UUID: {args.puzzle_uuid}\n\n")
     output.write("\n\n".join(format_clue_package(package) for package in packages))
     output.write("\n")
     return 0
@@ -631,6 +696,17 @@ def _normalize_requested_answers(requested_answers: Sequence[str]) -> tuple[str,
             f"Invalid input: {bad_answers}"
         )
     return tuple(dict.fromkeys(normalized))
+
+
+def _split_targets(targets: Sequence[str]) -> tuple[str | None, tuple[str, ...]]:
+    if not targets:
+        return None, ()
+    first_target = targets[0]
+    try:
+        parsed_uuid = UUID(first_target)
+    except ValueError:
+        return None, tuple(targets)
+    return str(parsed_uuid), tuple(targets[1:])
 
 
 if __name__ == "__main__":
