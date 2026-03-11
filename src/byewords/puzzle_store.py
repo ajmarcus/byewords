@@ -12,12 +12,22 @@ from typing import TypedDict, cast
 from uuid import UUID
 
 from byewords.cache import CluePayload, PuzzlePayload
-from byewords.generate import DEFAULT_DEMO_ENTRIES, build_demo_puzzle, generate_puzzle
+from byewords.generate import generate_puzzle
 from byewords.grid import distinct_entries
 from byewords.render import puzzle_to_dict
+from byewords.score import score_grid
 from byewords.types import Puzzle
 
 _BASE62_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+
+class StoredAnswerScores(TypedDict):
+    fill_score: float
+    theme_score: float
+    clue_score: float
+    total_score: float
+    seed_entry_count: int
+    seed_row_count: int
 
 
 class StoredPuzzleRecord(TypedDict):
@@ -27,6 +37,8 @@ class StoredPuzzleRecord(TypedDict):
     title: str
     theme_words: list[str]
     grid: list[str]
+    answers: list[str]
+    answer_scores: StoredAnswerScores
     across: list[CluePayload]
     down: list[CluePayload]
 
@@ -89,22 +101,26 @@ def build_batch_puzzle_cache(
         persist_puzzle_store(store, store_path)
         return store_path, len(store), 0
 
-    generic_puzzle = generate_puzzle((), lexicon_words, clue_bank)
     worker_count = max(1, os.cpu_count() or 1)
     batch_size = worker_count
+    generated_records = 0
     for offset in range(0, len(pending_seeds), batch_size):
         batch = pending_seeds[offset:offset + batch_size]
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            for public_id, record in executor.map(
+            for result in executor.map(
                 _record_for_seed_task,
                 (
-                    (seed, generic_puzzle, clue_bank, version)
+                    (seed, lexicon_words, clue_bank, version)
                     for seed in batch
                 ),
             ):
+                if result is None:
+                    continue
+                public_id, record = result
                 store[public_id] = record
+                generated_records += 1
     persist_puzzle_store(store, store_path)
-    return store_path, len(store), len(pending_seeds)
+    return store_path, len(store), generated_records
 
 
 def puzzle_answers_for_id(
@@ -122,31 +138,22 @@ def puzzle_answers_for_id(
 
 
 def _record_for_seed_task(
-    task: tuple[str, Puzzle, dict[str, tuple[str, ...]], str],
-) -> tuple[str, StoredPuzzleRecord]:
-    seed, generic_puzzle, clue_bank, version = task
-    if seed in DEFAULT_DEMO_ENTRIES:
-        puzzle = build_demo_puzzle(clue_bank, (seed,))
-    else:
-        puzzle = _decorate_puzzle_for_seed(generic_puzzle, seed)
+    task: tuple[str, tuple[str, ...], dict[str, tuple[str, ...]], str],
+) -> tuple[str, StoredPuzzleRecord] | None:
+    seed, lexicon_words, clue_bank, version = task
+    try:
+        puzzle = generate_puzzle((seed,), lexicon_words, clue_bank)
+    except ValueError:
+        return None
+    if seed not in puzzle.theme_words:
+        return None
     uuid_text = _uuid7_string()
     return _make_public_id(UUID(uuid_text)), _record_from_puzzle(seed, puzzle, version, uuid_text)
 
-
-def _decorate_puzzle_for_seed(puzzle: Puzzle, seed: str) -> Puzzle:
-    if seed not in set(distinct_entries(puzzle.grid)):
-        return puzzle
-    return Puzzle(
-        grid=puzzle.grid,
-        across=puzzle.across,
-        down=puzzle.down,
-        theme_words=(seed,),
-        title=f"{seed.upper()} Mini",
-    )
-
-
 def _record_from_puzzle(seed: str, puzzle: Puzzle, version: str, uuid_text: str) -> StoredPuzzleRecord:
     payload = cast(PuzzlePayload, puzzle_to_dict(puzzle))
+    answers = distinct_entries(puzzle.grid)
+    scores = score_grid(puzzle.grid)
     return StoredPuzzleRecord(
         uuid=uuid_text,
         seed=seed,
@@ -154,6 +161,15 @@ def _record_from_puzzle(seed: str, puzzle: Puzzle, version: str, uuid_text: str)
         title=str(payload["title"]),
         theme_words=list(payload["theme_words"]),
         grid=list(payload["grid"]),
+        answers=list(answers),
+        answer_scores=StoredAnswerScores(
+            fill_score=scores.fill_score,
+            theme_score=scores.theme_score,
+            clue_score=scores.clue_score,
+            total_score=scores.total_score,
+            seed_entry_count=sum(answer == seed for answer in answers),
+            seed_row_count=sum(row == seed for row in puzzle.grid.rows),
+        ),
         across=list(payload["across"]),
         down=list(payload["down"]),
     )
@@ -183,5 +199,8 @@ def _make_public_id(uuid_value: UUID) -> str:
 
 
 def _record_answers(record: StoredPuzzleRecord) -> tuple[str, ...]:
+    stored_answers = record.get("answers")
+    if isinstance(stored_answers, list) and all(isinstance(answer, str) for answer in stored_answers):
+        return tuple(dict.fromkeys(stored_answers))
     clues = record["across"] + record["down"]
     return tuple(dict.fromkeys(clue["answer"] for clue in clues))

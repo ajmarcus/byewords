@@ -18,14 +18,14 @@ uv run byewords --seed snail
 Five reliable single-word seeds with end-to-end regression coverage:
 
 ```text
-ozone
-liven
-inert
-verve
-ester
+beach
+ocean
+music
+piano
+tempo
 ```
 
-Those five are the starter puzzle's across entries, and the test suite verifies that each one regenerates the same seeded demo grid.
+Those five are verified against the bundled lexicon in `tests/test_data_files.py`: each seed must generate a real themed puzzle, keep all ten answers distinct, and clear a minimum fill-quality threshold.
 
 If you want to force fresh Groq clues for a generated puzzle, add `--regenerate-clues` to a seeded run.
 

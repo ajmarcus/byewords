@@ -4,11 +4,12 @@ from pathlib import Path
 
 from byewords.generate import DEFAULT_DEMO_ENTRIES, build_demo_puzzle, generate_puzzle, load_default_inputs
 from byewords.grid import distinct_entries
+from byewords.score import score_grid
 from byewords.theme import lexicon_hash, load_word_vectors
 
 
 README_PATH = Path(__file__).resolve().parents[1] / "README.md"
-README_RECOMMENDED_SEEDS = ("ozone", "liven", "inert", "verve", "ester")
+README_RECOMMENDED_SEEDS = ("beach", "ocean", "music", "piano", "tempo")
 
 
 class TestBundledData(unittest.TestCase):
@@ -41,6 +42,21 @@ class TestBundledData(unittest.TestCase):
         self.assertIn("Five reliable single-word seeds with end-to-end regression coverage:", text)
         for seed in README_RECOMMENDED_SEEDS:
             self.assertIn(seed, text)
+
+    def test_readme_recommended_seeds_generate_seeded_puzzles(self) -> None:
+        lexicon_words, clue_bank = load_default_inputs()
+
+        for seed in README_RECOMMENDED_SEEDS:
+            with self.subTest(seed=seed):
+                puzzle = generate_puzzle((seed,), lexicon_words, clue_bank)
+                entries = distinct_entries(puzzle.grid)
+                scored = score_grid(puzzle.grid)
+
+                self.assertEqual(puzzle.title, f"{seed.upper()} Mini")
+                self.assertEqual(puzzle.theme_words, (seed,))
+                self.assertIn(seed, entries)
+                self.assertEqual(len(set(entries)), 10)
+                self.assertGreaterEqual(scored.fill_score, 0.35)
 
     def test_default_data_keeps_common_theme_clusters_and_excludes_junk(self) -> None:
         lexicon_words, clue_bank = load_default_inputs()
