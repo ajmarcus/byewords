@@ -1,7 +1,9 @@
 import hashlib
 import json
+from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
+from typing import Literal
 
 from byewords.cache import load_cached_puzzle, save_cached_puzzle
 from byewords.clue_bank import preferred_clue_words
@@ -10,13 +12,36 @@ from byewords.grid import GRID_SIZE, distinct_entries, grid_columns, make_grid
 from byewords.lexicon import load_clue_bank, load_word_list
 from byewords.prefixes import build_prefix_index
 from byewords.score import rank_grids
-from byewords.search import SearchIndex, build_search_index, search_grids
+from byewords.search import SearchIndex, SearchStats, SearchStatsSnapshot, build_search_index, search_grids
 from byewords.theme import build_candidate_pool, normalize_seeds
 from byewords.types import GenerateConfig, Grid, ProgressCallback, ProgressStage, ProgressUpdate, Puzzle
 
 DEFAULT_DEMO_ROWS = ("ozone", "liven", "inert", "verve", "ester")
 DEFAULT_DEMO_GRID = make_grid(DEFAULT_DEMO_ROWS)
 DEFAULT_DEMO_ENTRIES = DEFAULT_DEMO_ROWS + grid_columns(DEFAULT_DEMO_GRID)
+SearchStrategy = Literal["seeded", "generic", "seeded_broadened", "generic_broadened"]
+
+
+@dataclass(frozen=True)
+class SearchAttemptReport:
+    strategy: SearchStrategy
+    candidate_count: int
+    beam_width: int
+    solutions_found: int
+    stats: SearchStatsSnapshot
+
+
+@dataclass(frozen=True)
+class GenerationBenchmark:
+    requested_seeds: tuple[str, ...]
+    normalized_seeds: tuple[str, ...]
+    available_seeds: tuple[str, ...]
+    candidate_count: int
+    candidate_window_sizes: tuple[int, ...]
+    attempts: tuple[SearchAttemptReport, ...]
+    used_demo_grid: bool
+    selected_grid: Grid | None
+    selected_theme_words: tuple[str, ...]
 
 
 def _data_path(filename: str) -> str:
@@ -86,6 +111,7 @@ def _search_seeded_grids(
     seed_words: tuple[str, ...],
     beam_width: int,
     max_candidates: int,
+    stats: SearchStats | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[Grid, ...]:
     seeded_grids: tuple[Grid, ...] = ()
@@ -107,6 +133,7 @@ def _search_seeded_grids(
                     max_candidates=per_anchor_limit,
                     fixed_rows={row_index: seed},
                     search_index=search_index,
+                    stats=stats,
                     progress_callback=progress_callback,
                 ),
             )
@@ -127,6 +154,7 @@ def _search_seeded_grids(
                     max_candidates=per_anchor_limit,
                     fixed_columns={column_index: seed},
                     search_index=search_index,
+                    stats=stats,
                     progress_callback=progress_callback,
                 ),
             )
@@ -148,6 +176,16 @@ def _candidate_window_indexes(
     prefix_index: dict[str, tuple[str, ...]],
 ) -> tuple[SearchIndex, ...]:
     return tuple(build_search_index(candidate_window, prefix_index) for candidate_window in candidate_windows)
+
+
+def _is_demo_seed_hit(
+    available_seeds: tuple[str, ...],
+    lexicon_words: tuple[str, ...],
+) -> bool:
+    lexicon_set = set(lexicon_words)
+    return set(DEFAULT_DEMO_ENTRIES).issubset(lexicon_set) and any(
+        seed in DEFAULT_DEMO_ENTRIES for seed in available_seeds
+    )
 
 
 def _cache_version_token(
@@ -173,6 +211,172 @@ def _emit_progress(
     progress_callback(ProgressUpdate(stage=stage, message=message, partial_rows=partial_rows))
 
 
+def _select_best_grid(
+    grids: tuple[Grid, ...],
+    seed_word_set: set[str],
+) -> Grid:
+    ranked = rank_grids(grids)
+    if not ranked:
+        raise ValueError("unable to generate a valid 5x5 puzzle from the current lexicon")
+    seeded = tuple(candidate for candidate in ranked if _seed_entry_count(candidate.grid, seed_word_set) > 0)
+    seeded_rows = tuple(candidate for candidate in seeded if _seed_row_count(candidate.grid, seed_word_set) > 0)
+    return (seeded_rows[0] if seeded_rows else (seeded[0] if seeded else ranked[0])).grid
+
+
+def benchmark_generation(
+    seeds: tuple[str, ...],
+    lexicon_words: tuple[str, ...],
+    clue_bank: dict[str, tuple[str, ...]],
+    config: GenerateConfig = GenerateConfig(),
+) -> GenerationBenchmark:
+    normalized_seeds = normalize_seeds(seeds)
+    lexicon_set = set(lexicon_words)
+    available_seeds = tuple(seed for seed in normalized_seeds if seed in lexicon_set)
+    if _is_demo_seed_hit(available_seeds, lexicon_words):
+        demo_puzzle = build_demo_puzzle(clue_bank, available_seeds)
+        return GenerationBenchmark(
+            requested_seeds=seeds,
+            normalized_seeds=normalized_seeds,
+            available_seeds=available_seeds,
+            candidate_count=0,
+            candidate_window_sizes=(),
+            attempts=(),
+            used_demo_grid=True,
+            selected_grid=demo_puzzle.grid,
+            selected_theme_words=demo_puzzle.theme_words,
+        )
+
+    preferred_words = preferred_clue_words(clue_bank)
+    candidate_words = build_candidate_pool(
+        seeds=available_seeds,
+        theme_words=available_seeds,
+        lexicon=lexicon_words,
+        allow_neutral_fill=config.allow_neutral_fill,
+        preferred_words=preferred_words,
+    )
+    prefix_index = build_prefix_index(lexicon_words)
+    candidate_windows = _candidate_windows(candidate_words)
+    candidate_window_indexes = _candidate_window_indexes(candidate_windows, prefix_index)
+    seed_word_set = set(available_seeds)
+    attempts: list[SearchAttemptReport] = []
+    grids: tuple[Grid, ...] = ()
+
+    if seed_word_set:
+        for search_index in candidate_window_indexes:
+            stats = SearchStats()
+            attempt = _search_seeded_grids(
+                search_index=search_index,
+                prefix_index=prefix_index,
+                seed_words=available_seeds,
+                beam_width=config.beam_width,
+                max_candidates=config.max_candidates,
+                stats=stats,
+            )
+            attempts.append(
+                SearchAttemptReport(
+                    strategy="seeded",
+                    candidate_count=len(search_index.candidate_words),
+                    beam_width=config.beam_width,
+                    solutions_found=len(attempt),
+                    stats=stats.snapshot(),
+                )
+            )
+            if attempt:
+                grids = attempt
+                break
+
+    if not grids:
+        for search_index in candidate_window_indexes:
+            stats = SearchStats()
+            attempt = search_grids(
+                candidate_words=search_index.candidate_words,
+                prefix_index=prefix_index,
+                beam_width=config.beam_width,
+                max_candidates=config.max_candidates,
+                search_index=search_index,
+                stats=stats,
+            )
+            attempts.append(
+                SearchAttemptReport(
+                    strategy="generic",
+                    candidate_count=len(search_index.candidate_words),
+                    beam_width=config.beam_width,
+                    solutions_found=len(attempt),
+                    stats=stats.snapshot(),
+                )
+            )
+            if attempt:
+                grids = attempt
+                break
+
+    if not grids and len(candidate_words) > config.beam_width:
+        broadened_beam_width = min(len(candidate_words), config.beam_width * 5)
+        if seed_word_set:
+            for search_index in candidate_window_indexes:
+                stats = SearchStats()
+                attempt = _search_seeded_grids(
+                    search_index=search_index,
+                    prefix_index=prefix_index,
+                    seed_words=available_seeds,
+                    beam_width=broadened_beam_width,
+                    max_candidates=config.max_candidates,
+                    stats=stats,
+                )
+                attempts.append(
+                    SearchAttemptReport(
+                        strategy="seeded_broadened",
+                        candidate_count=len(search_index.candidate_words),
+                        beam_width=broadened_beam_width,
+                        solutions_found=len(attempt),
+                        stats=stats.snapshot(),
+                    )
+                )
+                if attempt:
+                    grids = attempt
+                    break
+        if not grids:
+            for search_index in candidate_window_indexes:
+                stats = SearchStats()
+                attempt = search_grids(
+                    candidate_words=search_index.candidate_words,
+                    prefix_index=prefix_index,
+                    beam_width=broadened_beam_width,
+                    max_candidates=config.max_candidates,
+                    search_index=search_index,
+                    stats=stats,
+                )
+                attempts.append(
+                    SearchAttemptReport(
+                        strategy="generic_broadened",
+                        candidate_count=len(search_index.candidate_words),
+                        beam_width=broadened_beam_width,
+                        solutions_found=len(attempt),
+                        stats=stats.snapshot(),
+                    )
+                )
+                if attempt:
+                    grids = attempt
+                    break
+
+    selected_grid = _select_best_grid(grids, seed_word_set) if grids else None
+    selected_theme_words = (
+        tuple(seed for seed in available_seeds if seed in distinct_entries(selected_grid))
+        if selected_grid is not None
+        else ()
+    )
+    return GenerationBenchmark(
+        requested_seeds=seeds,
+        normalized_seeds=normalized_seeds,
+        available_seeds=available_seeds,
+        candidate_count=len(candidate_words),
+        candidate_window_sizes=tuple(len(window) for window in candidate_windows),
+        attempts=tuple(attempts),
+        used_demo_grid=False,
+        selected_grid=selected_grid,
+        selected_theme_words=selected_theme_words,
+    )
+
+
 def generate_puzzle(
     seeds: tuple[str, ...],
     lexicon_words: tuple[str, ...],
@@ -183,7 +387,7 @@ def generate_puzzle(
     normalized_seeds = normalize_seeds(seeds)
     lexicon_set = set(lexicon_words)
     available_seeds = tuple(seed for seed in normalized_seeds if seed in lexicon_set)
-    if set(DEFAULT_DEMO_ENTRIES).issubset(lexicon_set) and any(seed in DEFAULT_DEMO_ENTRIES for seed in available_seeds):
+    if _is_demo_seed_hit(available_seeds, lexicon_words):
         demo_puzzle = build_demo_puzzle(clue_bank, available_seeds)
         _emit_progress(
             progress_callback,
@@ -280,13 +484,7 @@ def generate_puzzle(
                 if attempt:
                     grids = attempt
                     break
-    ranked = rank_grids(grids)
-    if not ranked:
-        raise ValueError("unable to generate a valid 5x5 puzzle from the current lexicon")
-    seeded = tuple(candidate for candidate in ranked if _seed_entry_count(candidate.grid, seed_word_set) > 0)
-    seeded_rows = tuple(candidate for candidate in seeded if _seed_row_count(candidate.grid, seed_word_set) > 0)
-    chosen = seeded_rows[0] if seeded_rows else (seeded[0] if seeded else ranked[0])
-    best_grid = chosen.grid
+    best_grid = _select_best_grid(grids, seed_word_set)
     used_clues: set[str] = set()
     across = make_across_clues(best_grid, clue_bank, used_clues)
     down = make_down_clues(best_grid, clue_bank, used_clues)

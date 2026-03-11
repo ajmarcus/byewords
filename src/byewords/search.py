@@ -29,6 +29,24 @@ class SearchStats:
     candidate_rows_ranked: int = 0
     fixed_row_shortcuts: int = 0
 
+    def snapshot(self) -> "SearchStatsSnapshot":
+        return SearchStatsSnapshot(
+            states_visited=self.states_visited,
+            dead_ends=self.dead_ends,
+            mask_intersections=self.mask_intersections,
+            candidate_rows_ranked=self.candidate_rows_ranked,
+            fixed_row_shortcuts=self.fixed_row_shortcuts,
+        )
+
+
+@dataclass(frozen=True)
+class SearchStatsSnapshot:
+    states_visited: int = 0
+    dead_ends: int = 0
+    mask_intersections: int = 0
+    candidate_rows_ranked: int = 0
+    fixed_row_shortcuts: int = 0
+
 
 def _next_prefixes(partial_rows: tuple[str, ...], next_row: str) -> tuple[str, str, str, str, str]:
     return partial_column_prefixes(partial_rows + (next_row,))

@@ -3,13 +3,77 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from byewords.generate import DEFAULT_DEMO_ENTRIES, generate_puzzle, generate_puzzle_cached
+from byewords.generate import (
+    DEFAULT_DEMO_ENTRIES,
+    benchmark_generation,
+    generate_puzzle,
+    generate_puzzle_cached,
+)
 from byewords.grid import distinct_entries
 from byewords.types import ProgressUpdate
 from tests.fixtures import TEST_LEXICON
 
 
 class TestGenerate(unittest.TestCase):
+    def test_benchmark_generation_reports_seeded_search_work(self) -> None:
+        benchmark = benchmark_generation(
+            seeds=("snail",),
+            lexicon_words=TEST_LEXICON,
+            clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
+        )
+
+        self.assertEqual(benchmark.requested_seeds, ("snail",))
+        self.assertEqual(benchmark.normalized_seeds, ("snail",))
+        self.assertEqual(benchmark.available_seeds, ("snail",))
+        self.assertEqual(benchmark.candidate_count, len(TEST_LEXICON))
+        self.assertEqual(benchmark.candidate_window_sizes, (len(TEST_LEXICON),))
+        self.assertEqual(len(benchmark.attempts), 1)
+        self.assertEqual(benchmark.attempts[0].strategy, "seeded")
+        self.assertEqual(benchmark.attempts[0].candidate_count, len(TEST_LEXICON))
+        self.assertGreater(benchmark.attempts[0].stats.states_visited, 0)
+        selected_grid = benchmark.selected_grid
+        self.assertIsNotNone(selected_grid)
+        if selected_grid is None:
+            raise AssertionError("expected a selected grid")
+        self.assertEqual(selected_grid.rows, TEST_LEXICON[:5])
+        self.assertEqual(benchmark.selected_theme_words, ("snail",))
+        self.assertFalse(benchmark.used_demo_grid)
+
+    def test_benchmark_generation_reports_generic_search_for_unknown_seed(self) -> None:
+        benchmark = benchmark_generation(
+            seeds=("beach",),
+            lexicon_words=TEST_LEXICON,
+            clue_bank={},
+        )
+
+        self.assertEqual(benchmark.requested_seeds, ("beach",))
+        self.assertEqual(benchmark.normalized_seeds, ("beach",))
+        self.assertEqual(benchmark.available_seeds, ())
+        self.assertEqual(len(benchmark.attempts), 1)
+        self.assertEqual(benchmark.attempts[0].strategy, "generic")
+        selected_grid = benchmark.selected_grid
+        self.assertIsNotNone(selected_grid)
+        if selected_grid is None:
+            raise AssertionError("expected a selected grid")
+        self.assertEqual(set(distinct_entries(selected_grid)), set(TEST_LEXICON))
+        self.assertEqual(benchmark.selected_theme_words, ())
+
+    def test_benchmark_generation_reports_demo_shortcut(self) -> None:
+        benchmark = benchmark_generation(
+            seeds=("ozone",),
+            lexicon_words=DEFAULT_DEMO_ENTRIES,
+            clue_bank={},
+        )
+
+        self.assertTrue(benchmark.used_demo_grid)
+        self.assertEqual(benchmark.attempts, ())
+        selected_grid = benchmark.selected_grid
+        self.assertIsNotNone(selected_grid)
+        if selected_grid is None:
+            raise AssertionError("expected a selected grid")
+        self.assertEqual(selected_grid.rows, DEFAULT_DEMO_ENTRIES[:5])
+        self.assertEqual(benchmark.selected_theme_words, ("ozone",))
+
     def test_generate_puzzle_builds_complete_puzzle(self) -> None:
         puzzle = generate_puzzle(
             seeds=("snail",),

@@ -148,16 +148,24 @@ Implemented in the current code:
 - cache support
 - CLI rendering
 - data maintenance tooling for sorting and pruning bundled data
+- baseline theme benchmarking via generation-path search reports and immutable `SearchStats` snapshots
 
 ## What still needs work
 
 Highest-value next steps:
 
+- bundle and validate the semantic vector table described in `docs/theme.md`
+- compare whole-lexicon seed ranking quality before changing search ordering
 - improve bundled fill quality so more generated grids feel natural
 - strengthen scoring to reflect clueability and familiarity, not just letter diversity
 - improve theme expansion beyond letter-overlap heuristics
 - add better search diagnostics for impossible seeds
 - add more regression tests around candidate-pool quality and bundled clue coverage
+
+Theme-specific planning note:
+
+- Stage 1 baseline measurement has started: the generator can now emit deterministic per-window search reports without changing runtime behavior
+- the current search counters appear expressive enough for the theme rollout, so Stage 2 should focus on vector data loading and ranking quality rather than adding new legality telemetry
 
 Possible later work:
 
