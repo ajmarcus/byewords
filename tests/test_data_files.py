@@ -1,7 +1,14 @@
 import unittest
+from importlib import resources
+from pathlib import Path
 
 from byewords.generate import DEFAULT_DEMO_ENTRIES, build_demo_puzzle, generate_puzzle, load_default_inputs
 from byewords.grid import distinct_entries
+from byewords.theme import lexicon_hash, load_word_vectors
+
+
+README_PATH = Path(__file__).resolve().parents[1] / "README.md"
+README_RECOMMENDED_SEEDS = ("ozone", "liven", "inert", "verve", "ester")
 
 
 class TestBundledData(unittest.TestCase):
@@ -15,6 +22,25 @@ class TestBundledData(unittest.TestCase):
         self.assertTrue({"snail", "water", "ozone"}.issubset(set(clue_bank)))
         self.assertTrue(set(clue_bank).issubset(set(lexicon_words)))
         self.assertTrue(all(clues and all(clue.strip() for clue in clues) for clues in clue_bank.values()))
+
+    def test_default_word_vectors_cover_the_full_bundled_lexicon(self) -> None:
+        lexicon_words, _ = load_default_inputs()
+        vector_path = str(resources.files("byewords").joinpath("data", "word_vectors.json"))
+
+        vectors = load_word_vectors(vector_path)
+
+        self.assertEqual(vectors.version, 1)
+        self.assertEqual(vectors.quantization_scheme, "int8")
+        self.assertEqual(vectors.dimensions, 128)
+        self.assertEqual(vectors.lexicon_hash, lexicon_hash(lexicon_words))
+        self.assertEqual(tuple(sorted(vectors.vectors)), lexicon_words)
+
+    def test_readme_lists_five_verified_seed_recommendations(self) -> None:
+        text = README_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("Five reliable single-word seeds with end-to-end regression coverage:", text)
+        for seed in README_RECOMMENDED_SEEDS:
+            self.assertIn(seed, text)
 
     def test_default_data_keeps_common_theme_clusters_and_excludes_junk(self) -> None:
         lexicon_words, clue_bank = load_default_inputs()

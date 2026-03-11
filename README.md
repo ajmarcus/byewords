@@ -9,7 +9,7 @@ Run the CLI with no arguments to generate any available 5x5:
 uv run byewords
 ```
 
-Verified single-word seeds that return the bundled starter puzzle immediately:
+Five reliable single-word seeds with end-to-end regression coverage:
 
 ```text
 ozone
@@ -17,12 +17,9 @@ liven
 inert
 verve
 ester
-olive
-zines
-overt
-nerve
-enter
 ```
+
+Those five are the starter puzzle's across entries, and the test suite verifies that each one regenerates the same seeded demo grid.
 
 You can still pass seed words if you want to nudge the fill toward specific entries:
 

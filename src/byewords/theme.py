@@ -1,4 +1,25 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+
 from byewords.lexicon import normalize_word
+
+
+@dataclass(frozen=True)
+class WordVectorTable:
+    version: int
+    source: str
+    dimensions: int
+    lexicon_hash: str
+    quantization_scheme: str
+    quantization_scale: float
+    vectors: dict[str, tuple[int, ...]]
+    norms: dict[str, float]
 
 
 def normalize_seeds(seeds: tuple[str, ...]) -> tuple[str, ...]:
@@ -8,6 +29,177 @@ def normalize_seeds(seeds: tuple[str, ...]) -> tuple[str, ...]:
         if value is not None:
             normalized.append(value)
     return tuple(dict.fromkeys(normalized))
+
+
+def validate_seed_words(
+    seeds: tuple[str, ...],
+    lexicon: tuple[str, ...],
+) -> tuple[str, ...]:
+    normalized = normalize_seeds(seeds)
+    lexicon_set = set(lexicon)
+    missing = tuple(seed for seed in normalized if seed not in lexicon_set)
+    if missing:
+        missing_text = ", ".join(word.upper() for word in missing)
+        raise ValueError(f"seed words missing from lexicon: {missing_text}")
+    return normalized
+
+
+def lexicon_hash(words: tuple[str, ...]) -> str:
+    encoded = "\n".join(words).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()[:16]
+
+
+def _vector_cache_key(path: str) -> tuple[str, int, int]:
+    resolved_path = Path(path).resolve()
+    stats = resolved_path.stat()
+    return (str(resolved_path), stats.st_mtime_ns, stats.st_size)
+
+
+def load_word_vectors(path: str) -> WordVectorTable:
+    return _load_word_vectors_cached(*_vector_cache_key(path))
+
+
+@lru_cache(maxsize=8)
+def _load_word_vectors_cached(
+    resolved_path: str,
+    modified_time_ns: int,
+    file_size: int,
+) -> WordVectorTable:
+    del modified_time_ns
+    del file_size
+    raw_payload = json.loads(Path(resolved_path).read_text(encoding="utf-8"))
+    if not isinstance(raw_payload, dict):
+        raise ValueError("word vector payload must be a JSON object")
+
+    version = raw_payload.get("version")
+    source = raw_payload.get("source")
+    dimensions = raw_payload.get("dimensions")
+    lexicon_signature = raw_payload.get("lexicon_hash")
+    quantization = raw_payload.get("quantization")
+    vectors = raw_payload.get("vectors")
+
+    if not isinstance(version, int) or version <= 0:
+        raise ValueError("word vector version must be a positive integer")
+    if not isinstance(source, str) or not source:
+        raise ValueError("word vector source must be a non-empty string")
+    if not isinstance(dimensions, int) or dimensions <= 0:
+        raise ValueError("word vector dimensions must be a positive integer")
+    if not isinstance(lexicon_signature, str) or not lexicon_signature:
+        raise ValueError("word vector lexicon_hash must be a non-empty string")
+    if not isinstance(quantization, dict):
+        raise ValueError("word vector quantization must be an object")
+    if not isinstance(vectors, dict) or not vectors:
+        raise ValueError("word vector table must contain vectors")
+
+    scheme = quantization.get("scheme")
+    scale = quantization.get("scale")
+    if not isinstance(scheme, str) or not scheme:
+        raise ValueError("word vector quantization scheme must be a non-empty string")
+    if not isinstance(scale, int | float) or scale <= 0:
+        raise ValueError("word vector quantization scale must be positive")
+
+    parsed_vectors: dict[str, tuple[int, ...]] = {}
+    norms: dict[str, float] = {}
+    for raw_word, raw_vector in vectors.items():
+        if not isinstance(raw_word, str):
+            raise ValueError("word vector keys must be strings")
+        normalized_word = normalize_word(raw_word)
+        if normalized_word != raw_word:
+            raise ValueError(f"invalid vector word: {raw_word!r}")
+        if not isinstance(raw_vector, list) or len(raw_vector) != dimensions:
+            raise ValueError(f"vector for {raw_word!r} must contain {dimensions} components")
+        vector_components: list[int] = []
+        for component in raw_vector:
+            if not isinstance(component, int):
+                raise ValueError(f"vector for {raw_word!r} must use integer components")
+            if component < -127 or component > 127:
+                raise ValueError(f"vector for {raw_word!r} contains out-of-range int8 values")
+            vector_components.append(component)
+        norm = math.sqrt(sum(component * component for component in vector_components))
+        if norm == 0:
+            raise ValueError(f"vector for {raw_word!r} must not be all zeros")
+        parsed_vectors[raw_word] = tuple(vector_components)
+        norms[raw_word] = norm
+
+    return WordVectorTable(
+        version=version,
+        source=source,
+        dimensions=dimensions,
+        lexicon_hash=lexicon_signature,
+        quantization_scheme=scheme,
+        quantization_scale=float(scale),
+        vectors=parsed_vectors,
+        norms=norms,
+    )
+
+
+def _require_lexicon_vectors(
+    lexicon: tuple[str, ...],
+    vectors: WordVectorTable,
+) -> tuple[str, ...]:
+    missing_words = tuple(word for word in lexicon if word not in vectors.vectors)
+    if missing_words:
+        missing_text = ", ".join(word.upper() for word in missing_words[:5])
+        raise ValueError(f"word vectors missing lexicon entries: {missing_text}")
+    signature = lexicon_hash(lexicon)
+    if signature != vectors.lexicon_hash:
+        raise ValueError(
+            "word vector table does not match the requested lexicon "
+            f"(expected {signature}, found {vectors.lexicon_hash})"
+        )
+    return lexicon
+
+
+def _cosine_similarity(
+    left_word: str,
+    right_word: str,
+    vectors: WordVectorTable,
+) -> float:
+    left_vector = vectors.vectors.get(left_word)
+    right_vector = vectors.vectors.get(right_word)
+    if left_vector is None:
+        raise ValueError(f"missing vector for word: {left_word.upper()}")
+    if right_vector is None:
+        raise ValueError(f"missing vector for word: {right_word.upper()}")
+    dot_product = sum(left * right for left, right in zip(left_vector, right_vector, strict=True))
+    return dot_product / (vectors.norms[left_word] * vectors.norms[right_word])
+
+
+def score_word_for_seed(
+    word: str,
+    seeds: tuple[str, ...],
+    vectors: WordVectorTable,
+) -> float:
+    normalized_word = normalize_word(word)
+    if normalized_word is None:
+        raise ValueError(f"invalid theme word: {word!r}")
+    normalized_seeds = normalize_seeds(seeds)
+    if not normalized_seeds:
+        return 0.0
+    return max(_cosine_similarity(normalized_word, seed, vectors) for seed in normalized_seeds)
+
+
+def rank_lexicon_for_seed(
+    seeds: tuple[str, ...],
+    lexicon: tuple[str, ...],
+    vectors: WordVectorTable,
+    preferred_words: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    unique_lexicon = tuple(dict.fromkeys(lexicon))
+    _require_lexicon_vectors(unique_lexicon, vectors)
+    validated_seeds = validate_seed_words(seeds, unique_lexicon)
+    preferred_set = set(preferred_words)
+    word_scores = {
+        word: score_word_for_seed(word, validated_seeds, vectors)
+        for word in unique_lexicon
+    }
+
+    def sort_key(word: str) -> tuple[int, int, float, str]:
+        seed_penalty = 0 if word in validated_seeds else 1
+        preferred_penalty = 0 if word in preferred_set else 1
+        return (seed_penalty, preferred_penalty, -word_scores[word], word)
+
+    return tuple(sorted(unique_lexicon, key=sort_key))
 
 
 def rank_theme_candidates(
@@ -23,7 +215,10 @@ def rank_theme_candidates(
             default=0,
         )
         shared_positions = max(
-            (sum(letter == seed[index] for index, letter in enumerate(word)) for seed in normalized_seeds),
+            (
+                sum(letter == seed[index] for index, letter in enumerate(word))
+                for seed in normalized_seeds
+            ),
             default=0,
         )
         return (-seed_bonus, -shared_letters, -shared_positions, word)
@@ -36,8 +231,8 @@ def _seed_neighbor_words(seeds: tuple[str, ...], candidates: tuple[str, ...]) ->
     neighbors: list[str] = []
     for candidate in candidates:
         if any(
-            len(set(candidate) & set(seed)) >= 2 or
-            sum(letter == seed[index] for index, letter in enumerate(candidate)) >= 1
+            len(set(candidate) & set(seed)) >= 2
+            or sum(letter == seed[index] for index, letter in enumerate(candidate)) >= 1
             for seed in normalized_seeds
         ):
             neighbors.append(candidate)
