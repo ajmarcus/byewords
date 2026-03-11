@@ -31,7 +31,7 @@ This plan is based on the experiments performed so far.
 
 ## Current implementation progress
 
-Stage 1 has started.
+Stage 1 is partially complete. Stage 2 is substantially complete. A preliminary Stage 6 cache pipeline now exists.
 
 Implemented now:
 
@@ -47,10 +47,22 @@ What remains before Stage 1 is fully closed:
 - define the representative easy, medium, and hard seed corpus explicitly in code or fixtures
 - add a lightweight manual-review corpus for checking whether the current heuristic fill produces plausible theme-bearing answers
 
+What remains before Stage 2 can be treated as fully closed:
+
+- compare cosine against rank-overlap offline instead of only shipping cosine-based ranking
+- add a representative retrieval-quality review set so vector ranking quality is measured rather than assumed
+
+What remains before the offline pipeline is doing the intended job:
+
+- replace the current batch-cache placeholder behavior with real per-seed puzzle generation for the whole lexicon
+- score and keep the best answer-only candidates before any clue regeneration
+- add theme-bearing subset selection and weakest-link coherence to completed-grid evaluation
+- move from "cache every seed record" to "curate the best per-seed winners plus the global top 100"
+
 Working conclusion:
 
 - the existing search counters appear sufficient for the semantic rollout
-- the next implementation chunk should focus on vector data loading and full-lexicon ranking rather than inventing more legality telemetry
+- the next implementation chunk should focus on true seeded offline generation and answer-only ranking rather than more infrastructure
 
 ## Findings from experiments
 
