@@ -31,7 +31,7 @@ This plan is based on the experiments performed so far.
 
 ## Current implementation progress
 
-Stage 1 is now complete. Stage 2 is now fully closed. Stage 5 has deterministic runtime budget enforcement. Stage 6 now uses process-based offline generation, but intrusion-style evaluation is still missing.
+Stage 1 is now complete. Stage 2 is now fully closed. Stage 5 has deterministic runtime budget enforcement. Stage 6 is now fully closed.
 
 Implemented now:
 
@@ -41,8 +41,10 @@ Implemented now:
 - the representative easy, medium, and hard seed corpus now lives in code via `THEME_BENCHMARK_SEEDS`
 - the lightweight manual-review corpus for answer/theme plausibility now lives in code via `THEME_MANUAL_REVIEW_CASES`
 - the representative retrieval-quality review corpus now lives in code via `THEME_RETRIEVAL_REVIEW_CASES`
+- the intrusion-style review corpus now lives in code via `THEME_INTRUSION_REVIEW_CASES`
 - Stage 2 vector loading now exists with a bundled `word_vectors.json` table and deterministic whole-lexicon ranking APIs
 - cosine and rank-overlap retrieval reports can now be compared deterministically against the review corpus without changing runtime ranking
+- intrusion-review helpers can now deterministically verify that the theme scorer rejects unrelated answers from a fixed-size themed subset
 - completed-grid ranking can now add vector-backed theme scores when the bundled table matches the active lexicon
 - completed-grid ranking now hard-rejects weak fills and weak semantic subsets while surfacing theme-bearing subset metadata in `CandidateGrid`
 - seeded semantic search now enforces a deterministic runtime budget and falls back to heuristic row ordering when it expires
@@ -64,15 +66,20 @@ Stage 2 is now fully closed:
 - cosine and rank-overlap can now be compared deterministically through offline retrieval-review helpers
 - the retrieval-quality review corpus is checked against bundled lexicon coverage so ranking quality is measured rather than assumed
 
+Stage 6 is now fully closed:
+
+- the offline cache path remains process-based for full-lexicon generation while preserving the in-process fallback needed by tests and patched generators
+- deterministic intrusion-review helpers now exercise the current theme scorer directly instead of relying on manual inspection alone
+- the intrusion-review corpus is checked against bundled lexicon coverage so offline scorer regressions are measured rather than assumed
+
 What remains before the offline pipeline is doing the intended job:
 
-- add intrusion-style evaluation for the theme scorer
 - wire clue regeneration and final curation to the deterministic global top-100 answer-only slice
 
 Working conclusion:
 
 - the existing search counters appear sufficient for the semantic rollout
-- the next implementation chunk should focus on intrusion evaluation and the top-100 clue stage rather than more runtime-budget plumbing
+- the next implementation chunk should focus on the top-100 clue stage rather than more runtime-budget plumbing
 
 ## Findings from experiments
 
@@ -569,12 +576,12 @@ Decision gate:
 
 Status update:
 
-- partially complete
+- fully closed
 - the CLI can now build `puzzles.json` across the full bundled lexicon
 - the offline cache now stores real per-seed winners together with answer-only metadata
 - the offline cache can now retain multiple answer-only candidates per seed before later top-100 clue selection
 - answer-only ranking now ignores clue score during offline curation, and a deterministic global top-100 answer-only selector now exists
-- process-based execution now exists for the default offline batch path, but intrusion evaluation is still missing
+- process-based execution and deterministic intrusion evaluation now exist for the default offline batch path
 
 ### Stage 7. Top-100 clue stage
 

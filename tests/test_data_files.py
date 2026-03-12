@@ -7,6 +7,7 @@ from byewords.grid import distinct_entries
 from byewords.score import score_grid
 from byewords.theme import (
     THEME_BENCHMARK_SEEDS,
+    THEME_INTRUSION_REVIEW_CASES,
     THEME_MANUAL_REVIEW_CASES,
     THEME_RETRIEVAL_REVIEW_CASES,
     lexicon_hash,
@@ -95,6 +96,12 @@ class TestBundledData(unittest.TestCase):
                 expected_words = {case.seed, *case.expected_top_words, *case.unexpected_top_words}
                 self.assertTrue(expected_words.issubset(lexicon_set))
                 self.assertTrue(set(case.expected_top_words).issubset(set(clue_bank)))
+
+        for case in THEME_INTRUSION_REVIEW_CASES:
+            with self.subTest(seed=f"{case.seed}-intrusion"):
+                expected_words = {case.seed, *case.expected_theme_words, *case.intruder_words}
+                self.assertTrue(expected_words.issubset(lexicon_set))
+                self.assertTrue(set(case.expected_theme_words).issubset(set(clue_bank)))
 
     def test_default_data_excludes_offensive_and_obscure_fill(self) -> None:
         lexicon_words, _ = load_default_inputs()

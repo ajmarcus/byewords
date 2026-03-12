@@ -5,9 +5,12 @@ from tempfile import TemporaryDirectory
 
 from byewords.theme import (
     THEME_BENCHMARK_SEEDS,
+    THEME_INTRUSION_REVIEW_CASES,
     THEME_MANUAL_REVIEW_CASES,
     THEME_RETRIEVAL_REVIEW_CASES,
+    ThemeIntrusionReviewCase,
     build_candidate_pool,
+    compare_theme_intrusions,
     compare_retrieval_metrics,
     diversify_theme_words,
     lexicon_hash,
@@ -16,6 +19,7 @@ from byewords.theme import (
     rank_lexicon_for_seed,
     rank_overlap_relevance_scores,
     rank_theme_candidates,
+    review_theme_intrusions,
     review_theme_retrieval,
     score_theme_subset,
     score_word_for_seed,
@@ -74,6 +78,19 @@ class TestTheme(unittest.TestCase):
                 self.assertEqual(len(case.expected_top_words), 3)
                 self.assertEqual(len(case.unexpected_top_words), 3)
                 self.assertTrue(set(case.expected_top_words).isdisjoint(case.unexpected_top_words))
+
+    def test_theme_intrusion_review_cases_are_unique_and_non_empty(self) -> None:
+        self.assertEqual(len(THEME_INTRUSION_REVIEW_CASES), 3)
+        self.assertEqual(
+            tuple(case.seed for case in THEME_INTRUSION_REVIEW_CASES),
+            ("beach", "music", "snail"),
+        )
+        for case in THEME_INTRUSION_REVIEW_CASES:
+            with self.subTest(seed=case.seed):
+                self.assertTrue(case.note)
+                self.assertEqual(len(case.expected_theme_words), 3)
+                self.assertEqual(len(case.intruder_words), 3)
+                self.assertTrue(set(case.expected_theme_words).isdisjoint(case.intruder_words))
 
     def test_normalize_seeds_filters_invalid_entries(self) -> None:
         self.assertEqual(normalize_seeds(("Snail", "bad!", "eases", "snail")), ("snail", "eases"))
@@ -408,6 +425,129 @@ class TestTheme(unittest.TestCase):
 
         self.assertEqual(breakdown.selected_words, ())
         self.assertEqual(breakdown.total, 0.0)
+
+    def test_compare_theme_intrusions_rejects_irrelevant_answers(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "vectors.json"
+            lexicon = (
+                "beach",
+                "ocean",
+                "waves",
+                "wharf",
+                "piano",
+                "choir",
+                "snail",
+            )
+            _write_vector_table(
+                path,
+                lexicon,
+                {
+                    "beach": [10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    "ocean": [7, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    "waves": [7, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    "wharf": [7, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0],
+                    "piano": [0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0],
+                    "choir": [0, 0, 0, 0, 7, 7, 0, 0, 0, 0, 0, 0],
+                    "snail": [0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0],
+                },
+            )
+
+            vectors = load_word_vectors(str(path))
+            comparison = compare_theme_intrusions(
+                THEME_INTRUSION_REVIEW_CASES[0],
+                lexicon,
+                vectors,
+            )
+
+        self.assertEqual(comparison.seed, "beach")
+        self.assertEqual(set(comparison.baseline_selected_words), {"ocean", "waves", "wharf"})
+        self.assertEqual(len(comparison.baseline_selected_words), 3)
+        self.assertEqual(len(comparison.trials), 3)
+        self.assertEqual(comparison.pass_rate, 1.0)
+        self.assertTrue(all(trial.passed for trial in comparison.trials))
+        self.assertTrue(all(not trial.intruder_selected for trial in comparison.trials))
+
+    def test_compare_theme_intrusions_flags_when_intruder_survives(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "vectors.json"
+            lexicon = ("beach", "ocean", "waves", "wharf", "piano")
+            _write_vector_table(
+                path,
+                lexicon,
+                {
+                    "beach": [10, 0, 0, 0, 0],
+                    "ocean": [7, 7, 0, 0, 0],
+                    "waves": [7, 0, 7, 0, 0],
+                    "wharf": [1, 0, 0, 9, 0],
+                    "piano": [7, 0, 0, 7, 0],
+                },
+            )
+
+            vectors = load_word_vectors(str(path))
+            case = ThemeIntrusionReviewCase(
+                seed="beach",
+                expected_theme_words=("ocean", "waves", "wharf"),
+                intruder_words=("piano",),
+                note="unit test case",
+            )
+            comparison = compare_theme_intrusions(
+                case,
+                lexicon,
+                vectors,
+            )
+
+        failed_trial = next(trial for trial in comparison.trials if trial.intruder == "piano")
+        self.assertFalse(failed_trial.passed)
+        self.assertTrue(failed_trial.intruder_selected)
+        self.assertIn("piano", failed_trial.selected_words)
+        self.assertLess(comparison.pass_rate, 1.0)
+
+    def test_review_theme_intrusions_returns_one_report_per_case(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "vectors.json"
+            lexicon = (
+                "beach",
+                "ocean",
+                "waves",
+                "wharf",
+                "music",
+                "piano",
+                "choir",
+                "tempo",
+                "snail",
+                "shell",
+                "slime",
+                "trail",
+            )
+            _write_vector_table(
+                path,
+                lexicon,
+                {
+                    "beach": [10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    "ocean": [7, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    "waves": [7, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    "wharf": [7, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0],
+                    "music": [0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0],
+                    "piano": [0, 0, 0, 0, 7, 7, 0, 0, 0, 0, 0, 0],
+                    "choir": [0, 0, 0, 0, 7, 0, 7, 0, 0, 0, 0, 0],
+                    "tempo": [0, 0, 0, 0, 7, 0, 0, 7, 0, 0, 0, 0],
+                    "snail": [0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0],
+                    "shell": [0, 0, 0, 0, 0, 0, 0, 0, 7, 7, 0, 0],
+                    "slime": [0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 7, 0],
+                    "trail": [0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 7],
+                },
+            )
+
+            vectors = load_word_vectors(str(path))
+            reports = review_theme_intrusions(
+                THEME_INTRUSION_REVIEW_CASES,
+                lexicon,
+                vectors,
+            )
+
+        self.assertEqual(tuple(report.seed for report in reports), ("beach", "music", "snail"))
+        self.assertTrue(all(report.trials for report in reports))
+        self.assertTrue(all(report.pass_rate == 1.0 for report in reports))
 
     def test_rank_theme_candidates_is_deterministic(self) -> None:
         ranked = rank_theme_candidates(("snail",), ("shell", "snail", "slime"))

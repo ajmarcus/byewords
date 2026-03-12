@@ -18,10 +18,7 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("Stage 1 is now complete.", text)
         self.assertIn("Stage 2 is now fully closed.", text)
         self.assertIn("Stage 5 has deterministic runtime budget enforcement.", text)
-        self.assertIn(
-            "Stage 6 now uses process-based offline generation, but intrusion-style evaluation is still missing.",
-            text,
-        )
+        self.assertIn("Stage 6 is now fully closed.", text)
         self.assertIn("the representative easy, medium, and hard seed corpus now lives in code via `THEME_BENCHMARK_SEEDS`", text)
         self.assertIn(
             "the lightweight manual-review corpus for answer/theme plausibility now lives in code via `THEME_MANUAL_REVIEW_CASES`",
@@ -32,7 +29,15 @@ class TestThemeDoc(unittest.TestCase):
             text,
         )
         self.assertIn(
+            "the intrusion-style review corpus now lives in code via `THEME_INTRUSION_REVIEW_CASES`",
+            text,
+        )
+        self.assertIn(
             "cosine and rank-overlap retrieval reports can now be compared deterministically against the review corpus without changing runtime ranking",
+            text,
+        )
+        self.assertIn(
+            "intrusion-review helpers can now deterministically verify that the theme scorer rejects unrelated answers from a fixed-size themed subset",
             text,
         )
         self.assertIn(
@@ -50,7 +55,6 @@ class TestThemeDoc(unittest.TestCase):
             "the offline cache now uses process-based worker execution for default lexicon-wide generation while preserving an in-process fallback for tests and patched generators",
             text,
         )
-        self.assertIn("add intrusion-style evaluation for the theme scorer", text)
         self.assertIn("Scoring every word against one seed is cheap:", text)
         self.assertIn("1,485,000", text)
         self.assertIn("semantics decides ordering", text)
@@ -107,7 +111,7 @@ class TestThemeDoc(unittest.TestCase):
         )
         self.assertIn("answer-only ranking now ignores clue score during offline curation", text)
         self.assertIn(
-            "process-based execution now exists for the default offline batch path, but intrusion evaluation is still missing",
+            "process-based execution and deterministic intrusion evaluation now exist for the default offline batch path",
             text,
         )
         self.assertIn("write lexicon-wide cached puzzle records to `src/byewords/data/puzzles.json`", text)

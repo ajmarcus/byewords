@@ -54,6 +54,37 @@ class ThemeRetrievalComparison:
     rank_overlap: ThemeRetrievalMetricReport
 
 
+@dataclass(frozen=True)
+class ThemeIntrusionReviewCase:
+    seed: str
+    expected_theme_words: tuple[str, ...]
+    intruder_words: tuple[str, ...]
+    note: str
+
+
+@dataclass(frozen=True)
+class ThemeIntrusionTrialReport:
+    intruder: str
+    selected_words: tuple[str, ...]
+    intruder_selected: bool
+    total: float
+    weakest_link: float
+    total_delta: float
+    weakest_link_delta: float
+    passed: bool
+
+
+@dataclass(frozen=True)
+class ThemeIntrusionComparison:
+    seed: str
+    expected_theme_words: tuple[str, ...]
+    baseline_selected_words: tuple[str, ...]
+    baseline_total: float
+    baseline_weakest_link: float
+    trials: tuple[ThemeIntrusionTrialReport, ...]
+    pass_rate: float
+
+
 THEME_MANUAL_REVIEW_CASES = (
     ThemeReviewCase(
         seed="beach",
@@ -90,6 +121,27 @@ THEME_RETRIEVAL_REVIEW_CASES = (
         expected_top_words=("shell", "slime", "trail"),
         unexpected_top_words=("music", "piano", "tempo"),
         note="Concrete organism themes should not drift into unrelated entertainment vocabulary.",
+    ),
+)
+
+THEME_INTRUSION_REVIEW_CASES = (
+    ThemeIntrusionReviewCase(
+        seed="beach",
+        expected_theme_words=("ocean", "waves", "wharf"),
+        intruder_words=("piano", "choir", "snail"),
+        note="Coastal theme sets should exclude unrelated music and animal answers.",
+    ),
+    ThemeIntrusionReviewCase(
+        seed="music",
+        expected_theme_words=("choir", "piano", "tempo"),
+        intruder_words=("ocean", "waves", "snail"),
+        note="Music theme sets should keep coastal and animal words out of the selected subset.",
+    ),
+    ThemeIntrusionReviewCase(
+        seed="snail",
+        expected_theme_words=("shell", "slime", "trail"),
+        intruder_words=("music", "piano", "tempo"),
+        note="Concrete organism themes should reject unrelated entertainment answers.",
     ),
 )
 
@@ -452,6 +504,19 @@ def review_theme_retrieval(
     )
 
 
+def _validate_review_case_words(
+    words: tuple[str, ...],
+    lexicon: tuple[str, ...],
+    label: str,
+) -> tuple[str, ...]:
+    lexicon_set = set(lexicon)
+    missing_words = tuple(word for word in dict.fromkeys(words) if word not in lexicon_set)
+    if missing_words:
+        missing_text = ", ".join(word.upper() for word in missing_words)
+        raise ValueError(f"{label} missing from lexicon: {missing_text}")
+    return tuple(dict.fromkeys(words))
+
+
 def diversify_theme_words(
     ranked_words: tuple[str, ...],
     seeds: tuple[str, ...],
@@ -561,6 +626,103 @@ def score_theme_subset(
         weakest_link=weakest_link,
         diversity=diversity,
         total=total,
+    )
+
+
+def compare_theme_intrusions(
+    case: ThemeIntrusionReviewCase,
+    lexicon: tuple[str, ...],
+    vectors: WordVectorTable,
+    *,
+    limit: int | None = None,
+) -> ThemeIntrusionComparison:
+    unique_lexicon = tuple(dict.fromkeys(lexicon))
+    _require_lexicon_vectors(unique_lexicon, vectors)
+    validated_seed = validate_seed_words((case.seed,), unique_lexicon)
+    expected_theme_words = _validate_review_case_words(
+        case.expected_theme_words,
+        unique_lexicon,
+        "expected theme words",
+    )
+    intruder_words = _validate_review_case_words(
+        case.intruder_words,
+        unique_lexicon,
+        "intruder words",
+    )
+    subset_limit = (
+        min(DEFAULT_THEME_WORD_LIMIT, len(expected_theme_words))
+        if limit is None
+        else min(limit, len(expected_theme_words))
+    )
+    if subset_limit <= 0:
+        raise ValueError("intrusion review cases must include at least one expected theme word")
+
+    baseline = score_theme_subset(
+        expected_theme_words,
+        validated_seed,
+        vectors,
+        limit=subset_limit,
+    )
+    trials = tuple(
+        _compare_intrusion_trial(
+            intruder,
+            expected_theme_words,
+            validated_seed,
+            vectors,
+            subset_limit,
+            baseline,
+        )
+        for intruder in intruder_words
+    )
+    passed_trials = sum(trial.passed for trial in trials)
+    return ThemeIntrusionComparison(
+        seed=case.seed,
+        expected_theme_words=expected_theme_words,
+        baseline_selected_words=baseline.selected_words,
+        baseline_total=baseline.total,
+        baseline_weakest_link=baseline.weakest_link,
+        trials=trials,
+        pass_rate=passed_trials / len(trials) if trials else 0.0,
+    )
+
+
+def _compare_intrusion_trial(
+    intruder: str,
+    expected_theme_words: tuple[str, ...],
+    validated_seed: tuple[str, ...],
+    vectors: WordVectorTable,
+    subset_limit: int,
+    baseline: ThemeScoreBreakdown,
+) -> ThemeIntrusionTrialReport:
+    intruded_breakdown = score_theme_subset(
+        expected_theme_words + (intruder,),
+        validated_seed,
+        vectors,
+        limit=subset_limit,
+    )
+    intruder_selected = intruder in intruded_breakdown.selected_words
+    return ThemeIntrusionTrialReport(
+        intruder=intruder,
+        selected_words=intruded_breakdown.selected_words,
+        intruder_selected=intruder_selected,
+        total=intruded_breakdown.total,
+        weakest_link=intruded_breakdown.weakest_link,
+        total_delta=intruded_breakdown.total - baseline.total,
+        weakest_link_delta=intruded_breakdown.weakest_link - baseline.weakest_link,
+        passed=not intruder_selected,
+    )
+
+
+def review_theme_intrusions(
+    cases: tuple[ThemeIntrusionReviewCase, ...],
+    lexicon: tuple[str, ...],
+    vectors: WordVectorTable,
+    *,
+    limit: int | None = None,
+) -> tuple[ThemeIntrusionComparison, ...]:
+    return tuple(
+        compare_theme_intrusions(case, lexicon, vectors, limit=limit)
+        for case in cases
     )
 
 
