@@ -31,7 +31,7 @@ This plan is based on the experiments performed so far.
 
 ## Current implementation progress
 
-Stage 1 is partially complete. Stage 2 is substantially complete. A preliminary Stage 6 cache pipeline now exists.
+Stage 1 is partially complete. Stage 2 is substantially complete. Stage 6 now has a real but still incomplete offline cache pipeline.
 
 Implemented now:
 
@@ -40,6 +40,7 @@ Implemented now:
 - regression tests cover seeded, unseeded, and demo-grid benchmark cases
 - Stage 2 vector loading now exists with a bundled `word_vectors.json` table and deterministic whole-lexicon ranking APIs
 - the CLI now supports an offline-first cache build that writes lexicon-wide puzzle records to `src/byewords/data/puzzles.json`
+- the offline cache path now performs real per-seed puzzle generation and stores answer-only metadata for each retained record
 - clue regeneration can now be forced from both the Groq clue tool and the main puzzle CLI, but clue quality is still intentionally out of the ranking path until the top-100 offline stage
 
 What remains before Stage 1 is fully closed:
@@ -54,15 +55,15 @@ What remains before Stage 2 can be treated as fully closed:
 
 What remains before the offline pipeline is doing the intended job:
 
-- replace the current batch-cache placeholder behavior with real per-seed puzzle generation for the whole lexicon
-- score and keep the best answer-only candidates before any clue regeneration
+- replace the current thread-based batch execution with the planned process-based worker model
+- score and keep the best answer-only candidates per seed before any clue regeneration
 - add theme-bearing subset selection and weakest-link coherence to completed-grid evaluation
 - move from "cache every seed record" to "curate the best per-seed winners plus the global top 100"
 
 Working conclusion:
 
 - the existing search counters appear sufficient for the semantic rollout
-- the next implementation chunk should focus on true seeded offline generation and answer-only ranking rather than more infrastructure
+- the next implementation chunk should focus on semantic answer-only ranking and curation rather than more infrastructure
 
 ## Findings from experiments
 
@@ -456,6 +457,13 @@ Decision gate:
 
 - if JSON load cost is noticeable, switch the storage format before touching search
 
+Status update:
+
+- done: offline vector build tool and bundled vector table
+- done: deterministic `word_vectors.json` loading and full-lexicon cosine ranking
+- remaining: cosine versus rank-overlap comparison
+- remaining: retrieval-quality review fixtures
+
 ### Stage 3. Seed-aware search ordering
 
 Implement:
@@ -472,6 +480,11 @@ Unknown resolved:
 Decision gate:
 
 - if visited states rise too much, add tighter per-depth expansion caps before moving on
+
+Status update:
+
+- not started in the runtime path
+- current seeded generation still orders search with heuristic candidate-pool ranking rather than semantic row scores
 
 ### Stage 4. Quality gates and answer-only scoring
 
@@ -492,6 +505,12 @@ Decision gate:
 
 - if yield becomes too low, revise the fill thresholds and theme-bearing count before adding clue work
 
+Status update:
+
+- partially started only at the metadata level
+- current grid scoring still uses simple fill and diversity heuristics, with `theme_score = 0.0`
+- weakest-link coherence, theme-bearing subset selection, and diversity-aware semantic reranking are still missing
+
 ### Stage 5. Runtime path
 
 Implement:
@@ -508,6 +527,12 @@ Unknown resolved:
 Decision gate:
 
 - if runtime still misses the target on the hard corpus, narrow the product promise and rely more on offline precomputation
+
+Status update:
+
+- partially complete for the non-semantic path
+- seeded runtime generation, fallback search windows, and cache reuse exist today
+- semantic vector loading, semantic row ordering, and explicit runtime budget enforcement are not wired into the hot path yet
 
 ### Stage 6. Offline lexicon-wide generation
 
@@ -526,6 +551,13 @@ Unknown resolved:
 Decision gate:
 
 - if throughput is poor or the scorer disagrees with manual review too often, optimize search and scoring before adding clue generation
+
+Status update:
+
+- partially complete
+- the CLI can now build `puzzles.json` across the full bundled lexicon
+- the offline cache now stores real per-seed winners together with answer-only metadata
+- process-based execution, intrusion evaluation, per-seed curation, and global top-100 selection are still missing
 
 ### Stage 7. Top-100 clue stage
 
@@ -609,11 +641,18 @@ Change the seeded path so that it:
 
 Add a deterministic puzzle-record store for offline batch output.
 
-It should:
+The current implementation already:
 
 - write lexicon-wide cached puzzle records to `src/byewords/data/puzzles.json`
-- preserve a stable puzzle id and canonical UUID per stored record
+- generate a real seeded puzzle for each retained seed record
+- store answer-only metadata alongside the rendered puzzle payload
 - support lookups by stored puzzle id for later clue-regeneration work
+
+It still should:
+
+- move batch execution from threads to processes
+- curate best-per-seed answer-only winners rather than storing the first acceptable record
+- preserve a stable puzzle id and canonical UUID per stored record
 
 ### `src/byewords/cli.py`
 
