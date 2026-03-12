@@ -31,7 +31,7 @@ This plan is based on the experiments performed so far.
 
 ## Current implementation progress
 
-Stage 1 is now complete. Stage 2 is now fully closed. Stage 5 has deterministic runtime budget enforcement. Stage 6 is now fully closed.
+Stage 1 is now complete. Stage 2 is now fully closed. Stage 5 has deterministic runtime budget enforcement. Stage 6 is now fully closed. Stage 7 is now fully closed.
 
 Implemented now:
 
@@ -55,6 +55,9 @@ Implemented now:
 - offline answer-only curation now ranks records without clue-score influence and can deterministically select a global top-100 slice from the curated seed winners
 - the offline cache now uses process-based worker execution for default lexicon-wide generation while preserving an in-process fallback for tests and patched generators
 - clue regeneration can now be forced from both the Groq clue tool and the main puzzle CLI, but clue quality is still intentionally out of the ranking path until the top-100 offline stage
+- the offline cache now refreshes clues only for the deterministic top-100 answer-only slice, validates those refreshed clue sets, and stores clue-stage ranking metadata beside each selected record
+- the top-100 clue stage now uses `clue_bank.json` first and only attempts Groq regeneration for selected answers that still lack non-generic clues
+- final offline ranking can now include clue-quality signal only after top-100 clue refresh, while preserving answer-only selection for the initial slice
 
 Stage 1 is now fully closed:
 
@@ -74,12 +77,12 @@ Stage 6 is now fully closed:
 
 What remains before the offline pipeline is doing the intended job:
 
-- wire clue regeneration and final curation to the deterministic global top-100 answer-only slice
+- measure whether clue-aware reranking improves editorial quality enough to justify expanding the reviewed clue corpus
 
 Working conclusion:
 
 - the existing search counters appear sufficient for the semantic rollout
-- the next implementation chunk should focus on the top-100 clue stage rather than more runtime-budget plumbing
+- the next implementation chunk should return to Stage 3 and finish the missing MMR-style novelty penalties and before/after search comparisons
 
 ## Findings from experiments
 
@@ -600,6 +603,14 @@ Decision gate:
 
 - if clue reranking is unstable, keep clues as presentation polish rather than a ranking feature
 
+Status update:
+
+- fully closed
+- the offline cache now refreshes clues only for the deterministic global top-100 answer-only slice
+- refreshed clue sets are now validated for non-generic multi-word clue text before clue-stage ranking metadata is persisted
+- clue-stage reranking now happens only within the selected top-100 slice, so clue quality cannot pull weaker answer-only records into the curated set
+- Groq regeneration is now attempted only for selected answers that still lack non-generic clue-bank coverage, preserving offline-first batch builds when API credentials are absent
+
 ## Module changes
 
 ### `src/byewords/theme.py`
@@ -678,6 +689,7 @@ It still should:
 - retain multiple answer-only candidates per seed before final top-100 curation
 - keep the default batch builder on the process-worker path while preserving an in-process fallback for test doubles
 - preserve a stable puzzle id and canonical UUID per stored record
+- store clue-stage validation and rerank metadata for the selected top-100 slice without changing answer-only curation inputs
 
 ### `src/byewords/cli.py`
 

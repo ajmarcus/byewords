@@ -5,13 +5,16 @@ import json
 import os
 import secrets
 import time
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import NotRequired, TypedDict, cast
+from typing import NotRequired, Protocol, TypedDict, TypeAlias, cast
 from uuid import UUID
 
+from byewords.clue_bank import is_generic_clue
+from byewords.clues import make_across_clues, make_down_clues
 from byewords.cache import CluePayload, PuzzlePayload
 from byewords.generate import generate_puzzle_candidates
 from byewords.grid import distinct_entries, make_grid
@@ -45,8 +48,20 @@ class StoredPuzzleRecord(TypedDict):
     grid: list[str]
     answers: list[str]
     answer_scores: StoredAnswerScores
+    clue_stage: NotRequired["StoredClueStage"]
     across: list[CluePayload]
     down: list[CluePayload]
+
+
+class StoredClueStage(TypedDict):
+    answer_only_rank: int
+    selected_rank: int
+    clue_score: float
+    total_score: float
+    validation_passed: bool
+    validation_errors: list[str]
+    cached_answer_count: int
+    regenerated_answer_count: int
 
 
 @dataclass(frozen=True)
@@ -62,8 +77,24 @@ _ORIGINAL_GENERATE_PUZZLE_CANDIDATES = generate_puzzle_candidates
 _OFFLINE_BATCH_CONTEXT: OfflineBatchContext | None = None
 
 
+class CluePackageLike(Protocol):
+    answer: str
+    cached: bool
+    clues: tuple[str, ...]
+
+
+ClueRegenerator: TypeAlias = Callable[
+    [tuple[str, ...], dict[str, tuple[str, ...]], str],
+    tuple[CluePackageLike, ...],
+]
+
+
 def default_puzzle_store_path() -> Path:
     return Path(str(resources.files("byewords").joinpath("data", "puzzles.json")))
+
+
+def default_clue_bank_path() -> str:
+    return str(resources.files("byewords").joinpath("data", "clue_bank.json"))
 
 
 def puzzle_store_version(
@@ -111,12 +142,34 @@ def top_answer_only_records(
     return tuple(ranked_records[:limit])
 
 
+def top_clue_stage_records(
+    store: dict[str, StoredPuzzleRecord],
+    preferred_version: str,
+    limit: int = 100,
+) -> tuple[tuple[str, StoredPuzzleRecord], ...]:
+    if limit <= 0:
+        return ()
+    ranked_records = sorted(
+        (
+            (public_id, record)
+            for public_id, record in store.items()
+            if isinstance(record.get("clue_stage"), dict)
+        ),
+        key=lambda item: _record_clue_stage_rank_key(item[0], item[1], preferred_version),
+        reverse=True,
+    )
+    return tuple(ranked_records[:limit])
+
+
 def build_batch_puzzle_cache(
     lexicon_words: tuple[str, ...],
     clue_bank: dict[str, tuple[str, ...]],
     path: Path | None = None,
     vectors: WordVectorTable | None = None,
     candidates_per_seed: int = DEFAULT_CANDIDATES_PER_SEED,
+    clue_bank_path: str | None = None,
+    top_clue_limit: int = 100,
+    clue_regenerator: ClueRegenerator | None = None,
 ) -> tuple[Path, int, int]:
     if candidates_per_seed <= 0:
         raise ValueError("candidates_per_seed must be positive")
@@ -139,6 +192,14 @@ def build_batch_puzzle_cache(
         }
     if not pending_seeds:
         store = _curate_seed_records(store, version, per_seed_limit=candidates_per_seed)
+        store = _apply_top_clue_stage(
+            store,
+            preferred_version=version,
+            clue_bank=clue_bank,
+            clue_bank_path=clue_bank_path or default_clue_bank_path(),
+            limit=top_clue_limit,
+            clue_regenerator=clue_regenerator,
+        )
         persist_puzzle_store(store, store_path)
         return store_path, len(store), 0
 
@@ -158,6 +219,14 @@ def build_batch_puzzle_cache(
             store[public_id] = record
             generated_records += 1
     store = _curate_seed_records(store, version, per_seed_limit=candidates_per_seed)
+    store = _apply_top_clue_stage(
+        store,
+        preferred_version=version,
+        clue_bank=clue_bank,
+        clue_bank_path=clue_bank_path or default_clue_bank_path(),
+        limit=top_clue_limit,
+        clue_regenerator=clue_regenerator,
+    )
     persist_puzzle_store(store, store_path)
     return store_path, len(store), generated_records
 
@@ -399,6 +468,27 @@ def _record_rank_key(
     )
 
 
+def _record_clue_stage_rank_key(
+    public_id: str,
+    record: StoredPuzzleRecord,
+    preferred_version: str,
+) -> tuple[int, int, float, float, float, float, int, str]:
+    clue_stage = record.get("clue_stage")
+    if not isinstance(clue_stage, dict):
+        return (0, 0, float("-inf"), float("-inf"), float("-inf"), float("-inf"), 0, public_id)
+    scores = record["answer_scores"]
+    return (
+        1 if record.get("version") == preferred_version else 0,
+        1 if clue_stage["validation_passed"] else 0,
+        clue_stage["total_score"],
+        clue_stage["clue_score"],
+        _answer_only_score(scores),
+        scores["theme_score"],
+        scores["seed_row_count"],
+        public_id,
+    )
+
+
 def _answer_only_score(scores: StoredAnswerScores) -> float:
     stored_score = scores.get("answer_only_score")
     if isinstance(stored_score, int | float):
@@ -439,6 +529,7 @@ def _upgrade_store_record(
     answers = _record_answers(record)
     scores = score_grid(grid, seeds=(seed,), vectors=vectors)
     upgraded = dict(record)
+    upgraded.pop("clue_stage", None)
     upgraded["answers"] = list(answers)
     upgraded["theme_subset"] = list(scores.theme_subset)
     upgraded["answer_scores"] = StoredAnswerScores(
@@ -461,3 +552,202 @@ def _record_has_rank_metadata(record: StoredPuzzleRecord) -> bool:
         key in answer_scores
         for key in ("fill_score", "theme_score", "clue_score", "seed_row_count")
     )
+
+
+def _apply_top_clue_stage(
+    store: dict[str, StoredPuzzleRecord],
+    *,
+    preferred_version: str,
+    clue_bank: dict[str, tuple[str, ...]],
+    clue_bank_path: str,
+    limit: int,
+    clue_regenerator: ClueRegenerator | None,
+) -> dict[str, StoredPuzzleRecord]:
+    cleared_store = {
+        public_id: _without_clue_stage(record)
+        for public_id, record in store.items()
+    }
+    selected_records = top_answer_only_records(cleared_store, preferred_version=preferred_version, limit=limit)
+    if not selected_records:
+        return cleared_store
+
+    selected_answers = tuple(
+        dict.fromkeys(
+            answer
+            for _, record in selected_records
+            for answer in _record_answers(record)
+        )
+    )
+    packages = _regenerate_selected_clues(
+        selected_answers,
+        clue_bank,
+        clue_bank_path,
+        clue_regenerator,
+    )
+    package_by_answer = {package.answer: package for package in packages}
+
+    staged_records: dict[str, StoredPuzzleRecord] = dict(cleared_store)
+    answer_only_ranks: dict[str, int] = {}
+    for answer_only_rank, (public_id, record) in enumerate(selected_records, start=1):
+        staged_records[public_id] = _refresh_clue_stage_record(
+            record,
+            answer_only_rank=answer_only_rank,
+            clue_bank=clue_bank,
+            package_by_answer=package_by_answer,
+        )
+        answer_only_ranks[public_id] = answer_only_rank
+
+    reranked_records = top_clue_stage_records(staged_records, preferred_version=preferred_version, limit=limit)
+    for selected_rank, (public_id, record) in enumerate(reranked_records, start=1):
+        clue_stage = record["clue_stage"]
+        updated_clue_stage = dict(clue_stage)
+        updated_clue_stage["answer_only_rank"] = answer_only_ranks[public_id]
+        updated_clue_stage["selected_rank"] = selected_rank
+        updated_record = dict(record)
+        updated_record["clue_stage"] = cast(StoredClueStage, updated_clue_stage)
+        staged_records[public_id] = cast(StoredPuzzleRecord, updated_record)
+
+    return {
+        public_id: record
+        for public_id, record in sorted(staged_records.items())
+    }
+
+
+def _without_clue_stage(record: StoredPuzzleRecord) -> StoredPuzzleRecord:
+    if "clue_stage" not in record:
+        return record
+    updated = dict(record)
+    updated.pop("clue_stage", None)
+    return cast(StoredPuzzleRecord, updated)
+
+
+def _regenerate_selected_clues(
+    answers: tuple[str, ...],
+    clue_bank: dict[str, tuple[str, ...]],
+    clue_bank_path: str,
+    clue_regenerator: ClueRegenerator | None,
+) -> tuple[CluePackageLike, ...]:
+    if not answers:
+        return ()
+    regenerator = clue_regenerator or _default_clue_regenerator
+    return regenerator(answers, clue_bank, clue_bank_path)
+
+
+def _default_clue_regenerator(
+    answers: tuple[str, ...],
+    clue_bank: dict[str, tuple[str, ...]],
+    clue_bank_path: str,
+) -> tuple[CluePackageLike, ...]:
+    from byewords.groq_clues import CluePackage, cached_clues_for_answer, regenerate_clues
+
+    cached_packages = []
+    missing_answers = []
+    for answer in answers:
+        cached_clues = cached_clues_for_answer(answer, clue_bank)
+        if cached_clues is None:
+            missing_answers.append(answer)
+            continue
+        cached_packages.append(CluePackage(answer=answer, cached=True, clues=cached_clues))
+
+    if not missing_answers:
+        return tuple(cached_packages)
+
+    try:
+        generated_packages = regenerate_clues(
+            missing_answers,
+            clue_bank,
+            clue_bank_path,
+        )
+    except ValueError:
+        return tuple(cached_packages)
+
+    return tuple(cached_packages) + tuple(generated_packages)
+
+
+def _refresh_clue_stage_record(
+    record: StoredPuzzleRecord,
+    *,
+    answer_only_rank: int,
+    clue_bank: dict[str, tuple[str, ...]],
+    package_by_answer: dict[str, CluePackageLike],
+) -> StoredPuzzleRecord:
+    raw_grid = cast(tuple[str, str, str, str, str], tuple(record["grid"]))
+    grid = make_grid(raw_grid)
+    used_clues: set[str] = set()
+    across = make_across_clues(grid, clue_bank, used_clues)
+    down = make_down_clues(grid, clue_bank, used_clues)
+    validation_errors = _validate_clues(across + down)
+    clue_score = _score_clues(across + down, validation_errors)
+    answers = _record_answers(record)
+    cached_answer_count = 0
+    regenerated_answer_count = 0
+    for answer in answers:
+        package = package_by_answer.get(answer)
+        if package is None:
+            continue
+        if package.cached:
+            cached_answer_count += 1
+        else:
+            regenerated_answer_count += 1
+
+    updated_record = dict(record)
+    updated_record["across"] = [cast(CluePayload, clue.__dict__) for clue in across]
+    updated_record["down"] = [cast(CluePayload, clue.__dict__) for clue in down]
+    updated_record["clue_stage"] = StoredClueStage(
+        answer_only_rank=answer_only_rank,
+        selected_rank=0,
+        clue_score=clue_score,
+        total_score=_answer_only_score(record["answer_scores"]) + clue_score,
+        validation_passed=not validation_errors,
+        validation_errors=list(validation_errors),
+        cached_answer_count=cached_answer_count,
+        regenerated_answer_count=regenerated_answer_count,
+    )
+    return cast(StoredPuzzleRecord, updated_record)
+
+
+def _validate_clues(clues: tuple[object, ...]) -> tuple[str, ...]:
+    errors: list[str] = []
+    seen_texts: set[str] = set()
+    for clue in clues:
+        text = getattr(clue, "text").strip()
+        answer = getattr(clue, "answer")
+        if not text:
+            errors.append(f"{answer}: empty clue")
+            continue
+        normalized_text = text.lower()
+        if normalized_text in seen_texts:
+            errors.append(f"{answer}: duplicate clue text")
+        seen_texts.add(normalized_text)
+        if is_generic_clue(text):
+            errors.append(f"{answer}: generic clue")
+        if len(text.split()) < 2:
+            errors.append(f"{answer}: clue must contain at least two words")
+    return tuple(errors)
+
+
+def _score_clues(clues: tuple[object, ...], validation_errors: tuple[str, ...]) -> float:
+    if not clues:
+        return 0.0
+    total = sum(_score_clue_text(getattr(clue, "text")) for clue in clues)
+    average = total / len(clues)
+    if validation_errors:
+        average *= 0.5
+    return round(average, 6)
+
+
+def _score_clue_text(text: str) -> float:
+    stripped = text.strip()
+    if not stripped or is_generic_clue(stripped):
+        return 0.0
+    words = stripped.split()
+    score = 0.4
+    if 2 <= len(words) <= 8:
+        score += 0.3
+    elif len(words) > 8:
+        score += 0.15
+    if len(stripped) >= 16:
+        score += 0.2
+    if len({word.lower() for word in words}) == len(words):
+        score += 0.1
+    return min(score, 1.0)

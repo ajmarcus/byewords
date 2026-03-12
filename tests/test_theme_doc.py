@@ -19,6 +19,7 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("Stage 2 is now fully closed.", text)
         self.assertIn("Stage 5 has deterministic runtime budget enforcement.", text)
         self.assertIn("Stage 6 is now fully closed.", text)
+        self.assertIn("Stage 7 is now fully closed.", text)
         self.assertIn("the representative easy, medium, and hard seed corpus now lives in code via `THEME_BENCHMARK_SEEDS`", text)
         self.assertIn(
             "the lightweight manual-review corpus for answer/theme plausibility now lives in code via `THEME_MANUAL_REVIEW_CASES`",
@@ -55,6 +56,18 @@ class TestThemeDoc(unittest.TestCase):
             "the offline cache now uses process-based worker execution for default lexicon-wide generation while preserving an in-process fallback for tests and patched generators",
             text,
         )
+        self.assertIn(
+            "the offline cache now refreshes clues only for the deterministic top-100 answer-only slice, validates those refreshed clue sets, and stores clue-stage ranking metadata beside each selected record",
+            text,
+        )
+        self.assertIn(
+            "the top-100 clue stage now uses `clue_bank.json` first and only attempts Groq regeneration for selected answers that still lack non-generic clues",
+            text,
+        )
+        self.assertIn(
+            "final offline ranking can now include clue-quality signal only after top-100 clue refresh, while preserving answer-only selection for the initial slice",
+            text,
+        )
         self.assertIn("Scoring every word against one seed is cheap:", text)
         self.assertIn("1,485,000", text)
         self.assertIn("semantics decides ordering", text)
@@ -82,6 +95,19 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("## Progressive implementation plan", text)
         self.assertIn("### Stage 1. Baseline measurement", text)
         self.assertIn("### Stage 7. Top-100 clue stage", text)
+        self.assertIn("the offline cache now refreshes clues only for the deterministic global top-100 answer-only slice", text)
+        self.assertIn(
+            "refreshed clue sets are now validated for non-generic multi-word clue text before clue-stage ranking metadata is persisted",
+            text,
+        )
+        self.assertIn(
+            "clue-stage reranking now happens only within the selected top-100 slice, so clue quality cannot pull weaker answer-only records into the curated set",
+            text,
+        )
+        self.assertIn(
+            "Groq regeneration is now attempted only for selected answers that still lack non-generic clue-bank coverage, preserving offline-first batch builds when API credentials are absent",
+            text,
+        )
         self.assertIn("Stage 1 is now fully closed:", text)
         self.assertIn("Stage 2 is now fully closed:", text)
         self.assertIn(
@@ -112,6 +138,10 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("answer-only ranking now ignores clue score during offline curation", text)
         self.assertIn(
             "process-based execution and deterministic intrusion evaluation now exist for the default offline batch path",
+            text,
+        )
+        self.assertIn(
+            "store clue-stage validation and rerank metadata for the selected top-100 slice without changing answer-only curation inputs",
             text,
         )
         self.assertIn("write lexicon-wide cached puzzle records to `src/byewords/data/puzzles.json`", text)
