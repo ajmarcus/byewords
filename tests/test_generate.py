@@ -201,7 +201,10 @@ class TestGenerate(unittest.TestCase):
                 {
                     "beach": [4, 0, 0, 0],
                     **{word: [0, 0, 4, 0] for word in neutral_entries},
-                    **{word: [4, 1, 0, 0] for word in themed_entries},
+                    **{
+                        word: ([4, 1, 0, 0], [3, 3, 0, 0], [2, 4, 0, 0])[index % 3]
+                        for index, word in enumerate(themed_entries)
+                    },
                 },
             )
             vectors = load_word_vectors(str(path))

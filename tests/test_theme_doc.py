@@ -52,6 +52,10 @@ class TestThemeDoc(unittest.TestCase):
             "completed-grid scoring can now add vector-backed `theme_score` during runtime ranking when the bundled table matches the active lexicon",
             text,
         )
+        self.assertIn(
+            "completed-grid ranking now hard-rejects weak fills and weak semantic subsets while surfacing theme-bearing subset metadata in `CandidateGrid`",
+            text,
+        )
         self.assertIn("the offline cache now stores real per-seed winners together with answer-only metadata", text)
         self.assertIn(
             "the offline cache can now retain multiple answer-only candidates per seed before later top-100 clue selection",
@@ -61,6 +65,15 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("write lexicon-wide cached puzzle records to `src/byewords/data/puzzles.json`", text)
         self.assertIn("with no seeds: build or refresh the offline `puzzles.json` cache", text)
         self.assertIn("Decision gate:", text)
+        self.assertIn(
+            "explicit fill-quality gates and weakest-link thresholds now reject weak completed grids during runtime ranking",
+            text,
+        )
+        self.assertIn(
+            "theme-bearing subset metadata is now surfaced on ranked runtime candidates and reused by the offline puzzle store",
+            text,
+        )
+        self.assertIn("semantic row ordering is still not wired into the runtime search hot path", text)
         self.assertIn(
             "semantic vector loading and completed-grid reranking are now wired into seeded selection when the bundled table matches the active lexicon",
             text,

@@ -16,7 +16,7 @@ from byewords.generate import generate_puzzle_candidates
 from byewords.grid import distinct_entries, make_grid
 from byewords.render import puzzle_to_dict
 from byewords.score import score_grid
-from byewords.theme import WordVectorTable, lexicon_hash, load_word_vectors, score_theme_subset
+from byewords.theme import WordVectorTable, lexicon_hash, load_word_vectors
 from byewords.types import GenerateConfig, Puzzle
 
 _BASE62_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -229,28 +229,22 @@ def _record_from_puzzle(
 ) -> StoredPuzzleRecord:
     payload = cast(PuzzlePayload, puzzle_to_dict(puzzle))
     answers = distinct_entries(puzzle.grid)
-    scores = score_grid(puzzle.grid)
-    theme_breakdown = (
-        score_theme_subset(answers, (seed,), semantic_vectors)
-        if semantic_vectors is not None and seed in semantic_vectors.vectors
-        else None
-    )
-    theme_score = theme_breakdown.total if theme_breakdown is not None else scores.theme_score
+    scores = score_grid(puzzle.grid, seeds=(seed,), vectors=semantic_vectors)
     return StoredPuzzleRecord(
         uuid=uuid_text,
         seed=seed,
         version=version,
         title=str(payload["title"]),
         theme_words=list(payload["theme_words"]),
-        theme_subset=list(theme_breakdown.selected_words) if theme_breakdown is not None else [],
+        theme_subset=list(scores.theme_subset),
         grid=list(payload["grid"]),
         answers=list(answers),
         answer_scores=StoredAnswerScores(
             fill_score=scores.fill_score,
-            theme_score=theme_score,
+            theme_score=scores.theme_score,
             clue_score=scores.clue_score,
-            answer_only_score=scores.fill_score + theme_score,
-            total_score=scores.fill_score + theme_score + scores.clue_score,
+            answer_only_score=scores.fill_score + scores.theme_score,
+            total_score=scores.fill_score + scores.theme_score + scores.clue_score,
             seed_entry_count=sum(answer == seed for answer in answers),
             seed_row_count=sum(row == seed for row in puzzle.grid.rows),
         ),
@@ -404,22 +398,16 @@ def _upgrade_store_record(
     if not isinstance(seed, str):
         return record
     answers = _record_answers(record)
-    scores = score_grid(grid)
-    theme_breakdown = (
-        score_theme_subset(answers, (seed,), vectors)
-        if vectors is not None and seed in vectors.vectors
-        else None
-    )
-    theme_score = theme_breakdown.total if theme_breakdown is not None else scores.theme_score
+    scores = score_grid(grid, seeds=(seed,), vectors=vectors)
     upgraded = dict(record)
     upgraded["answers"] = list(answers)
-    upgraded["theme_subset"] = list(theme_breakdown.selected_words) if theme_breakdown is not None else []
+    upgraded["theme_subset"] = list(scores.theme_subset)
     upgraded["answer_scores"] = StoredAnswerScores(
         fill_score=scores.fill_score,
-        theme_score=theme_score,
+        theme_score=scores.theme_score,
         clue_score=scores.clue_score,
-        answer_only_score=scores.fill_score + theme_score,
-        total_score=scores.fill_score + theme_score + scores.clue_score,
+        answer_only_score=scores.fill_score + scores.theme_score,
+        total_score=scores.fill_score + scores.theme_score + scores.clue_score,
         seed_entry_count=sum(answer == seed for answer in answers),
         seed_row_count=sum(row == seed for row in grid.rows),
     )

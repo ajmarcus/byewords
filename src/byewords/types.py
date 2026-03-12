@@ -41,6 +41,9 @@ class CandidateGrid:
     fill_score: float
     clue_score: float
     total_score: float
+    theme_subset: tuple[str, ...] = ()
+    theme_weakest_link: float = 0.0
+    passes_quality_gates: bool = True
 
 
 @dataclass(frozen=True)

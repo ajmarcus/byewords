@@ -40,6 +40,7 @@ Implemented now:
 - regression tests cover seeded, unseeded, and demo-grid benchmark cases
 - Stage 2 vector loading now exists with a bundled `word_vectors.json` table and deterministic whole-lexicon ranking APIs
 - completed-grid ranking can now add vector-backed theme scores when the bundled table matches the active lexicon
+- completed-grid ranking now hard-rejects weak fills and weak semantic subsets while surfacing theme-bearing subset metadata in `CandidateGrid`
 - the CLI now supports an offline-first cache build that writes lexicon-wide puzzle records to `src/byewords/data/puzzles.json`
 - the offline cache path now performs real per-seed puzzle generation and stores answer-only metadata for each retained record
 - the offline cache now retains a bounded top-N answer-only candidate set per seed before final clue-stage curation
@@ -59,13 +60,12 @@ What remains before Stage 2 can be treated as fully closed:
 What remains before the offline pipeline is doing the intended job:
 
 - replace the current thread-based batch execution with the planned process-based worker model
-- add theme-bearing subset selection and weakest-link coherence to completed-grid evaluation
 - wire clue regeneration and final curation to the deterministic global top-100 answer-only slice
 
 Working conclusion:
 
 - the existing search counters appear sufficient for the semantic rollout
-- the next implementation chunk should focus on semantic answer-only ranking and curation rather than more infrastructure
+- the next implementation chunk should focus on semantic row ordering in the runtime search path rather than more answer-only infrastructure
 
 ## Findings from experiments
 
@@ -509,9 +509,11 @@ Decision gate:
 
 Status update:
 
-- partially complete
+- substantially complete
 - completed-grid scoring can now add vector-backed `theme_score` during runtime ranking when the bundled table matches the active lexicon
-- explicit fill-quality gates, weakest-link thresholds, and surfaced theme-bearing subset metadata are still incomplete in the runtime path
+- explicit fill-quality gates and weakest-link thresholds now reject weak completed grids during runtime ranking
+- theme-bearing subset metadata is now surfaced on ranked runtime candidates and reused by the offline puzzle store
+- semantic row ordering is still not wired into the runtime search hot path
 
 ### Stage 5. Runtime path
 
