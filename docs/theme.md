@@ -31,7 +31,7 @@ This plan is based on the experiments performed so far.
 
 ## Current implementation progress
 
-Stage 1 is now complete. Stage 2 is substantially complete. Stage 5 has deterministic runtime budget enforcement. Stage 6 now has a real but still incomplete offline cache pipeline.
+Stage 1 is now complete. Stage 2 is now fully closed. Stage 5 has deterministic runtime budget enforcement. Stage 6 now has a real but still incomplete offline cache pipeline.
 
 Implemented now:
 
@@ -40,7 +40,9 @@ Implemented now:
 - regression tests cover seeded, unseeded, and demo-grid benchmark cases
 - the representative easy, medium, and hard seed corpus now lives in code via `THEME_BENCHMARK_SEEDS`
 - the lightweight manual-review corpus for answer/theme plausibility now lives in code via `THEME_MANUAL_REVIEW_CASES`
+- the representative retrieval-quality review corpus now lives in code via `THEME_RETRIEVAL_REVIEW_CASES`
 - Stage 2 vector loading now exists with a bundled `word_vectors.json` table and deterministic whole-lexicon ranking APIs
+- cosine and rank-overlap retrieval reports can now be compared deterministically against the review corpus without changing runtime ranking
 - completed-grid ranking can now add vector-backed theme scores when the bundled table matches the active lexicon
 - completed-grid ranking now hard-rejects weak fills and weak semantic subsets while surfacing theme-bearing subset metadata in `CandidateGrid`
 - seeded semantic search now enforces a deterministic runtime budget and falls back to heuristic row ordering when it expires
@@ -56,10 +58,10 @@ Stage 1 is now fully closed:
 - the benchmark harness has explicit easy, medium, and hard corpus fixtures
 - the manual-review seed corpus is checked against bundled lexicon and clue-bank coverage
 
-What remains before Stage 2 can be treated as fully closed:
+Stage 2 is now fully closed:
 
-- compare cosine against rank-overlap offline instead of only shipping cosine-based ranking
-- add a representative retrieval-quality review set so vector ranking quality is measured rather than assumed
+- cosine and rank-overlap can now be compared deterministically through offline retrieval-review helpers
+- the retrieval-quality review corpus is checked against bundled lexicon coverage so ranking quality is measured rather than assumed
 
 What remains before the offline pipeline is doing the intended job:
 
@@ -69,7 +71,7 @@ What remains before the offline pipeline is doing the intended job:
 Working conclusion:
 
 - the existing search counters appear sufficient for the semantic rollout
-- the next implementation chunk should focus on retrieval-quality review and process-based offline generation rather than more runtime-budget plumbing
+- the next implementation chunk should focus on process-based offline generation rather than more runtime-budget plumbing
 
 ## Findings from experiments
 
@@ -467,8 +469,8 @@ Status update:
 
 - done: offline vector build tool and bundled vector table
 - done: deterministic `word_vectors.json` loading and full-lexicon cosine ranking
-- remaining: cosine versus rank-overlap comparison
-- remaining: retrieval-quality review fixtures
+- done: cosine versus rank-overlap comparison helpers for offline review
+- done: retrieval-quality review fixtures and deterministic comparison reports
 
 ### Stage 3. Seed-aware search ordering
 
@@ -698,6 +700,7 @@ Required coverage:
 
 - deterministic loading of `word_vectors.json`
 - deterministic full-lexicon ranking for a seed
+- deterministic cosine versus rank-overlap comparison against retrieval-review fixtures
 - stable identification of theme-bearing answers for a completed grid
 - viable-row ordering that respects semantic rank
 - hard rejection of puzzles that fail fill quality or uniqueness requirements

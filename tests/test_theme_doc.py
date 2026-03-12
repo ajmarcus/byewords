@@ -16,11 +16,20 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("src/byewords/data/word_vectors.json", text)
         self.assertIn("store one semantic vector for every bundled word", text)
         self.assertIn("Stage 1 is now complete.", text)
+        self.assertIn("Stage 2 is now fully closed.", text)
         self.assertIn("Stage 5 has deterministic runtime budget enforcement.", text)
         self.assertIn("Stage 6 now has a real but still incomplete offline cache pipeline.", text)
         self.assertIn("the representative easy, medium, and hard seed corpus now lives in code via `THEME_BENCHMARK_SEEDS`", text)
         self.assertIn(
             "the lightweight manual-review corpus for answer/theme plausibility now lives in code via `THEME_MANUAL_REVIEW_CASES`",
+            text,
+        )
+        self.assertIn(
+            "the representative retrieval-quality review corpus now lives in code via `THEME_RETRIEVAL_REVIEW_CASES`",
+            text,
+        )
+        self.assertIn(
+            "cosine and rank-overlap retrieval reports can now be compared deterministically against the review corpus without changing runtime ranking",
             text,
         )
         self.assertIn(
@@ -63,6 +72,15 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("### Stage 1. Baseline measurement", text)
         self.assertIn("### Stage 7. Top-100 clue stage", text)
         self.assertIn("Stage 1 is now fully closed:", text)
+        self.assertIn("Stage 2 is now fully closed:", text)
+        self.assertIn(
+            "cosine and rank-overlap can now be compared deterministically through offline retrieval-review helpers",
+            text,
+        )
+        self.assertIn(
+            "the retrieval-quality review corpus is checked against bundled lexicon coverage so ranking quality is measured rather than assumed",
+            text,
+        )
         self.assertIn(
             "seeded and generic runtime search now order already-legal viable rows by semantic score first and branching score second",
             text,
