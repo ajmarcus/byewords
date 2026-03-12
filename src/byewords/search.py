@@ -5,6 +5,7 @@ from typing import cast
 
 from byewords.grid import GRID_SIZE, grid_columns, has_unique_entries, make_grid, partial_column_prefixes
 from byewords.prefixes import has_prefix
+from byewords.theme import SemanticRowOrdering, SemanticRowOrderingContext
 from byewords.types import Grid, ProgressCallback, ProgressUpdate
 
 PositionLetterIndex = tuple[dict[str, int], ...]
@@ -30,6 +31,8 @@ class SearchStats:
     mask_intersections: int = 0
     candidate_rows_ranked: int = 0
     fixed_row_shortcuts: int = 0
+    semantic_reranks: int = 0
+    novelty_penalties_applied: int = 0
     budget_exhausted: bool = False
 
     def snapshot(self) -> "SearchStatsSnapshot":
@@ -39,6 +42,8 @@ class SearchStats:
             mask_intersections=self.mask_intersections,
             candidate_rows_ranked=self.candidate_rows_ranked,
             fixed_row_shortcuts=self.fixed_row_shortcuts,
+            semantic_reranks=self.semantic_reranks,
+            novelty_penalties_applied=self.novelty_penalties_applied,
             budget_exhausted=self.budget_exhausted,
         )
 
@@ -50,6 +55,8 @@ class SearchStatsSnapshot:
     mask_intersections: int = 0
     candidate_rows_ranked: int = 0
     fixed_row_shortcuts: int = 0
+    semantic_reranks: int = 0
+    novelty_penalties_applied: int = 0
     budget_exhausted: bool = False
 
 
@@ -189,6 +196,22 @@ def _fixed_row_candidates(
     return (normalized,)
 
 
+def _candidate_row_score(
+    candidate: str,
+    row_scores: RowScoreMap | None,
+    semantic_context: SemanticRowOrderingContext | None,
+    stats: SearchStats | None,
+) -> float:
+    if semantic_context is None:
+        return row_scores.get(candidate, 0.0) if row_scores is not None else 0.0
+    semantic_score = semantic_context.score(candidate)
+    if stats is not None:
+        stats.semantic_reranks += 1
+        if semantic_score.redundancy > 0.0:
+            stats.novelty_penalties_applied += 1
+    return semantic_score.score
+
+
 def valid_next_rows(
     partial_rows: tuple[str, ...],
     candidate_words: tuple[str, ...],
@@ -197,6 +220,7 @@ def valid_next_rows(
     fixed_columns: dict[int, str] | None = None,
     search_index: SearchIndex | None = None,
     row_scores: RowScoreMap | None = None,
+    semantic_ordering: SemanticRowOrdering | None = None,
     stats: SearchStats | None = None,
 ) -> tuple[str, ...]:
     next_index = len(partial_rows)
@@ -209,6 +233,7 @@ def valid_next_rows(
         search_index = build_search_index(candidate_words, prefix_index)
 
     prefixes = partial_column_prefixes(partial_rows)
+    semantic_context = semantic_ordering.context(partial_rows) if semantic_ordering is not None else None
     matching_rows_mask = _matching_row_mask(
         prefixes=prefixes,
         next_index=next_index,
@@ -227,7 +252,7 @@ def valid_next_rows(
         next_prefixes = _next_prefixes(partial_rows, candidate)
         valid_rows.append(
             (
-                row_scores.get(candidate, 0.0) if row_scores is not None else 0.0,
+                _candidate_row_score(candidate, row_scores, semantic_context, stats),
                 _prefix_branching_score(next_prefixes, prefix_index),
                 candidate,
             )
@@ -247,6 +272,7 @@ def search_grids(
     fixed_columns: dict[int, str] | None = None,
     search_index: SearchIndex | None = None,
     row_scores: RowScoreMap | None = None,
+    semantic_ordering: SemanticRowOrdering | None = None,
     stats: SearchStats | None = None,
     progress_callback: ProgressCallback | None = None,
     deadline_monotonic: float | None = None,
@@ -309,6 +335,9 @@ def search_grids(
                 stats.fixed_row_shortcuts += 1
         else:
             prefixes = partial_column_prefixes(partial_rows)
+            semantic_context = (
+                semantic_ordering.context(partial_rows) if semantic_ordering is not None else None
+            )
             matching_rows_mask = _matching_row_mask(
                 prefixes=prefixes,
                 next_index=next_index,
@@ -325,7 +354,12 @@ def search_grids(
                     next_prefixes = _next_prefixes(partial_rows, candidate)
                     ranked_rows.append(
                         (
-                            row_scores.get(candidate, 0.0) if row_scores is not None else 0.0,
+                            _candidate_row_score(
+                                candidate,
+                                row_scores,
+                                semantic_context,
+                                stats,
+                            ),
                             _prefix_branching_score(next_prefixes, prefix_index),
                             candidate,
                             row_bit,

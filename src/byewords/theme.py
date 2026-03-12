@@ -158,6 +158,82 @@ class WordVectorTable:
     norms: dict[str, float]
 
 
+@dataclass(frozen=True)
+class SemanticRowScore:
+    score: float
+    base_score: float
+    provisional_theme_words: tuple[str, ...]
+    redundancy: float
+
+
+@dataclass(frozen=True)
+class SemanticRowOrderingContext:
+    base_scores: dict[str, float]
+    vectors: WordVectorTable
+    provisional_theme_words: tuple[str, ...]
+    mmr_lambda: float
+
+    def score(self, word: str) -> SemanticRowScore:
+        base_score = self.base_scores.get(word, 0.0)
+        if base_score <= 0.0 or word not in self.vectors.vectors:
+            return SemanticRowScore(base_score, base_score, self.provisional_theme_words, 0.0)
+        redundancy = max(
+            (
+                _cosine_similarity(word, selected_word, self.vectors)
+                for selected_word in self.provisional_theme_words
+                if selected_word != word
+            ),
+            default=0.0,
+        )
+        if redundancy <= 0.0:
+            return SemanticRowScore(base_score, base_score, self.provisional_theme_words, 0.0)
+        adjusted_score = self.mmr_lambda * base_score - (1.0 - self.mmr_lambda) * redundancy
+        return SemanticRowScore(
+            score=adjusted_score,
+            base_score=base_score,
+            provisional_theme_words=self.provisional_theme_words,
+            redundancy=redundancy,
+        )
+
+
+@dataclass(frozen=True)
+class SemanticRowOrdering:
+    seeds: tuple[str, ...]
+    base_scores: dict[str, float]
+    vectors: WordVectorTable
+    limit: int = DEFAULT_THEME_WORD_LIMIT
+    mmr_lambda: float = DEFAULT_MMR_LAMBDA
+
+    def context(self, partial_rows: tuple[str, ...]) -> SemanticRowOrderingContext:
+        provisional_limit = max(0, self.limit - 1)
+        if provisional_limit <= 0:
+            provisional_theme_words: tuple[str, ...] = ()
+        else:
+            ranked_partial_words = tuple(
+                sorted(
+                    (
+                        word
+                        for word in dict.fromkeys(partial_rows)
+                        if word in self.base_scores and word in self.vectors.vectors
+                    ),
+                    key=lambda word: (-self.base_scores.get(word, 0.0), word),
+                )
+            )
+            provisional_theme_words = diversify_theme_words(
+                ranked_partial_words,
+                self.seeds,
+                self.vectors,
+                provisional_limit,
+                mmr_lambda=self.mmr_lambda,
+            )
+        return SemanticRowOrderingContext(
+            base_scores=self.base_scores,
+            vectors=self.vectors,
+            provisional_theme_words=provisional_theme_words,
+            mmr_lambda=self.mmr_lambda,
+        )
+
+
 def normalize_seeds(seeds: tuple[str, ...]) -> tuple[str, ...]:
     normalized = []
     for seed in seeds:

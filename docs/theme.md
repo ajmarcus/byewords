@@ -31,7 +31,7 @@ This plan is based on the experiments performed so far.
 
 ## Current implementation progress
 
-Stage 1 is now complete. Stage 2 is now fully closed. Stage 5 has deterministic runtime budget enforcement. Stage 6 is now fully closed. Stage 7 is now fully closed.
+Stage 1 is now complete. Stage 2 is now fully closed. Stage 3 is now fully closed. Stage 5 has deterministic runtime budget enforcement. Stage 6 is now fully closed. Stage 7 is now fully closed.
 
 Implemented now:
 
@@ -47,6 +47,8 @@ Implemented now:
 - intrusion-review helpers can now deterministically verify that the theme scorer rejects unrelated answers from a fixed-size themed subset
 - completed-grid ranking can now add vector-backed theme scores when the bundled table matches the active lexicon
 - completed-grid ranking now hard-rejects weak fills and weak semantic subsets while surfacing theme-bearing subset metadata in `CandidateGrid`
+- viable-row ordering can now apply lightweight MMR-style novelty penalties against provisional theme-bearing rows without changing legality pruning
+- benchmark search attempts can now capture heuristic-baseline counter snapshots for deterministic before/after search comparisons
 - seeded semantic search now enforces a deterministic runtime budget and falls back to heuristic row ordering when it expires
 - benchmark reports now surface budget exhaustion, heuristic fallback, and selected theme-subset telemetry
 - the CLI now supports an offline-first cache build that writes lexicon-wide puzzle records to `src/byewords/data/puzzles.json`
@@ -69,6 +71,12 @@ Stage 2 is now fully closed:
 - cosine and rank-overlap can now be compared deterministically through offline retrieval-review helpers
 - the retrieval-quality review corpus is checked against bundled lexicon coverage so ranking quality is measured rather than assumed
 
+Stage 3 is now fully closed:
+
+- seeded and generic runtime search now order already-legal viable rows by semantic score first and branching score second when bundled vectors match the active lexicon
+- lightweight MMR-style novelty penalties now down-rank semantically redundant provisional theme rows without changing legality pruning
+- benchmark attempts now include deterministic heuristic-baseline counter snapshots for before/after search comparisons
+
 Stage 6 is now fully closed:
 
 - the offline cache path remains process-based for full-lexicon generation while preserving the in-process fallback needed by tests and patched generators
@@ -82,7 +90,7 @@ What remains before the offline pipeline is doing the intended job:
 Working conclusion:
 
 - the existing search counters appear sufficient for the semantic rollout
-- the next implementation chunk should return to Stage 3 and finish the missing MMR-style novelty penalties and before/after search comparisons
+- the next implementation chunk should measure whether clue-aware reranking improves editorial quality enough to justify expanding the reviewed clue corpus
 
 ## Findings from experiments
 
@@ -502,9 +510,10 @@ Decision gate:
 
 Status update:
 
-- partially complete
+- fully closed
 - seeded and generic runtime search now order already-legal viable rows by semantic score first and branching score second when bundled vectors match the active lexicon
-- lightweight MMR-style novelty penalties and before/after search counters are still missing
+- lightweight MMR-style novelty penalties now down-rank semantically redundant provisional theme rows during viable-row ordering
+- deterministic benchmark attempts now include heuristic-baseline counter snapshots for before/after search comparisons
 
 ### Stage 4. Quality gates and answer-only scoring
 
@@ -658,7 +667,7 @@ def score_theme_subset(
 
 ### `src/byewords/search.py`
 
-Keep the current legality checks and prefix pruning, but allow viable rows to be ordered by a seed-aware runtime score that can reward probable theme-bearing answers without constraining the legal search space.
+Keep the current legality checks and prefix pruning, but allow viable rows to be ordered by a seed-aware runtime score that can reward probable theme-bearing answers without constraining the legal search space. The search stats should also surface semantic rerank counts, novelty-penalty counts, and benchmarkable before/after snapshots.
 
 ### `src/byewords/generate.py`
 
@@ -667,8 +676,8 @@ Change the seeded path so that it:
 - validates seeds against the lexicon
 - loads the bundled vector table
 - ranks the full lexicon on demand
-- passes semantic row scores into search ordering
-- tracks a provisional theme-bearing subset during search
+- passes semantic row scores and novelty-aware row ordering into search
+- captures heuristic-baseline counter snapshots for semantic benchmark attempts
 - enforces a time budget
 - falls back cleanly if the budget is exceeded
 

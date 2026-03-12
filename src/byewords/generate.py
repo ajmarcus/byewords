@@ -15,6 +15,7 @@ from byewords.prefixes import build_prefix_index
 from byewords.score import rank_grids
 from byewords.search import SearchIndex, SearchStats, SearchStatsSnapshot, build_search_index, search_grids
 from byewords.theme import (
+    SemanticRowOrdering,
     WordVectorTable,
     build_candidate_pool,
     lexicon_hash,
@@ -39,6 +40,12 @@ SearchStrategy = Literal["seeded", "generic", "seeded_broadened", "generic_broad
 
 
 @dataclass(frozen=True)
+class SearchOrderingBaseline:
+    solutions_found: int
+    stats: SearchStatsSnapshot
+
+
+@dataclass(frozen=True)
 class SearchAttemptReport:
     strategy: SearchStrategy
     candidate_count: int
@@ -46,6 +53,7 @@ class SearchAttemptReport:
     solutions_found: int
     stats: SearchStatsSnapshot
     used_semantic_ordering: bool
+    heuristic_baseline: SearchOrderingBaseline | None = None
 
 
 @dataclass(frozen=True)
@@ -133,6 +141,7 @@ def _search_seeded_grids(
     beam_width: int,
     max_candidates: int,
     row_scores: dict[str, float] | None = None,
+    semantic_ordering: SemanticRowOrdering | None = None,
     stats: SearchStats | None = None,
     progress_callback: ProgressCallback | None = None,
     deadline_monotonic: float | None = None,
@@ -161,6 +170,7 @@ def _search_seeded_grids(
                     fixed_rows={row_index: seed},
                     search_index=search_index,
                     row_scores=row_scores,
+                    semantic_ordering=semantic_ordering,
                     stats=stats,
                     progress_callback=progress_callback,
                     deadline_monotonic=deadline_monotonic,
@@ -188,6 +198,7 @@ def _search_seeded_grids(
                     fixed_columns={column_index: seed},
                     search_index=search_index,
                     row_scores=row_scores,
+                    semantic_ordering=semantic_ordering,
                     stats=stats,
                     progress_callback=progress_callback,
                     deadline_monotonic=deadline_monotonic,
@@ -309,6 +320,7 @@ def _search_candidate_windows(
     available_seeds: tuple[str, ...],
     config: GenerateConfig,
     row_scores: dict[str, float] | None,
+    semantic_ordering: SemanticRowOrdering | None,
     progress_callback: ProgressCallback | None = None,
     deadline_monotonic: float | None = None,
 ) -> tuple[tuple[Grid, ...], bool]:
@@ -331,6 +343,7 @@ def _search_candidate_windows(
                 beam_width=config.beam_width,
                 max_candidates=config.max_candidates,
                 row_scores=row_scores,
+                semantic_ordering=semantic_ordering,
                 stats=stats,
                 progress_callback=progress_callback,
                 deadline_monotonic=deadline_monotonic,
@@ -355,6 +368,7 @@ def _search_candidate_windows(
             max_candidates=config.max_candidates,
             search_index=search_index,
             row_scores=row_scores,
+            semantic_ordering=semantic_ordering,
             stats=stats,
             progress_callback=progress_callback,
             deadline_monotonic=deadline_monotonic,
@@ -383,6 +397,7 @@ def _search_candidate_windows(
                 beam_width=broadened_beam_width,
                 max_candidates=config.max_candidates,
                 row_scores=row_scores,
+                semantic_ordering=semantic_ordering,
                 stats=stats,
                 progress_callback=progress_callback,
                 deadline_monotonic=deadline_monotonic,
@@ -407,6 +422,7 @@ def _search_candidate_windows(
             max_candidates=config.max_candidates,
             search_index=search_index,
             row_scores=row_scores,
+            semantic_ordering=semantic_ordering,
             stats=stats,
             progress_callback=progress_callback,
             deadline_monotonic=deadline_monotonic,
@@ -462,6 +478,61 @@ def _semantic_row_scores(
     return seed_relevance_scores(lexicon_words, available_seeds, semantic_vectors)
 
 
+def _semantic_row_ordering(
+    available_seeds: tuple[str, ...],
+    semantic_vectors: WordVectorTable | None,
+    row_scores: dict[str, float] | None,
+) -> SemanticRowOrdering | None:
+    if semantic_vectors is None or row_scores is None or not available_seeds:
+        return None
+    return SemanticRowOrdering(
+        seeds=available_seeds,
+        base_scores=row_scores,
+        vectors=semantic_vectors,
+    )
+
+
+def _benchmark_heuristic_baseline(
+    *,
+    strategy: SearchStrategy,
+    search_index: SearchIndex,
+    prefix_index: dict[str, tuple[str, ...]],
+    available_seeds: tuple[str, ...],
+    beam_width: int,
+    max_candidates: int,
+    used_semantic_ordering: bool,
+) -> SearchOrderingBaseline | None:
+    if not used_semantic_ordering:
+        return None
+    stats = SearchStats()
+    if strategy in ("seeded", "seeded_broadened"):
+        attempt = _search_seeded_grids(
+            search_index=search_index,
+            prefix_index=prefix_index,
+            seed_words=available_seeds,
+            beam_width=beam_width,
+            max_candidates=max_candidates,
+            row_scores=None,
+            semantic_ordering=None,
+            stats=stats,
+        )
+    else:
+        attempt = search_grids(
+            candidate_words=search_index.candidate_words,
+            prefix_index=prefix_index,
+            beam_width=beam_width,
+            max_candidates=max_candidates,
+            search_index=search_index,
+            row_scores=None,
+            semantic_ordering=None,
+            stats=stats,
+        )
+    return SearchOrderingBaseline(
+        solutions_found=len(attempt),
+        stats=stats.snapshot(),
+    )
+
+
 def _find_candidate_grids(
     seeds: tuple[str, ...],
     lexicon_words: tuple[str, ...],
@@ -488,12 +559,14 @@ def _find_candidate_grids(
     candidate_window_indexes = _candidate_window_indexes(candidate_windows, prefix_index)
     semantic_vectors = _load_semantic_vectors(lexicon_words, available_seeds)
     row_scores = _semantic_row_scores(lexicon_words, available_seeds, semantic_vectors)
+    semantic_ordering = _semantic_row_ordering(available_seeds, semantic_vectors, row_scores)
     grids, budget_exhausted = _search_candidate_windows(
         candidate_window_indexes=candidate_window_indexes,
         prefix_index=prefix_index,
         available_seeds=available_seeds,
         config=config,
         row_scores=row_scores,
+        semantic_ordering=semantic_ordering,
         progress_callback=progress_callback,
         deadline_monotonic=_runtime_deadline(config),
     )
@@ -509,6 +582,7 @@ def _find_candidate_grids(
             available_seeds=available_seeds,
             config=config,
             row_scores=None,
+            semantic_ordering=None,
             progress_callback=progress_callback,
         )
     return grids, available_seeds
@@ -578,6 +652,7 @@ def benchmark_generation(
     candidate_window_indexes = _candidate_window_indexes(candidate_windows, prefix_index)
     semantic_vectors = _load_semantic_vectors(lexicon_words, available_seeds)
     row_scores = _semantic_row_scores(lexicon_words, available_seeds, semantic_vectors)
+    semantic_ordering = _semantic_row_ordering(available_seeds, semantic_vectors, row_scores)
     seed_word_set = set(available_seeds)
     attempts: list[SearchAttemptReport] = []
     grids: tuple[Grid, ...] = ()
@@ -598,9 +673,11 @@ def benchmark_generation(
                 beam_width=config.beam_width,
                 max_candidates=config.max_candidates,
                 row_scores=row_scores,
+                semantic_ordering=semantic_ordering,
                 stats=stats,
                 deadline_monotonic=deadline_monotonic,
             )
+            used_semantic_ordering = row_scores is not None
             attempts.append(
                 SearchAttemptReport(
                     strategy="seeded",
@@ -608,7 +685,16 @@ def benchmark_generation(
                     beam_width=config.beam_width,
                     solutions_found=len(attempt),
                     stats=stats.snapshot(),
-                    used_semantic_ordering=row_scores is not None,
+                    used_semantic_ordering=used_semantic_ordering,
+                    heuristic_baseline=_benchmark_heuristic_baseline(
+                        strategy="seeded",
+                        search_index=search_index,
+                        prefix_index=prefix_index,
+                        available_seeds=available_seeds,
+                        beam_width=config.beam_width,
+                        max_candidates=config.max_candidates,
+                        used_semantic_ordering=used_semantic_ordering,
+                    ),
                 )
             )
             if attempt:
@@ -631,9 +717,11 @@ def benchmark_generation(
                 max_candidates=config.max_candidates,
                 search_index=search_index,
                 row_scores=row_scores,
+                semantic_ordering=semantic_ordering,
                 stats=stats,
                 deadline_monotonic=deadline_monotonic,
             )
+            used_semantic_ordering = row_scores is not None
             attempts.append(
                 SearchAttemptReport(
                     strategy="generic",
@@ -641,7 +729,16 @@ def benchmark_generation(
                     beam_width=config.beam_width,
                     solutions_found=len(attempt),
                     stats=stats.snapshot(),
-                    used_semantic_ordering=row_scores is not None,
+                    used_semantic_ordering=used_semantic_ordering,
+                    heuristic_baseline=_benchmark_heuristic_baseline(
+                        strategy="generic",
+                        search_index=search_index,
+                        prefix_index=prefix_index,
+                        available_seeds=available_seeds,
+                        beam_width=config.beam_width,
+                        max_candidates=config.max_candidates,
+                        used_semantic_ordering=used_semantic_ordering,
+                    ),
                 )
             )
             if attempt:
@@ -666,9 +763,11 @@ def benchmark_generation(
                     beam_width=broadened_beam_width,
                     max_candidates=config.max_candidates,
                     row_scores=row_scores,
+                    semantic_ordering=semantic_ordering,
                     stats=stats,
                     deadline_monotonic=deadline_monotonic,
                 )
+                used_semantic_ordering = row_scores is not None
                 attempts.append(
                     SearchAttemptReport(
                         strategy="seeded_broadened",
@@ -676,7 +775,16 @@ def benchmark_generation(
                         beam_width=broadened_beam_width,
                         solutions_found=len(attempt),
                         stats=stats.snapshot(),
-                        used_semantic_ordering=row_scores is not None,
+                        used_semantic_ordering=used_semantic_ordering,
+                        heuristic_baseline=_benchmark_heuristic_baseline(
+                            strategy="seeded_broadened",
+                            search_index=search_index,
+                            prefix_index=prefix_index,
+                            available_seeds=available_seeds,
+                            beam_width=broadened_beam_width,
+                            max_candidates=config.max_candidates,
+                            used_semantic_ordering=used_semantic_ordering,
+                        ),
                     )
                 )
                 if attempt:
@@ -698,9 +806,11 @@ def benchmark_generation(
                     max_candidates=config.max_candidates,
                     search_index=search_index,
                     row_scores=row_scores,
+                    semantic_ordering=semantic_ordering,
                     stats=stats,
                     deadline_monotonic=deadline_monotonic,
                 )
+                used_semantic_ordering = row_scores is not None
                 attempts.append(
                     SearchAttemptReport(
                         strategy="generic_broadened",
@@ -708,7 +818,16 @@ def benchmark_generation(
                         beam_width=broadened_beam_width,
                         solutions_found=len(attempt),
                         stats=stats.snapshot(),
-                        used_semantic_ordering=row_scores is not None,
+                        used_semantic_ordering=used_semantic_ordering,
+                        heuristic_baseline=_benchmark_heuristic_baseline(
+                            strategy="generic_broadened",
+                            search_index=search_index,
+                            prefix_index=prefix_index,
+                            available_seeds=available_seeds,
+                            beam_width=broadened_beam_width,
+                            max_candidates=config.max_candidates,
+                            used_semantic_ordering=used_semantic_ordering,
+                        ),
                     )
                 )
                 if attempt:

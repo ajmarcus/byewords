@@ -17,6 +17,7 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("store one semantic vector for every bundled word", text)
         self.assertIn("Stage 1 is now complete.", text)
         self.assertIn("Stage 2 is now fully closed.", text)
+        self.assertIn("Stage 3 is now fully closed.", text)
         self.assertIn("Stage 5 has deterministic runtime budget enforcement.", text)
         self.assertIn("Stage 6 is now fully closed.", text)
         self.assertIn("Stage 7 is now fully closed.", text)
@@ -39,6 +40,14 @@ class TestThemeDoc(unittest.TestCase):
         )
         self.assertIn(
             "intrusion-review helpers can now deterministically verify that the theme scorer rejects unrelated answers from a fixed-size themed subset",
+            text,
+        )
+        self.assertIn(
+            "viable-row ordering can now apply lightweight MMR-style novelty penalties against provisional theme-bearing rows without changing legality pruning",
+            text,
+        )
+        self.assertIn(
+            "benchmark search attempts can now capture heuristic-baseline counter snapshots for deterministic before/after search comparisons",
             text,
         )
         self.assertIn(
@@ -158,6 +167,14 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("semantic row ordering is now wired into the runtime search hot path without changing legality pruning", text)
         self.assertIn(
             "semantic vector loading, viable-row ordering, and completed-grid reranking are now wired into seeded selection when the bundled table matches the active lexicon",
+            text,
+        )
+        self.assertIn(
+            "lightweight MMR-style novelty penalties now down-rank semantically redundant provisional theme rows during viable-row ordering",
+            text,
+        )
+        self.assertIn(
+            "deterministic benchmark attempts now include heuristic-baseline counter snapshots for before/after search comparisons",
             text,
         )
         self.assertIn(

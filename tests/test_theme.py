@@ -8,6 +8,7 @@ from byewords.theme import (
     THEME_INTRUSION_REVIEW_CASES,
     THEME_MANUAL_REVIEW_CASES,
     THEME_RETRIEVAL_REVIEW_CASES,
+    SemanticRowOrdering,
     ThemeIntrusionReviewCase,
     build_candidate_pool,
     compare_theme_intrusions,
@@ -380,6 +381,46 @@ class TestTheme(unittest.TestCase):
             )
 
         self.assertEqual(diversified, ("ocean", "waves"))
+
+    def test_semantic_row_ordering_penalizes_redundant_partial_theme_words(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "vectors.json"
+            lexicon = ("beach", "ocean", "coast", "waves")
+            _write_vector_table(
+                path,
+                lexicon,
+                {
+                    "beach": [10, 0, 0, 0],
+                    "ocean": [10, 1, 0, 0],
+                    "coast": [10, 2, 0, 0],
+                    "waves": [7, 7, 0, 0],
+                },
+            )
+
+            vectors = load_word_vectors(str(path))
+            ordering = SemanticRowOrdering(
+                seeds=("beach",),
+                base_scores={
+                    "ocean": score_word_for_seed("ocean", ("beach",), vectors),
+                    "coast": score_word_for_seed("coast", ("beach",), vectors),
+                    "waves": score_word_for_seed("waves", ("beach",), vectors),
+                },
+                vectors=vectors,
+                mmr_lambda=0.5,
+            )
+
+        context = ordering.context(("ocean",))
+        coast_score = context.score("coast")
+        waves_score = context.score("waves")
+
+        self.assertEqual(context.provisional_theme_words, ("ocean",))
+        self.assertGreater(coast_score.base_score, waves_score.base_score)
+        self.assertGreater(coast_score.redundancy, waves_score.redundancy)
+        self.assertLess(coast_score.score, coast_score.base_score)
+        self.assertGreater(
+            coast_score.base_score - coast_score.score,
+            waves_score.base_score - waves_score.score,
+        )
 
     def test_score_theme_subset_selects_theme_bearing_answers(self) -> None:
         with TemporaryDirectory() as temp_dir:

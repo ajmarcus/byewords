@@ -377,6 +377,46 @@ class TestGenerate(unittest.TestCase):
             raise AssertionError("expected a selected grid")
         self.assertEqual(benchmark.selected_grid.rows, TEST_GRID_ROWS)
 
+    def test_benchmark_generation_records_heuristic_baseline_for_semantic_attempts(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "vectors.json"
+            _write_vector_table(
+                path,
+                TEST_LEXICON,
+                {
+                    "adieu": [5, 1, 0, 0],
+                    "booed": [5, 2, 0, 0],
+                    "antra": [4, 3, 0, 0],
+                    "snail": [6, 0, 0, 0],
+                    "eases": [4, 4, 0, 0],
+                    "abase": [0, 0, 4, 0],
+                    "donna": [4, 2, 0, 0],
+                    "iotas": [0, 0, 3, 1],
+                    "eerie": [0, 0, 2, 2],
+                    "udals": [0, 0, 1, 3],
+                },
+            )
+            vectors = load_word_vectors(str(path))
+
+        with patch("byewords.generate._load_semantic_vectors", return_value=vectors):
+            benchmark = benchmark_generation(
+                seeds=("snail",),
+                lexicon_words=TEST_LEXICON,
+                clue_bank={},
+            )
+
+        self.assertEqual(len(benchmark.attempts), 1)
+        attempt = benchmark.attempts[0]
+        self.assertTrue(attempt.used_semantic_ordering)
+        self.assertIsNotNone(attempt.heuristic_baseline)
+        if attempt.heuristic_baseline is None:
+            raise AssertionError("expected heuristic baseline")
+        self.assertGreater(attempt.stats.semantic_reranks, 0)
+        self.assertGreater(attempt.stats.novelty_penalties_applied, 0)
+        self.assertGreater(attempt.heuristic_baseline.solutions_found, 0)
+        self.assertEqual(attempt.heuristic_baseline.stats.semantic_reranks, 0)
+        self.assertEqual(attempt.heuristic_baseline.stats.novelty_penalties_applied, 0)
+
     def test_generate_puzzle_cached_reuses_saved_puzzle(self) -> None:
         with TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
