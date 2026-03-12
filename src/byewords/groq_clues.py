@@ -46,6 +46,18 @@ QUALITY_EXAMPLES = (
     "Clue: San Francisco car pulled by an underground loop\n"
     "Why it works: concrete, specific, and rich with place without sounding dusty."
 )
+CLUE_RULES = (
+    "Follow these rules for every clue:\n"
+    "- Your clue MUST be the same part of speech as the answer.\n"
+    "- You MUST NOT use words from the answer or inflected forms of those words in the clue.\n"
+    "- Avoid reusing prefixes and suffixes from the answer in the clue.\n"
+    "- Avoid reusing words from the puzzle in the clue.\n"
+    "- You MUST NOT define the answer by example.\n"
+    "- You MUST NOT editorialize.\n"
+    "- You MUST NOT create single-word clues.\n"
+    "- You MUST use a mix of diverse clue styles.\n"
+    "- You MUST capitalize the first word of every clue."
+)
 
 
 @dataclass(frozen=True)
@@ -249,6 +261,7 @@ def build_clue_payload(
                     "Review your work by evaluating whether each clue is a clear reference to the provided answer. "
                     "The clue should present some challenge to the player but not be an obsure reference. "
                     "Return only a JSON object with one key, 'clues', whose value is an array of two distinct clue strings.\n\n"
+                    f"{CLUE_RULES}\n\n"
                     "Study these contrasting examples of high-quality clues and match their standard of specificity and snap:\n"
                     f"{QUALITY_EXAMPLES}"
                 ),
@@ -258,6 +271,7 @@ def build_clue_payload(
                 "content": (
                     f"Answer: {answer.strip()}\n"
                     f"Return exactly {count} standalone clues. "
+                    f"{CLUE_RULES}\n"
                     "Return only a JSON object with one key, 'clues'."
                 ),
             },
