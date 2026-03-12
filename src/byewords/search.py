@@ -9,6 +9,7 @@ from byewords.types import Grid, ProgressCallback, ProgressUpdate
 PositionLetterIndex = tuple[dict[str, int], ...]
 PrefixExtensionIndex = dict[str, frozenset[str]]
 PrefixRowMaskIndex = tuple[dict[str, int], ...]
+RowScoreMap = dict[str, float]
 
 
 @dataclass(frozen=True)
@@ -191,6 +192,7 @@ def valid_next_rows(
     fixed_rows: dict[int, str] | None = None,
     fixed_columns: dict[int, str] | None = None,
     search_index: SearchIndex | None = None,
+    row_scores: RowScoreMap | None = None,
     stats: SearchStats | None = None,
 ) -> tuple[str, ...]:
     next_index = len(partial_rows)
@@ -216,14 +218,20 @@ def valid_next_rows(
     if not matching_rows_mask:
         return ()
 
-    valid_rows: list[tuple[tuple[int, int, tuple[int, ...]], str]] = []
+    valid_rows: list[tuple[float, tuple[int, int, tuple[int, ...]], str]] = []
     for candidate in _iter_masked_rows(matching_rows_mask, search_index.candidate_words):
         next_prefixes = _next_prefixes(partial_rows, candidate)
-        valid_rows.append((_prefix_branching_score(next_prefixes, prefix_index), candidate))
+        valid_rows.append(
+            (
+                row_scores.get(candidate, 0.0) if row_scores is not None else 0.0,
+                _prefix_branching_score(next_prefixes, prefix_index),
+                candidate,
+            )
+        )
         if stats is not None:
             stats.candidate_rows_ranked += 1
-    valid_rows.sort(key=lambda item: (item[0], item[1]))
-    return tuple(row for _, row in valid_rows)
+    valid_rows.sort(key=lambda item: (-item[0], item[1], item[2]))
+    return tuple(row for _, _, row in valid_rows)
 
 
 def search_grids(
@@ -234,6 +242,7 @@ def search_grids(
     fixed_rows: dict[int, str] | None = None,
     fixed_columns: dict[int, str] | None = None,
     search_index: SearchIndex | None = None,
+    row_scores: RowScoreMap | None = None,
     stats: SearchStats | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[Grid, ...]:
@@ -293,17 +302,22 @@ def search_grids(
             )
             next_rows = ()
             if matching_rows_mask:
-                ranked_rows: list[tuple[tuple[int, int, tuple[int, ...]], str, int]] = []
+                ranked_rows: list[tuple[float, tuple[int, int, tuple[int, ...]], str, int]] = []
                 for candidate in _iter_masked_rows(matching_rows_mask, search_index.candidate_words):
                     row_bit = search_index.row_bits[candidate]
                     next_prefixes = _next_prefixes(partial_rows, candidate)
                     ranked_rows.append(
-                        (_prefix_branching_score(next_prefixes, prefix_index), candidate, row_bit)
+                        (
+                            row_scores.get(candidate, 0.0) if row_scores is not None else 0.0,
+                            _prefix_branching_score(next_prefixes, prefix_index),
+                            candidate,
+                            row_bit,
+                        )
                     )
                     if stats is not None:
                         stats.candidate_rows_ranked += 1
-                ranked_rows.sort(key=lambda item: (item[0], item[1]))
-                for _, candidate, row_bit in ranked_rows[:beam_width]:
+                ranked_rows.sort(key=lambda item: (-item[0], item[1], item[2]))
+                for _, _, candidate, row_bit in ranked_rows[:beam_width]:
                     search(partial_rows + (candidate,), remaining_rows_mask & ~row_bit)
                     if len(found_grids) >= max_candidates:
                         return

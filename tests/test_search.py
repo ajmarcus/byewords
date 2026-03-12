@@ -159,6 +159,21 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(stats.candidate_rows_ranked, 1)
         self.assertEqual(stats.mask_intersections, 5)
 
+    def test_valid_next_rows_orders_viable_rows_by_semantic_score_before_branching(self) -> None:
+        prefix_index = build_prefix_index(TEST_LEXICON)
+
+        next_rows = valid_next_rows(
+            (),
+            TEST_GRID_ROWS,
+            prefix_index,
+            row_scores={
+                "eases": 0.5,
+                "adieu": 0.3,
+            },
+        )
+
+        self.assertEqual(next_rows, ("eases", "adieu"))
+
     def test_search_grids_reports_bounded_search_work_on_benchmark_corpus(self) -> None:
         prefix_index = build_prefix_index(TEST_LEXICON)
         candidate_words = TEST_GRID_ROWS + _benchmark_decoys()

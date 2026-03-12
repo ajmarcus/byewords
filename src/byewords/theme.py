@@ -185,6 +185,25 @@ def score_word_for_seed(
     return max(_cosine_similarity(normalized_word, seed, vectors) for seed in normalized_seeds)
 
 
+def seed_relevance_scores(
+    words: tuple[str, ...],
+    seeds: tuple[str, ...],
+    vectors: WordVectorTable,
+) -> dict[str, float]:
+    normalized_seeds = normalize_seeds(seeds)
+    if not normalized_seeds:
+        return {}
+    missing_seeds = tuple(seed for seed in normalized_seeds if seed not in vectors.vectors)
+    if missing_seeds:
+        missing_text = ", ".join(word.upper() for word in missing_seeds)
+        raise ValueError(f"missing vector for word: {missing_text}")
+    return {
+        word: score_word_for_seed(word, normalized_seeds, vectors)
+        for word in dict.fromkeys(words)
+        if word in vectors.vectors
+    }
+
+
 def diversify_theme_words(
     ranked_words: tuple[str, ...],
     seeds: tuple[str, ...],
@@ -307,10 +326,7 @@ def rank_lexicon_for_seed(
     _require_lexicon_vectors(unique_lexicon, vectors)
     validated_seeds = validate_seed_words(seeds, unique_lexicon)
     preferred_set = set(preferred_words)
-    word_scores = {
-        word: score_word_for_seed(word, validated_seeds, vectors)
-        for word in unique_lexicon
-    }
+    word_scores = seed_relevance_scores(unique_lexicon, validated_seeds, vectors)
 
     def sort_key(word: str) -> tuple[int, int, float, str]:
         seed_penalty = 0 if word in validated_seeds else 1

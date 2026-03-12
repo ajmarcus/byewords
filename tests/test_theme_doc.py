@@ -47,7 +47,10 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("## Progressive implementation plan", text)
         self.assertIn("### Stage 1. Baseline measurement", text)
         self.assertIn("### Stage 7. Top-100 clue stage", text)
-        self.assertIn("current seeded generation still orders search with heuristic candidate-pool ranking rather than semantic row scores", text)
+        self.assertIn(
+            "seeded and generic runtime search now order already-legal viable rows by semantic score first and branching score second",
+            text,
+        )
         self.assertIn(
             "completed-grid scoring can now add vector-backed `theme_score` during runtime ranking when the bundled table matches the active lexicon",
             text,
@@ -73,9 +76,9 @@ class TestThemeDoc(unittest.TestCase):
             "theme-bearing subset metadata is now surfaced on ranked runtime candidates and reused by the offline puzzle store",
             text,
         )
-        self.assertIn("semantic row ordering is still not wired into the runtime search hot path", text)
+        self.assertIn("semantic row ordering is now wired into the runtime search hot path without changing legality pruning", text)
         self.assertIn(
-            "semantic vector loading and completed-grid reranking are now wired into seeded selection when the bundled table matches the active lexicon",
+            "semantic vector loading, viable-row ordering, and completed-grid reranking are now wired into seeded selection when the bundled table matches the active lexicon",
             text,
         )
         self.assertIn("## Appendix: Research papers", text)

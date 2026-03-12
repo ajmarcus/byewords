@@ -2,6 +2,7 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import cast
 from unittest.mock import patch
 
 from byewords.generate import (
@@ -14,7 +15,7 @@ from byewords.generate import (
 from byewords.grid import distinct_entries, make_grid
 from byewords.theme import lexicon_hash, load_word_vectors
 from byewords.types import ProgressUpdate
-from tests.fixtures import TEST_LEXICON
+from tests.fixtures import TEST_GRID_ROWS, TEST_LEXICON
 
 
 def _write_vector_table(
@@ -226,6 +227,62 @@ class TestGenerate(unittest.TestCase):
             )
 
         self.assertEqual(puzzles[0].grid, themed_grid)
+
+    def test_find_candidate_grids_passes_vector_backed_row_scores_into_seeded_search(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "vectors.json"
+            _write_vector_table(
+                path,
+                TEST_LEXICON,
+                {
+                    "adieu": [1, 0, 0, 0],
+                    "booed": [1, 1, 0, 0],
+                    "antra": [1, 2, 0, 0],
+                    "snail": [4, 0, 0, 0],
+                    "eases": [2, 1, 0, 0],
+                    "abase": [1, 0, 1, 0],
+                    "donna": [1, 0, 2, 0],
+                    "iotas": [0, 1, 1, 0],
+                    "eerie": [0, 1, 2, 0],
+                    "udals": [0, 0, 1, 1],
+                },
+            )
+            vectors = load_word_vectors(str(path))
+
+        observed_scores: list[dict[str, float] | None] = []
+
+        def fake_seeded_search(**kwargs: object) -> tuple[object, ...]:
+            row_scores = kwargs.get("row_scores")
+            if isinstance(row_scores, dict) and all(
+                isinstance(word, str) and isinstance(score, int | float)
+                for word, score in row_scores.items()
+            ):
+                observed_scores.append(cast(dict[str, float], row_scores))
+            else:
+                observed_scores.append(None)
+            return ()
+
+        with patch("byewords.generate._load_semantic_vectors", return_value=vectors), patch(
+            "byewords.generate._search_seeded_grids",
+            side_effect=fake_seeded_search,
+        ), patch(
+            "byewords.generate.search_grids",
+            return_value=(make_grid(TEST_GRID_ROWS),),
+        ):
+            puzzles = generate_puzzle_candidates(
+                seeds=("snail",),
+                lexicon_words=TEST_LEXICON,
+                clue_bank={},
+            )
+
+        self.assertTrue(observed_scores)
+        first_scores = observed_scores[0]
+        self.assertIsNotNone(first_scores)
+        if first_scores is None:
+            raise AssertionError("expected semantic row scores")
+        self.assertAlmostEqual(first_scores["snail"], 1.0, places=5)
+        self.assertGreater(first_scores["antra"], first_scores["udals"])
+        self.assertEqual(puzzles[0].grid.rows, TEST_GRID_ROWS)
 
     def test_generate_puzzle_reports_progress_updates(self) -> None:
         updates: list[ProgressUpdate] = []

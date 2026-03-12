@@ -13,7 +13,14 @@ from byewords.lexicon import load_clue_bank, load_word_list
 from byewords.prefixes import build_prefix_index
 from byewords.score import rank_grids
 from byewords.search import SearchIndex, SearchStats, SearchStatsSnapshot, build_search_index, search_grids
-from byewords.theme import WordVectorTable, build_candidate_pool, lexicon_hash, load_word_vectors, normalize_seeds
+from byewords.theme import (
+    WordVectorTable,
+    build_candidate_pool,
+    lexicon_hash,
+    load_word_vectors,
+    normalize_seeds,
+    seed_relevance_scores,
+)
 from byewords.types import (
     CandidateGrid,
     GenerateConfig,
@@ -119,6 +126,7 @@ def _search_seeded_grids(
     seed_words: tuple[str, ...],
     beam_width: int,
     max_candidates: int,
+    row_scores: dict[str, float] | None = None,
     stats: SearchStats | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[Grid, ...]:
@@ -141,6 +149,7 @@ def _search_seeded_grids(
                     max_candidates=per_anchor_limit,
                     fixed_rows={row_index: seed},
                     search_index=search_index,
+                    row_scores=row_scores,
                     stats=stats,
                     progress_callback=progress_callback,
                 ),
@@ -162,6 +171,7 @@ def _search_seeded_grids(
                     max_candidates=per_anchor_limit,
                     fixed_columns={column_index: seed},
                     search_index=search_index,
+                    row_scores=row_scores,
                     stats=stats,
                     progress_callback=progress_callback,
                 ),
@@ -284,6 +294,16 @@ def _load_semantic_vectors(
     return vectors if all(word in vectors.vectors for word in unique_lexicon) else None
 
 
+def _semantic_row_scores(
+    lexicon_words: tuple[str, ...],
+    available_seeds: tuple[str, ...],
+    semantic_vectors: WordVectorTable | None,
+) -> dict[str, float] | None:
+    if semantic_vectors is None or not available_seeds:
+        return None
+    return seed_relevance_scores(lexicon_words, available_seeds, semantic_vectors)
+
+
 def _find_candidate_grids(
     seeds: tuple[str, ...],
     lexicon_words: tuple[str, ...],
@@ -308,6 +328,8 @@ def _find_candidate_grids(
     prefix_index = build_prefix_index(lexicon_words)
     candidate_windows = _candidate_windows(candidate_words)
     candidate_window_indexes = _candidate_window_indexes(candidate_windows, prefix_index)
+    semantic_vectors = _load_semantic_vectors(lexicon_words, available_seeds)
+    row_scores = _semantic_row_scores(lexicon_words, available_seeds, semantic_vectors)
     grids: tuple[Grid, ...] = ()
     seed_word_set = set(available_seeds)
     if seed_word_set:
@@ -323,6 +345,7 @@ def _find_candidate_grids(
                 seed_words=available_seeds,
                 beam_width=config.beam_width,
                 max_candidates=config.max_candidates,
+                row_scores=row_scores,
                 progress_callback=progress_callback,
             )
             if attempt:
@@ -341,6 +364,7 @@ def _find_candidate_grids(
                 beam_width=config.beam_width,
                 max_candidates=config.max_candidates,
                 search_index=search_index,
+                row_scores=row_scores,
                 progress_callback=progress_callback,
             )
             if attempt:
@@ -361,6 +385,7 @@ def _find_candidate_grids(
                     seed_words=available_seeds,
                     beam_width=broadened_beam_width,
                     max_candidates=config.max_candidates,
+                    row_scores=row_scores,
                     progress_callback=progress_callback,
                 )
                 if attempt:
@@ -379,6 +404,7 @@ def _find_candidate_grids(
                     beam_width=broadened_beam_width,
                     max_candidates=config.max_candidates,
                     search_index=search_index,
+                    row_scores=row_scores,
                     progress_callback=progress_callback,
                 )
                 if attempt:
@@ -445,6 +471,8 @@ def benchmark_generation(
     prefix_index = build_prefix_index(lexicon_words)
     candidate_windows = _candidate_windows(candidate_words)
     candidate_window_indexes = _candidate_window_indexes(candidate_windows, prefix_index)
+    semantic_vectors = _load_semantic_vectors(lexicon_words, available_seeds)
+    row_scores = _semantic_row_scores(lexicon_words, available_seeds, semantic_vectors)
     seed_word_set = set(available_seeds)
     attempts: list[SearchAttemptReport] = []
     grids: tuple[Grid, ...] = ()
@@ -458,6 +486,7 @@ def benchmark_generation(
                 seed_words=available_seeds,
                 beam_width=config.beam_width,
                 max_candidates=config.max_candidates,
+                row_scores=row_scores,
                 stats=stats,
             )
             attempts.append(
@@ -482,6 +511,7 @@ def benchmark_generation(
                 beam_width=config.beam_width,
                 max_candidates=config.max_candidates,
                 search_index=search_index,
+                row_scores=row_scores,
                 stats=stats,
             )
             attempts.append(
@@ -508,6 +538,7 @@ def benchmark_generation(
                     seed_words=available_seeds,
                     beam_width=broadened_beam_width,
                     max_candidates=config.max_candidates,
+                    row_scores=row_scores,
                     stats=stats,
                 )
                 attempts.append(
@@ -531,6 +562,7 @@ def benchmark_generation(
                     beam_width=broadened_beam_width,
                     max_candidates=config.max_candidates,
                     search_index=search_index,
+                    row_scores=row_scores,
                     stats=stats,
                 )
                 attempts.append(
@@ -546,7 +578,6 @@ def benchmark_generation(
                     grids = attempt
                     break
 
-    semantic_vectors = _load_semantic_vectors(lexicon_words, available_seeds)
     selected_grid = (
         _select_best_grid(grids, available_seeds, semantic_vectors)
         if grids

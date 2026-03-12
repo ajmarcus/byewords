@@ -65,7 +65,7 @@ What remains before the offline pipeline is doing the intended job:
 Working conclusion:
 
 - the existing search counters appear sufficient for the semantic rollout
-- the next implementation chunk should focus on semantic row ordering in the runtime search path rather than more answer-only infrastructure
+- the next implementation chunk should focus on runtime budget enforcement and benchmark-corpus review rather than more answer-only infrastructure
 
 ## Findings from experiments
 
@@ -485,8 +485,9 @@ Decision gate:
 
 Status update:
 
-- not started in the runtime path
-- current seeded generation still orders search with heuristic candidate-pool ranking rather than semantic row scores
+- partially complete
+- seeded and generic runtime search now order already-legal viable rows by semantic score first and branching score second when bundled vectors match the active lexicon
+- lightweight MMR-style novelty penalties and before/after search counters are still missing
 
 ### Stage 4. Quality gates and answer-only scoring
 
@@ -513,7 +514,7 @@ Status update:
 - completed-grid scoring can now add vector-backed `theme_score` during runtime ranking when the bundled table matches the active lexicon
 - explicit fill-quality gates and weakest-link thresholds now reject weak completed grids during runtime ranking
 - theme-bearing subset metadata is now surfaced on ranked runtime candidates and reused by the offline puzzle store
-- semantic row ordering is still not wired into the runtime search hot path
+- semantic row ordering is now wired into the runtime search hot path without changing legality pruning
 
 ### Stage 5. Runtime path
 
@@ -536,8 +537,8 @@ Status update:
 
 - partially complete for the non-semantic path
 - seeded runtime generation, fallback search windows, and cache reuse exist today
-- semantic vector loading and completed-grid reranking are now wired into seeded selection when the bundled table matches the active lexicon
-- semantic row ordering and explicit runtime budget enforcement are not wired into the hot path yet
+- semantic vector loading, viable-row ordering, and completed-grid reranking are now wired into seeded selection when the bundled table matches the active lexicon
+- explicit runtime budget enforcement and theme-coherence telemetry are still not wired into the hot path
 
 ### Stage 6. Offline lexicon-wide generation
 
