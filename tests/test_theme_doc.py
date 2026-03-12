@@ -48,7 +48,10 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("### Stage 1. Baseline measurement", text)
         self.assertIn("### Stage 7. Top-100 clue stage", text)
         self.assertIn("current seeded generation still orders search with heuristic candidate-pool ranking rather than semantic row scores", text)
-        self.assertIn("current grid scoring still uses simple fill and diversity heuristics, with `theme_score = 0.0`", text)
+        self.assertIn(
+            "completed-grid scoring can now add vector-backed `theme_score` during runtime ranking when the bundled table matches the active lexicon",
+            text,
+        )
         self.assertIn("the offline cache now stores real per-seed winners together with answer-only metadata", text)
         self.assertIn(
             "the offline cache can now retain multiple answer-only candidates per seed before later top-100 clue selection",
@@ -58,6 +61,10 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("write lexicon-wide cached puzzle records to `src/byewords/data/puzzles.json`", text)
         self.assertIn("with no seeds: build or refresh the offline `puzzles.json` cache", text)
         self.assertIn("Decision gate:", text)
+        self.assertIn(
+            "semantic vector loading and completed-grid reranking are now wired into seeded selection when the bundled table matches the active lexicon",
+            text,
+        )
         self.assertIn("## Appendix: Research papers", text)
         self.assertIn("https://aclanthology.org/N10-1012/", text)
         self.assertIn("https://aclanthology.org/P18-2088/", text)

@@ -13,7 +13,7 @@ from byewords.lexicon import load_clue_bank, load_word_list
 from byewords.prefixes import build_prefix_index
 from byewords.score import rank_grids
 from byewords.search import SearchIndex, SearchStats, SearchStatsSnapshot, build_search_index, search_grids
-from byewords.theme import build_candidate_pool, normalize_seeds
+from byewords.theme import WordVectorTable, build_candidate_pool, lexicon_hash, load_word_vectors, normalize_seeds
 from byewords.types import (
     CandidateGrid,
     GenerateConfig,
@@ -221,9 +221,10 @@ def _emit_progress(
 
 def _select_best_grid(
     grids: tuple[Grid, ...],
-    seed_word_set: set[str],
+    available_seeds: tuple[str, ...],
+    semantic_vectors: WordVectorTable | None = None,
 ) -> Grid:
-    ranked = _rank_candidate_grids(grids, seed_word_set)
+    ranked = _rank_candidate_grids(grids, available_seeds, semantic_vectors)
     if not ranked:
         raise ValueError("unable to generate a valid 5x5 puzzle from the current lexicon")
     return ranked[0].grid
@@ -231,9 +232,11 @@ def _select_best_grid(
 
 def _rank_candidate_grids(
     grids: tuple[Grid, ...],
-    seed_word_set: set[str],
+    available_seeds: tuple[str, ...],
+    semantic_vectors: WordVectorTable | None = None,
 ) -> tuple[CandidateGrid, ...]:
-    ranked = rank_grids(grids)
+    seed_word_set = set(available_seeds)
+    ranked = rank_grids(grids, seeds=available_seeds, vectors=semantic_vectors)
     return tuple(
         sorted(
             ranked,
@@ -263,6 +266,22 @@ def _build_puzzle_from_grid(
         theme_words=chosen_seed_words,
         title=_select_title(available_seeds, grid),
     )
+
+
+def _load_semantic_vectors(
+    lexicon_words: tuple[str, ...],
+    available_seeds: tuple[str, ...],
+) -> WordVectorTable | None:
+    if not available_seeds:
+        return None
+    try:
+        vectors = load_word_vectors(_data_path("word_vectors.json"))
+    except (FileNotFoundError, ValueError):
+        return None
+    unique_lexicon = tuple(dict.fromkeys(lexicon_words))
+    if vectors.lexicon_hash != lexicon_hash(unique_lexicon):
+        return None
+    return vectors if all(word in vectors.vectors for word in unique_lexicon) else None
 
 
 def _find_candidate_grids(
@@ -382,8 +401,8 @@ def generate_puzzle_candidates(
         config,
         progress_callback=progress_callback,
     )
-    seed_word_set = set(available_seeds)
-    ranked_grids = _rank_candidate_grids(grids, seed_word_set)
+    semantic_vectors = _load_semantic_vectors(lexicon_words, available_seeds)
+    ranked_grids = _rank_candidate_grids(grids, available_seeds, semantic_vectors)
     if not ranked_grids:
         raise ValueError("unable to generate a valid 5x5 puzzle from the current lexicon")
     return tuple(
@@ -527,7 +546,12 @@ def benchmark_generation(
                     grids = attempt
                     break
 
-    selected_grid = _select_best_grid(grids, seed_word_set) if grids else None
+    semantic_vectors = _load_semantic_vectors(lexicon_words, available_seeds)
+    selected_grid = (
+        _select_best_grid(grids, available_seeds, semantic_vectors)
+        if grids
+        else None
+    )
     selected_theme_words = (
         tuple(seed for seed in available_seeds if seed in distinct_entries(selected_grid))
         if selected_grid is not None

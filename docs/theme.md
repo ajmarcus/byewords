@@ -39,6 +39,7 @@ Implemented now:
 - `SearchStatsSnapshot` captures deterministic counters without mutating the runtime search behavior
 - regression tests cover seeded, unseeded, and demo-grid benchmark cases
 - Stage 2 vector loading now exists with a bundled `word_vectors.json` table and deterministic whole-lexicon ranking APIs
+- completed-grid ranking can now add vector-backed theme scores when the bundled table matches the active lexicon
 - the CLI now supports an offline-first cache build that writes lexicon-wide puzzle records to `src/byewords/data/puzzles.json`
 - the offline cache path now performs real per-seed puzzle generation and stores answer-only metadata for each retained record
 - the offline cache now retains a bounded top-N answer-only candidate set per seed before final clue-stage curation
@@ -508,9 +509,9 @@ Decision gate:
 
 Status update:
 
-- partially started only at the metadata level
-- current grid scoring still uses simple fill and diversity heuristics, with `theme_score = 0.0`
-- weakest-link coherence, theme-bearing subset selection, and diversity-aware semantic reranking are still missing
+- partially complete
+- completed-grid scoring can now add vector-backed `theme_score` during runtime ranking when the bundled table matches the active lexicon
+- explicit fill-quality gates, weakest-link thresholds, and surfaced theme-bearing subset metadata are still incomplete in the runtime path
 
 ### Stage 5. Runtime path
 
@@ -533,7 +534,8 @@ Status update:
 
 - partially complete for the non-semantic path
 - seeded runtime generation, fallback search windows, and cache reuse exist today
-- semantic vector loading, semantic row ordering, and explicit runtime budget enforcement are not wired into the hot path yet
+- semantic vector loading and completed-grid reranking are now wired into seeded selection when the bundled table matches the active lexicon
+- semantic row ordering and explicit runtime budget enforcement are not wired into the hot path yet
 
 ### Stage 6. Offline lexicon-wide generation
 

@@ -1,3 +1,4 @@
+import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -7,11 +8,33 @@ from byewords.generate import (
     DEFAULT_DEMO_ENTRIES,
     benchmark_generation,
     generate_puzzle,
+    generate_puzzle_candidates,
     generate_puzzle_cached,
 )
-from byewords.grid import distinct_entries
+from byewords.grid import distinct_entries, make_grid
+from byewords.theme import lexicon_hash, load_word_vectors
 from byewords.types import ProgressUpdate
 from tests.fixtures import TEST_LEXICON
+
+
+def _write_vector_table(
+    path: Path,
+    lexicon: tuple[str, ...],
+    vectors: dict[str, list[int]],
+) -> None:
+    dimensions = len(next(iter(vectors.values())))
+    payload = {
+        "version": 1,
+        "source": "unit-test-vectors",
+        "dimensions": dimensions,
+        "lexicon_hash": lexicon_hash(lexicon),
+        "quantization": {
+            "scheme": "int8",
+            "scale": 0.25,
+        },
+        "vectors": vectors,
+    }
+    path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
 
 
 class TestGenerate(unittest.TestCase):
@@ -162,6 +185,44 @@ class TestGenerate(unittest.TestCase):
 
         self.assertEqual(puzzle.title, "SNAIL Mini")
         self.assertIn("snail", distinct_entries(puzzle.grid))
+
+    def test_generate_puzzle_candidates_uses_semantic_grid_ranking_when_vectors_match(self) -> None:
+        neutral_grid = make_grid(("abcde", "fghij", "klmno", "pqrst", "uvwxy"))
+        themed_grid = make_grid(("zebra", "cumin", "vodka", "glyph", "fjord"))
+
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "vectors.json"
+            neutral_entries = distinct_entries(neutral_grid)
+            themed_entries = distinct_entries(themed_grid)
+            lexicon = ("beach",) + neutral_entries + themed_entries
+            _write_vector_table(
+                path,
+                lexicon,
+                {
+                    "beach": [4, 0, 0, 0],
+                    **{word: [0, 0, 4, 0] for word in neutral_entries},
+                    **{word: [4, 1, 0, 0] for word in themed_entries},
+                },
+            )
+            vectors = load_word_vectors(str(path))
+
+        with patch(
+            "byewords.generate._find_candidate_grids",
+            return_value=((neutral_grid, themed_grid), ("beach",)),
+        ), patch("byewords.generate._load_semantic_vectors", return_value=vectors), patch(
+            "byewords.score.score_fill_quality",
+            return_value=1.0,
+        ), patch(
+            "byewords.score.score_entry_diversity",
+            return_value=1.0,
+        ):
+            puzzles = generate_puzzle_candidates(
+                seeds=("beach",),
+                lexicon_words=lexicon,
+                clue_bank={},
+            )
+
+        self.assertEqual(puzzles[0].grid, themed_grid)
 
     def test_generate_puzzle_reports_progress_updates(self) -> None:
         updates: list[ProgressUpdate] = []
