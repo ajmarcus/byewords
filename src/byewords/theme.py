@@ -3,11 +3,17 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from itertools import combinations
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 from byewords.lexicon import normalize_word
+from byewords.types import ThemeScoreBreakdown
+
+DEFAULT_THEME_WORD_LIMIT = 4
+DEFAULT_MMR_LAMBDA = 0.8
+DEFAULT_REDUNDANCY_THRESHOLD = 0.9
 
 
 @dataclass(frozen=True)
@@ -177,6 +183,118 @@ def score_word_for_seed(
     if not normalized_seeds:
         return 0.0
     return max(_cosine_similarity(normalized_word, seed, vectors) for seed in normalized_seeds)
+
+
+def diversify_theme_words(
+    ranked_words: tuple[str, ...],
+    seeds: tuple[str, ...],
+    vectors: WordVectorTable,
+    limit: int,
+    mmr_lambda: float = DEFAULT_MMR_LAMBDA,
+    redundancy_threshold: float = DEFAULT_REDUNDANCY_THRESHOLD,
+) -> tuple[str, ...]:
+    if limit <= 0:
+        return ()
+    normalized_seeds = normalize_seeds(seeds)
+    if not normalized_seeds:
+        return ()
+
+    candidates = tuple(
+        word
+        for word in dict.fromkeys(ranked_words)
+        if word in vectors.vectors and word not in normalized_seeds
+    )
+    if not candidates:
+        return ()
+
+    relevance_scores = {
+        word: score_word_for_seed(word, normalized_seeds, vectors)
+        for word in candidates
+    }
+    selected: list[str] = []
+    remaining = list(candidates)
+
+    while remaining and len(selected) < limit:
+        scored_words: list[tuple[float, float, str]] = []
+        for word in remaining:
+            redundancy = max(
+                (_cosine_similarity(word, selected_word, vectors) for selected_word in selected),
+                default=0.0,
+            )
+            mmr_score = mmr_lambda * relevance_scores[word] - (1.0 - mmr_lambda) * redundancy
+            scored_words.append((mmr_score, relevance_scores[word], word))
+
+        _, relevance_score, chosen_word = min(
+            scored_words,
+            key=lambda item: (-item[0], -item[1], item[2]),
+        )
+        if relevance_score <= 0.0:
+            break
+        if selected:
+            max_similarity = max(
+                _cosine_similarity(chosen_word, selected_word, vectors)
+                for selected_word in selected
+            )
+            if max_similarity >= redundancy_threshold:
+                remaining.remove(chosen_word)
+                continue
+        selected.append(chosen_word)
+        remaining.remove(chosen_word)
+
+    return tuple(selected)
+
+
+def score_theme_subset(
+    words: tuple[str, ...],
+    seeds: tuple[str, ...],
+    vectors: WordVectorTable,
+    limit: int = DEFAULT_THEME_WORD_LIMIT,
+) -> ThemeScoreBreakdown:
+    normalized_seeds = normalize_seeds(seeds)
+    if not normalized_seeds or limit <= 0:
+        return ThemeScoreBreakdown((), 0.0, 0.0, 0.0, 0.0)
+
+    candidate_words = tuple(
+        word
+        for word in dict.fromkeys(words)
+        if word in vectors.vectors and word not in normalized_seeds
+    )
+    if not candidate_words:
+        return ThemeScoreBreakdown((), 0.0, 0.0, 0.0, 0.0)
+
+    relevance_scores = {
+        word: score_word_for_seed(word, normalized_seeds, vectors)
+        for word in candidate_words
+    }
+    ranked_words = tuple(
+        sorted(candidate_words, key=lambda word: (-relevance_scores[word], word))
+    )
+    selected_words = diversify_theme_words(ranked_words, normalized_seeds, vectors, limit)
+    if not selected_words:
+        return ThemeScoreBreakdown((), 0.0, 0.0, 0.0, 0.0)
+
+    mean_relevance = sum(relevance_scores[word] for word in selected_words) / len(selected_words)
+    if len(selected_words) == 1:
+        weakest_link = mean_relevance
+        diversity = 0.0
+    else:
+        pairwise_similarities = tuple(
+            _cosine_similarity(left_word, right_word, vectors)
+            for left_word, right_word in combinations(selected_words, 2)
+        )
+        weakest_link = min(pairwise_similarities)
+        diversity = sum((1.0 - similarity) / 2.0 for similarity in pairwise_similarities) / len(
+            pairwise_similarities
+        )
+
+    total = mean_relevance + weakest_link + diversity
+    return ThemeScoreBreakdown(
+        selected_words=selected_words,
+        mean_relevance=mean_relevance,
+        weakest_link=weakest_link,
+        diversity=diversity,
+        total=total,
+    )
 
 
 def rank_lexicon_for_seed(

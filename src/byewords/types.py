@@ -44,6 +44,15 @@ class CandidateGrid:
 
 
 @dataclass(frozen=True)
+class ThemeScoreBreakdown:
+    selected_words: tuple[str, ...]
+    mean_relevance: float
+    weakest_link: float
+    diversity: float
+    total: float
+
+
+@dataclass(frozen=True)
 class GenerateConfig:
     max_candidates: int = 500
     beam_width: int = 25

@@ -5,11 +5,13 @@ from tempfile import TemporaryDirectory
 
 from byewords.theme import (
     build_candidate_pool,
+    diversify_theme_words,
     lexicon_hash,
     load_word_vectors,
     normalize_seeds,
     rank_lexicon_for_seed,
     rank_theme_candidates,
+    score_theme_subset,
     score_word_for_seed,
     validate_seed_words,
 )
@@ -117,6 +119,77 @@ class TestTheme(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "missing lexicon entries: MUSIC"):
             rank_lexicon_for_seed(("beach",), ("beach", "music"), vectors)
+
+    def test_diversify_theme_words_skips_near_duplicate_answers(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "vectors.json"
+            lexicon = ("beach", "coast", "music", "ocean", "waves")
+            _write_vector_table(
+                path,
+                lexicon,
+                {
+                    "beach": [4, 0, 0, 0],
+                    "coast": [6, 4, 0, 0],
+                    "music": [0, 0, 4, 0],
+                    "ocean": [4, 1, 0, 0],
+                    "waves": [2, 3, 0, 0],
+                },
+            )
+
+            vectors = load_word_vectors(str(path))
+            diversified = diversify_theme_words(
+                ("ocean", "coast", "waves", "music"),
+                ("beach",),
+                vectors,
+                limit=4,
+            )
+
+        self.assertEqual(diversified, ("ocean", "waves"))
+
+    def test_score_theme_subset_selects_theme_bearing_answers(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "vectors.json"
+            lexicon = ("beach", "coast", "music", "ocean", "waves")
+            _write_vector_table(
+                path,
+                lexicon,
+                {
+                    "beach": [4, 0, 0, 0],
+                    "coast": [6, 4, 0, 0],
+                    "music": [0, 0, 4, 0],
+                    "ocean": [4, 1, 0, 0],
+                    "waves": [2, 3, 0, 0],
+                },
+            )
+
+            vectors = load_word_vectors(str(path))
+            breakdown = score_theme_subset(lexicon, ("beach",), vectors)
+
+        self.assertEqual(breakdown.selected_words, ("ocean", "waves"))
+        self.assertGreater(breakdown.mean_relevance, 0.75)
+        self.assertGreater(breakdown.weakest_link, 0.7)
+        self.assertGreaterEqual(breakdown.diversity, 0.0)
+        self.assertGreater(breakdown.total, 1.5)
+
+    def test_score_theme_subset_returns_zero_without_related_answers(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "vectors.json"
+            lexicon = ("beach", "music", "piano")
+            _write_vector_table(
+                path,
+                lexicon,
+                {
+                    "beach": [4, 0, 0, 0],
+                    "music": [0, 4, 0, 0],
+                    "piano": [0, 3, 1, 0],
+                },
+            )
+
+            vectors = load_word_vectors(str(path))
+            breakdown = score_theme_subset(("beach", "music", "piano"), ("beach",), vectors)
+
+        self.assertEqual(breakdown.selected_words, ())
+        self.assertEqual(breakdown.total, 0.0)
 
     def test_rank_theme_candidates_is_deterministic(self) -> None:
         ranked = rank_theme_candidates(("snail",), ("shell", "snail", "slime"))
