@@ -41,6 +41,7 @@ Implemented now:
 - Stage 2 vector loading now exists with a bundled `word_vectors.json` table and deterministic whole-lexicon ranking APIs
 - the CLI now supports an offline-first cache build that writes lexicon-wide puzzle records to `src/byewords/data/puzzles.json`
 - the offline cache path now performs real per-seed puzzle generation and stores answer-only metadata for each retained record
+- the offline cache now retains a bounded top-N answer-only candidate set per seed before final clue-stage curation
 - offline answer-only curation now ranks records without clue-score influence and can deterministically select a global top-100 slice from the curated seed winners
 - clue regeneration can now be forced from both the Groq clue tool and the main puzzle CLI, but clue quality is still intentionally out of the ranking path until the top-100 offline stage
 
@@ -58,7 +59,6 @@ What remains before the offline pipeline is doing the intended job:
 
 - replace the current thread-based batch execution with the planned process-based worker model
 - add theme-bearing subset selection and weakest-link coherence to completed-grid evaluation
-- persist multiple answer-only candidates per seed before any clue regeneration
 - wire clue regeneration and final curation to the deterministic global top-100 answer-only slice
 
 Working conclusion:
@@ -558,8 +558,9 @@ Status update:
 - partially complete
 - the CLI can now build `puzzles.json` across the full bundled lexicon
 - the offline cache now stores real per-seed winners together with answer-only metadata
+- the offline cache can now retain multiple answer-only candidates per seed before later top-100 clue selection
 - answer-only ranking now ignores clue score during offline curation, and a deterministic global top-100 answer-only selector now exists
-- process-based execution, intrusion evaluation, and multi-candidate per-seed retention are still missing
+- process-based execution and intrusion evaluation are still missing
 
 ### Stage 7. Top-100 clue stage
 

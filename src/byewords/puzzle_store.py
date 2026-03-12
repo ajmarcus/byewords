@@ -12,14 +12,15 @@ from typing import NotRequired, TypedDict, cast
 from uuid import UUID
 
 from byewords.cache import CluePayload, PuzzlePayload
-from byewords.generate import generate_puzzle
-from byewords.grid import distinct_entries
+from byewords.generate import generate_puzzle_candidates
+from byewords.grid import distinct_entries, make_grid
 from byewords.render import puzzle_to_dict
 from byewords.score import score_grid
 from byewords.theme import WordVectorTable, lexicon_hash, load_word_vectors, score_theme_subset
-from byewords.types import Puzzle
+from byewords.types import GenerateConfig, Puzzle
 
 _BASE62_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+DEFAULT_CANDIDATES_PER_SEED = 2
 
 
 class StoredAnswerScores(TypedDict):
@@ -86,7 +87,7 @@ def top_answer_only_records(
 ) -> tuple[tuple[str, StoredPuzzleRecord], ...]:
     if limit <= 0:
         return ()
-    curated_store = _curate_seed_records(store, preferred_version)
+    curated_store = _curate_seed_records(store, preferred_version, per_seed_limit=1)
     ranked_records = sorted(
         curated_store.items(),
         key=lambda item: _record_rank_key(item[0], item[1], preferred_version),
@@ -100,9 +101,12 @@ def build_batch_puzzle_cache(
     clue_bank: dict[str, tuple[str, ...]],
     path: Path | None = None,
     vectors: WordVectorTable | None = None,
+    candidates_per_seed: int = DEFAULT_CANDIDATES_PER_SEED,
 ) -> tuple[Path, int, int]:
+    if candidates_per_seed <= 0:
+        raise ValueError("candidates_per_seed must be positive")
     store_path = path or default_puzzle_store_path()
-    store = load_puzzle_store(store_path)
+    store = _upgrade_store_records(load_puzzle_store(store_path), vectors)
     version = puzzle_store_version(lexicon_words, clue_bank)
     semantic_vectors = _resolve_semantic_vectors(lexicon_words, vectors)
     cached_seeds = {
@@ -116,10 +120,10 @@ def build_batch_puzzle_cache(
         store = {
             public_id: record
             for public_id, record in store.items()
-            if record["seed"] not in pending_seed_set or record.get("version") == version
+            if record["seed"] not in pending_seed_set
         }
     if not pending_seeds:
-        store = _curate_seed_records(store, version)
+        store = _curate_seed_records(store, version, per_seed_limit=candidates_per_seed)
         persist_puzzle_store(store, store_path)
         return store_path, len(store), 0
 
@@ -132,16 +136,23 @@ def build_batch_puzzle_cache(
             for result in executor.map(
                 _record_for_seed_task,
                 (
-                    (seed, lexicon_words, clue_bank, version, semantic_vectors)
+                    (
+                        seed,
+                        lexicon_words,
+                        clue_bank,
+                        version,
+                        semantic_vectors,
+                        candidates_per_seed,
+                    )
                     for seed in batch
                 ),
             ):
-                if result is None:
+                if not result:
                     continue
-                public_id, record = result
-                store[public_id] = record
-                generated_records += 1
-    store = _curate_seed_records(store, version)
+                for public_id, record in result:
+                    store[public_id] = record
+                    generated_records += 1
+    store = _curate_seed_records(store, version, per_seed_limit=candidates_per_seed)
     persist_puzzle_store(store, store_path)
     return store_path, len(store), generated_records
 
@@ -161,23 +172,51 @@ def puzzle_answers_for_id(
 
 
 def _record_for_seed_task(
-    task: tuple[str, tuple[str, ...], dict[str, tuple[str, ...]], str, WordVectorTable | None],
-) -> tuple[str, StoredPuzzleRecord] | None:
-    seed, lexicon_words, clue_bank, version, semantic_vectors = task
+    task: tuple[
+        str,
+        tuple[str, ...],
+        dict[str, tuple[str, ...]],
+        str,
+        WordVectorTable | None,
+        int,
+    ],
+) -> tuple[tuple[str, StoredPuzzleRecord], ...]:
+    seed, lexicon_words, clue_bank, version, semantic_vectors, candidates_per_seed = task
     try:
-        puzzle = generate_puzzle((seed,), lexicon_words, clue_bank)
+        candidate_puzzles = generate_puzzle_candidates(
+            (seed,),
+            lexicon_words,
+            clue_bank,
+            config=GenerateConfig(max_candidates=max(candidates_per_seed * 2, candidates_per_seed)),
+        )
     except ValueError:
-        return None
-    if seed not in puzzle.theme_words:
-        return None
-    uuid_text = _uuid7_string()
-    return _make_public_id(UUID(uuid_text)), _record_from_puzzle(
-        seed,
-        puzzle,
-        version,
-        uuid_text,
-        semantic_vectors=semantic_vectors,
+        return ()
+
+    records: list[tuple[str, StoredPuzzleRecord]] = []
+    for puzzle in candidate_puzzles:
+        if seed not in puzzle.theme_words:
+            continue
+        uuid_text = _uuid7_string()
+        public_id = _make_public_id(UUID(uuid_text))
+        records.append(
+            (
+                public_id,
+                _record_from_puzzle(
+                    seed,
+                    puzzle,
+                    version,
+                    uuid_text,
+                    semantic_vectors=semantic_vectors,
+                ),
+            )
+        )
+
+    ranked_records = sorted(
+        records,
+        key=lambda item: _record_rank_key(item[0], item[1], version),
+        reverse=True,
     )
+    return tuple(ranked_records[:candidates_per_seed])
 
 
 def _record_from_puzzle(
@@ -286,19 +325,27 @@ def _vector_table_matches_lexicon(
 def _curate_seed_records(
     store: dict[str, StoredPuzzleRecord],
     preferred_version: str,
+    per_seed_limit: int = 1,
 ) -> dict[str, StoredPuzzleRecord]:
-    best_records: dict[str, tuple[str, StoredPuzzleRecord]] = {}
+    best_records: dict[str, list[tuple[str, StoredPuzzleRecord]]] = {}
     for public_id, record in store.items():
-        current = best_records.get(record["seed"])
-        if current is None or _record_rank_key(public_id, record, preferred_version) > _record_rank_key(
-            current[0],
-            current[1],
-            preferred_version,
-        ):
-            best_records[record["seed"]] = (public_id, record)
+        if not _record_has_rank_metadata(record):
+            continue
+        best_records.setdefault(record["seed"], []).append((public_id, record))
+
+    curated_records: list[tuple[str, StoredPuzzleRecord]] = []
+    for seed, records in best_records.items():
+        del seed
+        ranked = sorted(
+            records,
+            key=lambda item: _record_rank_key(item[0], item[1], preferred_version),
+            reverse=True,
+        )
+        curated_records.extend(ranked[:per_seed_limit])
+
     return {
         public_id: record
-        for public_id, record in sorted(best_records.values(), key=lambda item: item[0])
+        for public_id, record in sorted(curated_records, key=lambda item: item[0])
     }
 
 
@@ -324,3 +371,66 @@ def _answer_only_score(scores: StoredAnswerScores) -> float:
     if isinstance(stored_score, int | float):
         return float(stored_score)
     return float(scores["fill_score"] + scores["theme_score"])
+
+
+def _upgrade_store_records(
+    store: dict[str, StoredPuzzleRecord],
+    vectors: WordVectorTable | None,
+) -> dict[str, StoredPuzzleRecord]:
+    return {
+        public_id: _upgrade_store_record(record, vectors)
+        for public_id, record in store.items()
+    }
+
+
+def _upgrade_store_record(
+    record: StoredPuzzleRecord,
+    vectors: WordVectorTable | None,
+) -> StoredPuzzleRecord:
+    if _record_has_rank_metadata(record) and isinstance(record.get("answers"), list):
+        return record
+
+    raw_grid = record.get("grid")
+    if not isinstance(raw_grid, list) or len(raw_grid) != 5 or not all(
+        isinstance(row, str) for row in raw_grid
+    ):
+        return record
+    try:
+        grid = make_grid(cast(tuple[str, str, str, str, str], tuple(raw_grid)))
+    except ValueError:
+        return record
+
+    seed = record.get("seed")
+    if not isinstance(seed, str):
+        return record
+    answers = _record_answers(record)
+    scores = score_grid(grid)
+    theme_breakdown = (
+        score_theme_subset(answers, (seed,), vectors)
+        if vectors is not None and seed in vectors.vectors
+        else None
+    )
+    theme_score = theme_breakdown.total if theme_breakdown is not None else scores.theme_score
+    upgraded = dict(record)
+    upgraded["answers"] = list(answers)
+    upgraded["theme_subset"] = list(theme_breakdown.selected_words) if theme_breakdown is not None else []
+    upgraded["answer_scores"] = StoredAnswerScores(
+        fill_score=scores.fill_score,
+        theme_score=theme_score,
+        clue_score=scores.clue_score,
+        answer_only_score=scores.fill_score + theme_score,
+        total_score=scores.fill_score + theme_score + scores.clue_score,
+        seed_entry_count=sum(answer == seed for answer in answers),
+        seed_row_count=sum(row == seed for row in grid.rows),
+    )
+    return cast(StoredPuzzleRecord, upgraded)
+
+
+def _record_has_rank_metadata(record: StoredPuzzleRecord) -> bool:
+    answer_scores = record.get("answer_scores")
+    if not isinstance(answer_scores, dict):
+        return False
+    return all(
+        key in answer_scores
+        for key in ("fill_score", "theme_score", "clue_score", "seed_row_count")
+    )

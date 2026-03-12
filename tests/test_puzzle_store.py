@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+from byewords.grid import grid_columns, make_grid
 from byewords.puzzle_store import (
     build_batch_puzzle_cache,
     load_puzzle_store,
@@ -12,8 +13,9 @@ from byewords.puzzle_store import (
     puzzle_store_version,
     top_answer_only_records,
 )
+from byewords.score import score_grid
 from byewords.theme import lexicon_hash, load_word_vectors
-from byewords.types import Puzzle
+from byewords.types import Clue, Puzzle
 from tests.fixtures import TEST_LEXICON
 from tests.test_puz import build_test_puzzle
 
@@ -38,6 +40,25 @@ def _write_vector_table(
     path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
 
 
+def _build_seed_puzzle(seed: str, rows: tuple[str, str, str, str, str]) -> Puzzle:
+    grid = make_grid(rows)
+    across = tuple(
+        Clue(number=index + 1, direction="across", answer=answer, text=f"Across clue {index + 1}")
+        for index, answer in enumerate(grid.rows)
+    )
+    down = tuple(
+        Clue(number=index + 1, direction="down", answer=answer, text=f"Down clue {index + 1}")
+        for index, answer in enumerate(grid_columns(grid))
+    )
+    return Puzzle(
+        grid=grid,
+        across=across,
+        down=down,
+        theme_words=(seed,),
+        title=f"{seed.upper()} Mini",
+    )
+
+
 class TestPuzzleStore(unittest.TestCase):
     def test_build_batch_puzzle_cache_populates_one_record_per_seed(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -52,8 +73,8 @@ class TestPuzzleStore(unittest.TestCase):
             store = load_puzzle_store(store_path)
 
         self.assertEqual(written_path, store_path)
-        self.assertEqual(total_records, len(TEST_LEXICON))
-        self.assertEqual(generated_records, len(TEST_LEXICON))
+        self.assertGreaterEqual(total_records, len(TEST_LEXICON))
+        self.assertEqual(generated_records, total_records)
         self.assertEqual({record["seed"] for record in store.values()}, set(TEST_LEXICON))
         self.assertTrue(all(record["theme_words"] == [record["seed"]] for record in store.values()))
         self.assertTrue(all(len(record["answers"]) == 10 for record in store.values()))
@@ -68,21 +89,23 @@ class TestPuzzleStore(unittest.TestCase):
                 seeds: tuple[str, ...],
                 lexicon_words: tuple[str, ...],
                 clue_bank: dict[str, tuple[str, ...]],
-            ) -> Puzzle:
+                config: object | None = None,
+            ) -> tuple[Puzzle, ...]:
+                del config
                 self.assertEqual(lexicon_words, ("adieu", "snail"))
                 self.assertEqual(clue_bank, {})
                 calls.append(seeds)
                 base = build_test_puzzle()
                 seed = seeds[0]
-                return Puzzle(
+                return (Puzzle(
                     grid=base.grid,
                     across=base.across,
                     down=base.down,
                     theme_words=(seed,),
                     title=f"{seed.upper()} Mini",
-                )
+                ),)
 
-            with patch("byewords.puzzle_store.generate_puzzle", side_effect=fake_generate):
+            with patch("byewords.puzzle_store.generate_puzzle_candidates", side_effect=fake_generate):
                 _, total_records, generated_records = build_batch_puzzle_cache(
                     ("adieu", "snail"),
                     {},
@@ -101,21 +124,23 @@ class TestPuzzleStore(unittest.TestCase):
                 seeds: tuple[str, ...],
                 lexicon_words: tuple[str, ...],
                 clue_bank: dict[str, tuple[str, ...]],
-            ) -> Puzzle:
+                config: object | None = None,
+            ) -> tuple[Puzzle, ...]:
+                del config
                 self.assertEqual(lexicon_words, ("beach", "snail"))
                 self.assertEqual(clue_bank, {})
                 base = build_test_puzzle()
                 if seeds == ("snail",):
-                    return base
-                return Puzzle(
+                    return (base,)
+                return (Puzzle(
                     grid=base.grid,
                     across=base.across,
                     down=base.down,
                     theme_words=(),
                     title="BYEWORDS Mini",
-                )
+                ),)
 
-            with patch("byewords.puzzle_store.generate_puzzle", side_effect=fake_generate):
+            with patch("byewords.puzzle_store.generate_puzzle_candidates", side_effect=fake_generate):
                 _, total_records, generated_records = build_batch_puzzle_cache(
                     ("beach", "snail"),
                     {},
@@ -127,10 +152,43 @@ class TestPuzzleStore(unittest.TestCase):
         self.assertEqual(generated_records, 1)
         self.assertEqual({record["seed"] for record in store.values()}, {"snail"})
 
+    def test_build_batch_puzzle_cache_retains_multiple_answer_only_candidates_per_seed(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store_path = Path(temp_dir) / "puzzles.json"
+            puzzles = (
+                _build_seed_puzzle("snail", ("snail", "adieu", "tempo", "music", "piano")),
+                _build_seed_puzzle("snail", ("snail", "adieu", "booed", "antra", "eases")),
+                _build_seed_puzzle("snail", ("snail", "aaaaa", "bbbbb", "ccccc", "ddddd")),
+            )
+
+            with patch(
+                "byewords.puzzle_store.generate_puzzle_candidates",
+                return_value=puzzles,
+            ):
+                _, total_records, generated_records = build_batch_puzzle_cache(
+                    ("snail",),
+                    {},
+                    path=store_path,
+                    candidates_per_seed=2,
+                )
+                store = load_puzzle_store(store_path)
+
+        expected_rows = {
+            puzzle.grid.rows
+            for puzzle in sorted(
+                puzzles,
+                key=lambda puzzle: score_grid(puzzle.grid).fill_score,
+                reverse=True,
+            )[:2]
+        }
+        self.assertEqual(total_records, 2)
+        self.assertEqual(generated_records, 2)
+        self.assertEqual({tuple(record["grid"]) for record in store.values()}, expected_rows)
+
     def test_build_batch_puzzle_cache_reuses_existing_versioned_records(self) -> None:
         with TemporaryDirectory() as temp_dir:
             store_path = Path(temp_dir) / "puzzles.json"
-            build_batch_puzzle_cache(TEST_LEXICON, {}, path=store_path)
+            _, initial_total_records, _ = build_batch_puzzle_cache(TEST_LEXICON, {}, path=store_path)
 
             _, total_records, generated_records = build_batch_puzzle_cache(
                 TEST_LEXICON,
@@ -138,8 +196,44 @@ class TestPuzzleStore(unittest.TestCase):
                 path=store_path,
             )
 
-        self.assertEqual(total_records, len(TEST_LEXICON))
+        self.assertEqual(total_records, initial_total_records)
         self.assertEqual(generated_records, 0)
+
+    def test_build_batch_puzzle_cache_upgrades_legacy_records_missing_answer_scores(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store_path = Path(temp_dir) / "puzzles.json"
+            store_path.write_text(
+                json.dumps(
+                    {
+                        "legacy": {
+                            "uuid": "00000000-0000-7000-8000-000000000099",
+                            "seed": "snail",
+                            "version": puzzle_store_version(("snail",), {}),
+                            "title": "SNAIL Mini",
+                            "theme_words": ["snail"],
+                            "grid": ["snail"] * 5,
+                            "answers": ["snail"],
+                            "across": [],
+                            "down": [],
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            _, total_records, generated_records = build_batch_puzzle_cache(
+                ("snail",),
+                {},
+                path=store_path,
+                candidates_per_seed=1,
+            )
+            store = load_puzzle_store(store_path)
+
+        self.assertEqual(total_records, 1)
+        self.assertEqual(generated_records, 0)
+        self.assertIn("legacy", store)
+        record = store["legacy"]
+        self.assertIn("answer_scores", record)
 
     def test_build_batch_puzzle_cache_adds_semantic_theme_subset_when_vectors_match(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -257,6 +351,7 @@ class TestPuzzleStore(unittest.TestCase):
                 ("adieu", "snail"),
                 {},
                 path=store_path,
+                candidates_per_seed=1,
             )
             store = load_puzzle_store(store_path)
 
@@ -321,6 +416,7 @@ class TestPuzzleStore(unittest.TestCase):
                 ("snail",),
                 {},
                 path=store_path,
+                candidates_per_seed=1,
             )
             store = load_puzzle_store(store_path)
 

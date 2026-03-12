@@ -17,6 +17,7 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("store one semantic vector for every bundled word", text)
         self.assertIn("Stage 6 now has a real but still incomplete offline cache pipeline.", text)
         self.assertIn("the offline cache path now performs real per-seed puzzle generation", text)
+        self.assertIn("the offline cache now retains a bounded top-N answer-only candidate set per seed", text)
         self.assertIn("offline answer-only curation now ranks records without clue-score influence", text)
         self.assertIn("replace the current thread-based batch execution with the planned process-based worker model", text)
         self.assertIn("Scoring every word against one seed is cheap:", text)
@@ -49,6 +50,10 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("current seeded generation still orders search with heuristic candidate-pool ranking rather than semantic row scores", text)
         self.assertIn("current grid scoring still uses simple fill and diversity heuristics, with `theme_score = 0.0`", text)
         self.assertIn("the offline cache now stores real per-seed winners together with answer-only metadata", text)
+        self.assertIn(
+            "the offline cache can now retain multiple answer-only candidates per seed before later top-100 clue selection",
+            text,
+        )
         self.assertIn("answer-only ranking now ignores clue score during offline curation", text)
         self.assertIn("write lexicon-wide cached puzzle records to `src/byewords/data/puzzles.json`", text)
         self.assertIn("with no seeds: build or refresh the offline `puzzles.json` cache", text)

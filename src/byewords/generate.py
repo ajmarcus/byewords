@@ -14,7 +14,15 @@ from byewords.prefixes import build_prefix_index
 from byewords.score import rank_grids
 from byewords.search import SearchIndex, SearchStats, SearchStatsSnapshot, build_search_index, search_grids
 from byewords.theme import build_candidate_pool, normalize_seeds
-from byewords.types import GenerateConfig, Grid, ProgressCallback, ProgressStage, ProgressUpdate, Puzzle
+from byewords.types import (
+    CandidateGrid,
+    GenerateConfig,
+    Grid,
+    ProgressCallback,
+    ProgressStage,
+    ProgressUpdate,
+    Puzzle,
+)
 
 DEFAULT_DEMO_ROWS = ("ozone", "liven", "inert", "verve", "ester")
 DEFAULT_DEMO_GRID = make_grid(DEFAULT_DEMO_ROWS)
@@ -215,12 +223,173 @@ def _select_best_grid(
     grids: tuple[Grid, ...],
     seed_word_set: set[str],
 ) -> Grid:
-    ranked = rank_grids(grids)
+    ranked = _rank_candidate_grids(grids, seed_word_set)
     if not ranked:
         raise ValueError("unable to generate a valid 5x5 puzzle from the current lexicon")
-    seeded = tuple(candidate for candidate in ranked if _seed_entry_count(candidate.grid, seed_word_set) > 0)
-    seeded_rows = tuple(candidate for candidate in seeded if _seed_row_count(candidate.grid, seed_word_set) > 0)
-    return (seeded_rows[0] if seeded_rows else (seeded[0] if seeded else ranked[0])).grid
+    return ranked[0].grid
+
+
+def _rank_candidate_grids(
+    grids: tuple[Grid, ...],
+    seed_word_set: set[str],
+) -> tuple[CandidateGrid, ...]:
+    ranked = rank_grids(grids)
+    return tuple(
+        sorted(
+            ranked,
+            key=lambda candidate: (
+                -int(_seed_row_count(candidate.grid, seed_word_set) > 0),
+                -int(_seed_entry_count(candidate.grid, seed_word_set) > 0),
+                -candidate.total_score,
+                candidate.grid.rows,
+            ),
+        )
+    )
+
+
+def _build_puzzle_from_grid(
+    grid: Grid,
+    clue_bank: dict[str, tuple[str, ...]],
+    available_seeds: tuple[str, ...],
+) -> Puzzle:
+    used_clues: set[str] = set()
+    across = make_across_clues(grid, clue_bank, used_clues)
+    down = make_down_clues(grid, clue_bank, used_clues)
+    chosen_seed_words = tuple(seed for seed in available_seeds if seed in distinct_entries(grid))
+    return Puzzle(
+        grid=grid,
+        across=across,
+        down=down,
+        theme_words=chosen_seed_words,
+        title=_select_title(available_seeds, grid),
+    )
+
+
+def _find_candidate_grids(
+    seeds: tuple[str, ...],
+    lexicon_words: tuple[str, ...],
+    clue_bank: dict[str, tuple[str, ...]],
+    config: GenerateConfig,
+    progress_callback: ProgressCallback | None = None,
+) -> tuple[tuple[Grid, ...], tuple[str, ...]]:
+    normalized_seeds = normalize_seeds(seeds)
+    lexicon_set = set(lexicon_words)
+    available_seeds = tuple(seed for seed in normalized_seeds if seed in lexicon_set)
+    if _is_demo_seed_hit(available_seeds, lexicon_words):
+        return (DEFAULT_DEMO_GRID,), available_seeds
+
+    preferred_words = preferred_clue_words(clue_bank)
+    candidate_words = build_candidate_pool(
+        seeds=available_seeds,
+        theme_words=available_seeds,
+        lexicon=lexicon_words,
+        allow_neutral_fill=config.allow_neutral_fill,
+        preferred_words=preferred_words,
+    )
+    prefix_index = build_prefix_index(lexicon_words)
+    candidate_windows = _candidate_windows(candidate_words)
+    candidate_window_indexes = _candidate_window_indexes(candidate_windows, prefix_index)
+    grids: tuple[Grid, ...] = ()
+    seed_word_set = set(available_seeds)
+    if seed_word_set:
+        for search_index in candidate_window_indexes:
+            _emit_progress(
+                progress_callback,
+                "window",
+                f"Scanning top {len(search_index.candidate_words)} words",
+            )
+            attempt = _search_seeded_grids(
+                search_index=search_index,
+                prefix_index=prefix_index,
+                seed_words=available_seeds,
+                beam_width=config.beam_width,
+                max_candidates=config.max_candidates,
+                progress_callback=progress_callback,
+            )
+            if attempt:
+                grids = attempt
+                break
+    if not grids:
+        for search_index in candidate_window_indexes:
+            _emit_progress(
+                progress_callback,
+                "window",
+                f"Scanning top {len(search_index.candidate_words)} words",
+            )
+            attempt = search_grids(
+                candidate_words=search_index.candidate_words,
+                prefix_index=prefix_index,
+                beam_width=config.beam_width,
+                max_candidates=config.max_candidates,
+                search_index=search_index,
+                progress_callback=progress_callback,
+            )
+            if attempt:
+                grids = attempt
+                break
+    if not grids and len(candidate_words) > config.beam_width:
+        broadened_beam_width = min(len(candidate_words), config.beam_width * 5)
+        if seed_word_set:
+            for search_index in candidate_window_indexes:
+                _emit_progress(
+                    progress_callback,
+                    "window",
+                    f"Broadening search to top {len(search_index.candidate_words)} words",
+                )
+                attempt = _search_seeded_grids(
+                    search_index=search_index,
+                    prefix_index=prefix_index,
+                    seed_words=available_seeds,
+                    beam_width=broadened_beam_width,
+                    max_candidates=config.max_candidates,
+                    progress_callback=progress_callback,
+                )
+                if attempt:
+                    grids = attempt
+                    break
+        if not grids:
+            for search_index in candidate_window_indexes:
+                _emit_progress(
+                    progress_callback,
+                    "window",
+                    f"Broadening search to top {len(search_index.candidate_words)} words",
+                )
+                attempt = search_grids(
+                    candidate_words=search_index.candidate_words,
+                    prefix_index=prefix_index,
+                    beam_width=broadened_beam_width,
+                    max_candidates=config.max_candidates,
+                    search_index=search_index,
+                    progress_callback=progress_callback,
+                )
+                if attempt:
+                    grids = attempt
+                    break
+    return grids, available_seeds
+
+
+def generate_puzzle_candidates(
+    seeds: tuple[str, ...],
+    lexicon_words: tuple[str, ...],
+    clue_bank: dict[str, tuple[str, ...]],
+    config: GenerateConfig = GenerateConfig(),
+    progress_callback: ProgressCallback | None = None,
+) -> tuple[Puzzle, ...]:
+    grids, available_seeds = _find_candidate_grids(
+        seeds,
+        lexicon_words,
+        clue_bank,
+        config,
+        progress_callback=progress_callback,
+    )
+    seed_word_set = set(available_seeds)
+    ranked_grids = _rank_candidate_grids(grids, seed_word_set)
+    if not ranked_grids:
+        raise ValueError("unable to generate a valid 5x5 puzzle from the current lexicon")
+    return tuple(
+        _build_puzzle_from_grid(candidate.grid, clue_bank, available_seeds)
+        for candidate in ranked_grids
+    )
 
 
 def benchmark_generation(
@@ -384,118 +553,13 @@ def generate_puzzle(
     config: GenerateConfig = GenerateConfig(),
     progress_callback: ProgressCallback | None = None,
 ) -> Puzzle:
-    normalized_seeds = normalize_seeds(seeds)
-    lexicon_set = set(lexicon_words)
-    available_seeds = tuple(seed for seed in normalized_seeds if seed in lexicon_set)
-    if _is_demo_seed_hit(available_seeds, lexicon_words):
-        demo_puzzle = build_demo_puzzle(clue_bank, available_seeds)
-        _emit_progress(
-            progress_callback,
-            "solution",
-            "Loaded the demo grid",
-            demo_puzzle.grid.rows,
-        )
-        return demo_puzzle
-    preferred_words = preferred_clue_words(clue_bank)
-
-    candidate_words = build_candidate_pool(
-        seeds=available_seeds,
-        theme_words=available_seeds,
-        lexicon=lexicon_words,
-        allow_neutral_fill=config.allow_neutral_fill,
-        preferred_words=preferred_words,
-    )
-    prefix_index = build_prefix_index(lexicon_words)
-    grids: tuple[Grid, ...] = ()
-    seed_word_set = set(available_seeds)
-    candidate_windows = _candidate_windows(candidate_words)
-    candidate_window_indexes = _candidate_window_indexes(candidate_windows, prefix_index)
-    if seed_word_set:
-        for search_index in candidate_window_indexes:
-            _emit_progress(
-                progress_callback,
-                "window",
-                f"Scanning top {len(search_index.candidate_words)} words",
-            )
-            attempt = _search_seeded_grids(
-                search_index=search_index,
-                prefix_index=prefix_index,
-                seed_words=available_seeds,
-                beam_width=config.beam_width,
-                max_candidates=config.max_candidates,
-                progress_callback=progress_callback,
-            )
-            if attempt:
-                grids = attempt
-                break
-    if not grids:
-        for search_index in candidate_window_indexes:
-            _emit_progress(
-                progress_callback,
-                "window",
-                f"Scanning top {len(search_index.candidate_words)} words",
-            )
-            attempt = search_grids(
-                candidate_words=search_index.candidate_words,
-                prefix_index=prefix_index,
-                beam_width=config.beam_width,
-                max_candidates=config.max_candidates,
-                search_index=search_index,
-                progress_callback=progress_callback,
-            )
-            if attempt:
-                grids = attempt
-                break
-    if not grids and len(candidate_words) > config.beam_width:
-        broadened_beam_width = min(len(candidate_words), config.beam_width * 5)
-        if seed_word_set:
-            for search_index in candidate_window_indexes:
-                _emit_progress(
-                    progress_callback,
-                    "window",
-                    f"Broadening search to top {len(search_index.candidate_words)} words",
-                )
-                attempt = _search_seeded_grids(
-                    search_index=search_index,
-                    prefix_index=prefix_index,
-                    seed_words=available_seeds,
-                    beam_width=broadened_beam_width,
-                    max_candidates=config.max_candidates,
-                    progress_callback=progress_callback,
-                )
-                if attempt:
-                    grids = attempt
-                    break
-        if not grids:
-            for search_index in candidate_window_indexes:
-                _emit_progress(
-                    progress_callback,
-                    "window",
-                    f"Broadening search to top {len(search_index.candidate_words)} words",
-                )
-                attempt = search_grids(
-                    candidate_words=search_index.candidate_words,
-                    prefix_index=prefix_index,
-                    beam_width=broadened_beam_width,
-                    max_candidates=config.max_candidates,
-                    search_index=search_index,
-                    progress_callback=progress_callback,
-                )
-                if attempt:
-                    grids = attempt
-                    break
-    best_grid = _select_best_grid(grids, seed_word_set)
-    used_clues: set[str] = set()
-    across = make_across_clues(best_grid, clue_bank, used_clues)
-    down = make_down_clues(best_grid, clue_bank, used_clues)
-    chosen_seed_words = tuple(seed for seed in available_seeds if seed in distinct_entries(best_grid))
-    puzzle = Puzzle(
-        grid=best_grid,
-        across=across,
-        down=down,
-        theme_words=chosen_seed_words,
-        title=_select_title(available_seeds, best_grid),
-    )
+    puzzle = generate_puzzle_candidates(
+        seeds=seeds,
+        lexicon_words=lexicon_words,
+        clue_bank=clue_bank,
+        config=config,
+        progress_callback=progress_callback,
+    )[0]
     _emit_progress(
         progress_callback,
         "solution",
