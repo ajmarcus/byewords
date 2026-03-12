@@ -61,6 +61,7 @@ class GenerateConfig:
     beam_width: int = 25
     allow_neutral_fill: bool = True
     random_seed: int = 0
+    runtime_budget_ms: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

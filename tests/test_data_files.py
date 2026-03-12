@@ -5,7 +5,12 @@ from pathlib import Path
 from byewords.generate import DEFAULT_DEMO_ENTRIES, build_demo_puzzle, generate_puzzle, load_default_inputs
 from byewords.grid import distinct_entries
 from byewords.score import score_grid
-from byewords.theme import lexicon_hash, load_word_vectors
+from byewords.theme import (
+    THEME_BENCHMARK_SEEDS,
+    THEME_MANUAL_REVIEW_CASES,
+    lexicon_hash,
+    load_word_vectors,
+)
 
 
 README_PATH = Path(__file__).resolve().parents[1] / "README.md"
@@ -68,6 +73,21 @@ class TestBundledData(unittest.TestCase):
         for removed_word in ("aahed", "antra", "ikeas", "lurie", "udals"):
             self.assertNotIn(removed_word, lexicon_set)
             self.assertNotIn(removed_word, clue_bank)
+
+    def test_theme_seed_corpora_are_backed_by_bundled_words(self) -> None:
+        lexicon_words, clue_bank = load_default_inputs()
+        lexicon_set = set(lexicon_words)
+
+        for difficulty, seeds in THEME_BENCHMARK_SEEDS.items():
+            with self.subTest(difficulty=difficulty):
+                self.assertTrue(seeds)
+                self.assertTrue(set(seeds).issubset(lexicon_set))
+
+        for case in THEME_MANUAL_REVIEW_CASES:
+            with self.subTest(seed=case.seed):
+                expected_words = {case.seed, *case.expected_related_words}
+                self.assertTrue(expected_words.issubset(lexicon_set))
+                self.assertTrue(expected_words.issubset(set(clue_bank)))
 
     def test_default_data_excludes_offensive_and_obscure_fill(self) -> None:
         lexicon_words, _ = load_default_inputs()

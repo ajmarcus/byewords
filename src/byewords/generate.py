@@ -3,6 +3,7 @@ import json
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
+import time
 from typing import Literal
 
 from byewords.cache import load_cached_puzzle, save_cached_puzzle
@@ -44,6 +45,7 @@ class SearchAttemptReport:
     beam_width: int
     solutions_found: int
     stats: SearchStatsSnapshot
+    used_semantic_ordering: bool
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,10 @@ class GenerationBenchmark:
     used_demo_grid: bool
     selected_grid: Grid | None
     selected_theme_words: tuple[str, ...]
+    selected_theme_subset: tuple[str, ...]
+    selected_theme_weakest_link: float
+    budget_exhausted: bool
+    used_budget_fallback: bool
 
 
 def _data_path(filename: str) -> str:
@@ -129,12 +135,17 @@ def _search_seeded_grids(
     row_scores: dict[str, float] | None = None,
     stats: SearchStats | None = None,
     progress_callback: ProgressCallback | None = None,
+    deadline_monotonic: float | None = None,
 ) -> tuple[Grid, ...]:
     seeded_grids: tuple[Grid, ...] = ()
     per_anchor_limit = max(1, min(max_candidates, 10))
     candidate_words = search_index.candidate_words
     for seed in seed_words:
         for row_index in range(GRID_SIZE):
+            if _deadline_reached(deadline_monotonic):
+                if stats is not None:
+                    stats.budget_exhausted = True
+                return seeded_grids
             _emit_progress(
                 progress_callback,
                 "seed_search",
@@ -152,11 +163,16 @@ def _search_seeded_grids(
                     row_scores=row_scores,
                     stats=stats,
                     progress_callback=progress_callback,
+                    deadline_monotonic=deadline_monotonic,
                 ),
             )
-            if len(seeded_grids) >= max_candidates:
+            if (stats is not None and stats.budget_exhausted) or len(seeded_grids) >= max_candidates:
                 return seeded_grids[:max_candidates]
         for column_index in range(GRID_SIZE):
+            if _deadline_reached(deadline_monotonic):
+                if stats is not None:
+                    stats.budget_exhausted = True
+                return seeded_grids
             _emit_progress(
                 progress_callback,
                 "seed_search",
@@ -174,9 +190,10 @@ def _search_seeded_grids(
                     row_scores=row_scores,
                     stats=stats,
                     progress_callback=progress_callback,
+                    deadline_monotonic=deadline_monotonic,
                 ),
             )
-            if len(seeded_grids) >= max_candidates:
+            if (stats is not None and stats.budget_exhausted) or len(seeded_grids) >= max_candidates:
                 return seeded_grids[:max_candidates]
     return seeded_grids
 
@@ -229,6 +246,18 @@ def _emit_progress(
     progress_callback(ProgressUpdate(stage=stage, message=message, partial_rows=partial_rows))
 
 
+def _runtime_deadline(config: GenerateConfig) -> float | None:
+    if config.runtime_budget_ms is None:
+        return None
+    if config.runtime_budget_ms <= 0:
+        return time.monotonic()
+    return time.monotonic() + (config.runtime_budget_ms / 1000.0)
+
+
+def _deadline_reached(deadline_monotonic: float | None) -> bool:
+    return deadline_monotonic is not None and time.monotonic() >= deadline_monotonic
+
+
 def _select_best_grid(
     grids: tuple[Grid, ...],
     available_seeds: tuple[str, ...],
@@ -258,6 +287,135 @@ def _rank_candidate_grids(
             ),
         )
     )
+
+
+def _selected_theme_metrics(
+    grid: Grid | None,
+    available_seeds: tuple[str, ...],
+    semantic_vectors: WordVectorTable | None,
+) -> tuple[tuple[str, ...], float]:
+    if grid is None:
+        return (), 0.0
+    ranked = _rank_candidate_grids((grid,), available_seeds, semantic_vectors)
+    if not ranked:
+        return (), 0.0
+    return ranked[0].theme_subset, ranked[0].theme_weakest_link
+
+
+def _search_candidate_windows(
+    *,
+    candidate_window_indexes: tuple[SearchIndex, ...],
+    prefix_index: dict[str, tuple[str, ...]],
+    available_seeds: tuple[str, ...],
+    config: GenerateConfig,
+    row_scores: dict[str, float] | None,
+    progress_callback: ProgressCallback | None = None,
+    deadline_monotonic: float | None = None,
+) -> tuple[tuple[Grid, ...], bool]:
+    grids: tuple[Grid, ...] = ()
+    seed_word_set = set(available_seeds)
+    if seed_word_set:
+        for search_index in candidate_window_indexes:
+            if _deadline_reached(deadline_monotonic):
+                return grids, True
+            _emit_progress(
+                progress_callback,
+                "window",
+                f"Scanning top {len(search_index.candidate_words)} words",
+            )
+            stats = SearchStats()
+            attempt = _search_seeded_grids(
+                search_index=search_index,
+                prefix_index=prefix_index,
+                seed_words=available_seeds,
+                beam_width=config.beam_width,
+                max_candidates=config.max_candidates,
+                row_scores=row_scores,
+                stats=stats,
+                progress_callback=progress_callback,
+                deadline_monotonic=deadline_monotonic,
+            )
+            if attempt:
+                return attempt, stats.budget_exhausted
+            if stats.budget_exhausted:
+                return grids, True
+    for search_index in candidate_window_indexes:
+        if _deadline_reached(deadline_monotonic):
+            return grids, True
+        _emit_progress(
+            progress_callback,
+            "window",
+            f"Scanning top {len(search_index.candidate_words)} words",
+        )
+        stats = SearchStats()
+        attempt = search_grids(
+            candidate_words=search_index.candidate_words,
+            prefix_index=prefix_index,
+            beam_width=config.beam_width,
+            max_candidates=config.max_candidates,
+            search_index=search_index,
+            row_scores=row_scores,
+            stats=stats,
+            progress_callback=progress_callback,
+            deadline_monotonic=deadline_monotonic,
+        )
+        if attempt:
+            return attempt, stats.budget_exhausted
+        if stats.budget_exhausted:
+            return grids, True
+    if len(candidate_window_indexes[-1].candidate_words) <= config.beam_width:
+        return grids, False
+    broadened_beam_width = min(len(candidate_window_indexes[-1].candidate_words), config.beam_width * 5)
+    if seed_word_set:
+        for search_index in candidate_window_indexes:
+            if _deadline_reached(deadline_monotonic):
+                return grids, True
+            _emit_progress(
+                progress_callback,
+                "window",
+                f"Broadening search to top {len(search_index.candidate_words)} words",
+            )
+            stats = SearchStats()
+            attempt = _search_seeded_grids(
+                search_index=search_index,
+                prefix_index=prefix_index,
+                seed_words=available_seeds,
+                beam_width=broadened_beam_width,
+                max_candidates=config.max_candidates,
+                row_scores=row_scores,
+                stats=stats,
+                progress_callback=progress_callback,
+                deadline_monotonic=deadline_monotonic,
+            )
+            if attempt:
+                return attempt, stats.budget_exhausted
+            if stats.budget_exhausted:
+                return grids, True
+    for search_index in candidate_window_indexes:
+        if _deadline_reached(deadline_monotonic):
+            return grids, True
+        _emit_progress(
+            progress_callback,
+            "window",
+            f"Broadening search to top {len(search_index.candidate_words)} words",
+        )
+        stats = SearchStats()
+        attempt = search_grids(
+            candidate_words=search_index.candidate_words,
+            prefix_index=prefix_index,
+            beam_width=broadened_beam_width,
+            max_candidates=config.max_candidates,
+            search_index=search_index,
+            row_scores=row_scores,
+            stats=stats,
+            progress_callback=progress_callback,
+            deadline_monotonic=deadline_monotonic,
+        )
+        if attempt:
+            return attempt, stats.budget_exhausted
+        if stats.budget_exhausted:
+            return grids, True
+    return grids, False
 
 
 def _build_puzzle_from_grid(
@@ -330,86 +488,29 @@ def _find_candidate_grids(
     candidate_window_indexes = _candidate_window_indexes(candidate_windows, prefix_index)
     semantic_vectors = _load_semantic_vectors(lexicon_words, available_seeds)
     row_scores = _semantic_row_scores(lexicon_words, available_seeds, semantic_vectors)
-    grids: tuple[Grid, ...] = ()
-    seed_word_set = set(available_seeds)
-    if seed_word_set:
-        for search_index in candidate_window_indexes:
-            _emit_progress(
-                progress_callback,
-                "window",
-                f"Scanning top {len(search_index.candidate_words)} words",
-            )
-            attempt = _search_seeded_grids(
-                search_index=search_index,
-                prefix_index=prefix_index,
-                seed_words=available_seeds,
-                beam_width=config.beam_width,
-                max_candidates=config.max_candidates,
-                row_scores=row_scores,
-                progress_callback=progress_callback,
-            )
-            if attempt:
-                grids = attempt
-                break
-    if not grids:
-        for search_index in candidate_window_indexes:
-            _emit_progress(
-                progress_callback,
-                "window",
-                f"Scanning top {len(search_index.candidate_words)} words",
-            )
-            attempt = search_grids(
-                candidate_words=search_index.candidate_words,
-                prefix_index=prefix_index,
-                beam_width=config.beam_width,
-                max_candidates=config.max_candidates,
-                search_index=search_index,
-                row_scores=row_scores,
-                progress_callback=progress_callback,
-            )
-            if attempt:
-                grids = attempt
-                break
-    if not grids and len(candidate_words) > config.beam_width:
-        broadened_beam_width = min(len(candidate_words), config.beam_width * 5)
-        if seed_word_set:
-            for search_index in candidate_window_indexes:
-                _emit_progress(
-                    progress_callback,
-                    "window",
-                    f"Broadening search to top {len(search_index.candidate_words)} words",
-                )
-                attempt = _search_seeded_grids(
-                    search_index=search_index,
-                    prefix_index=prefix_index,
-                    seed_words=available_seeds,
-                    beam_width=broadened_beam_width,
-                    max_candidates=config.max_candidates,
-                    row_scores=row_scores,
-                    progress_callback=progress_callback,
-                )
-                if attempt:
-                    grids = attempt
-                    break
-        if not grids:
-            for search_index in candidate_window_indexes:
-                _emit_progress(
-                    progress_callback,
-                    "window",
-                    f"Broadening search to top {len(search_index.candidate_words)} words",
-                )
-                attempt = search_grids(
-                    candidate_words=search_index.candidate_words,
-                    prefix_index=prefix_index,
-                    beam_width=broadened_beam_width,
-                    max_candidates=config.max_candidates,
-                    search_index=search_index,
-                    row_scores=row_scores,
-                    progress_callback=progress_callback,
-                )
-                if attempt:
-                    grids = attempt
-                    break
+    grids, budget_exhausted = _search_candidate_windows(
+        candidate_window_indexes=candidate_window_indexes,
+        prefix_index=prefix_index,
+        available_seeds=available_seeds,
+        config=config,
+        row_scores=row_scores,
+        progress_callback=progress_callback,
+        deadline_monotonic=_runtime_deadline(config),
+    )
+    if not grids and budget_exhausted and row_scores is not None:
+        _emit_progress(
+            progress_callback,
+            "window",
+            "Semantic runtime budget exhausted; retrying with heuristic row ordering",
+        )
+        grids, _ = _search_candidate_windows(
+            candidate_window_indexes=candidate_window_indexes,
+            prefix_index=prefix_index,
+            available_seeds=available_seeds,
+            config=config,
+            row_scores=None,
+            progress_callback=progress_callback,
+        )
     return grids, available_seeds
 
 
@@ -458,6 +559,10 @@ def benchmark_generation(
             used_demo_grid=True,
             selected_grid=demo_puzzle.grid,
             selected_theme_words=demo_puzzle.theme_words,
+            selected_theme_subset=(),
+            selected_theme_weakest_link=0.0,
+            budget_exhausted=False,
+            used_budget_fallback=False,
         )
 
     preferred_words = preferred_clue_words(clue_bank)
@@ -476,9 +581,15 @@ def benchmark_generation(
     seed_word_set = set(available_seeds)
     attempts: list[SearchAttemptReport] = []
     grids: tuple[Grid, ...] = ()
+    budget_exhausted = False
+    used_budget_fallback = False
+    deadline_monotonic = _runtime_deadline(config)
 
     if seed_word_set:
         for search_index in candidate_window_indexes:
+            if _deadline_reached(deadline_monotonic):
+                budget_exhausted = True
+                break
             stats = SearchStats()
             attempt = _search_seeded_grids(
                 search_index=search_index,
@@ -488,6 +599,7 @@ def benchmark_generation(
                 max_candidates=config.max_candidates,
                 row_scores=row_scores,
                 stats=stats,
+                deadline_monotonic=deadline_monotonic,
             )
             attempts.append(
                 SearchAttemptReport(
@@ -496,14 +608,21 @@ def benchmark_generation(
                     beam_width=config.beam_width,
                     solutions_found=len(attempt),
                     stats=stats.snapshot(),
+                    used_semantic_ordering=row_scores is not None,
                 )
             )
             if attempt:
                 grids = attempt
                 break
+            if stats.budget_exhausted:
+                budget_exhausted = True
+                break
 
-    if not grids:
+    if not grids and not budget_exhausted:
         for search_index in candidate_window_indexes:
+            if _deadline_reached(deadline_monotonic):
+                budget_exhausted = True
+                break
             stats = SearchStats()
             attempt = search_grids(
                 candidate_words=search_index.candidate_words,
@@ -513,6 +632,7 @@ def benchmark_generation(
                 search_index=search_index,
                 row_scores=row_scores,
                 stats=stats,
+                deadline_monotonic=deadline_monotonic,
             )
             attempts.append(
                 SearchAttemptReport(
@@ -521,16 +641,23 @@ def benchmark_generation(
                     beam_width=config.beam_width,
                     solutions_found=len(attempt),
                     stats=stats.snapshot(),
+                    used_semantic_ordering=row_scores is not None,
                 )
             )
             if attempt:
                 grids = attempt
                 break
+            if stats.budget_exhausted:
+                budget_exhausted = True
+                break
 
-    if not grids and len(candidate_words) > config.beam_width:
+    if not grids and not budget_exhausted and len(candidate_words) > config.beam_width:
         broadened_beam_width = min(len(candidate_words), config.beam_width * 5)
         if seed_word_set:
             for search_index in candidate_window_indexes:
+                if _deadline_reached(deadline_monotonic):
+                    budget_exhausted = True
+                    break
                 stats = SearchStats()
                 attempt = _search_seeded_grids(
                     search_index=search_index,
@@ -540,6 +667,7 @@ def benchmark_generation(
                     max_candidates=config.max_candidates,
                     row_scores=row_scores,
                     stats=stats,
+                    deadline_monotonic=deadline_monotonic,
                 )
                 attempts.append(
                     SearchAttemptReport(
@@ -548,6 +676,70 @@ def benchmark_generation(
                         beam_width=broadened_beam_width,
                         solutions_found=len(attempt),
                         stats=stats.snapshot(),
+                        used_semantic_ordering=row_scores is not None,
+                    )
+                )
+                if attempt:
+                    grids = attempt
+                    break
+                if stats.budget_exhausted:
+                    budget_exhausted = True
+                    break
+        if not grids:
+            for search_index in candidate_window_indexes:
+                if _deadline_reached(deadline_monotonic):
+                    budget_exhausted = True
+                    break
+                stats = SearchStats()
+                attempt = search_grids(
+                    candidate_words=search_index.candidate_words,
+                    prefix_index=prefix_index,
+                    beam_width=broadened_beam_width,
+                    max_candidates=config.max_candidates,
+                    search_index=search_index,
+                    row_scores=row_scores,
+                    stats=stats,
+                    deadline_monotonic=deadline_monotonic,
+                )
+                attempts.append(
+                    SearchAttemptReport(
+                        strategy="generic_broadened",
+                        candidate_count=len(search_index.candidate_words),
+                        beam_width=broadened_beam_width,
+                        solutions_found=len(attempt),
+                        stats=stats.snapshot(),
+                        used_semantic_ordering=row_scores is not None,
+                    )
+                )
+                if attempt:
+                    grids = attempt
+                    break
+                if stats.budget_exhausted:
+                    budget_exhausted = True
+                    break
+
+    if not grids and budget_exhausted and row_scores is not None:
+        used_budget_fallback = True
+        if seed_word_set:
+            for search_index in candidate_window_indexes:
+                stats = SearchStats()
+                attempt = _search_seeded_grids(
+                    search_index=search_index,
+                    prefix_index=prefix_index,
+                    seed_words=available_seeds,
+                    beam_width=config.beam_width,
+                    max_candidates=config.max_candidates,
+                    row_scores=None,
+                    stats=stats,
+                )
+                attempts.append(
+                    SearchAttemptReport(
+                        strategy="seeded",
+                        candidate_count=len(search_index.candidate_words),
+                        beam_width=config.beam_width,
+                        solutions_found=len(attempt),
+                        stats=stats.snapshot(),
+                        used_semantic_ordering=False,
                     )
                 )
                 if attempt:
@@ -559,19 +751,20 @@ def benchmark_generation(
                 attempt = search_grids(
                     candidate_words=search_index.candidate_words,
                     prefix_index=prefix_index,
-                    beam_width=broadened_beam_width,
+                    beam_width=config.beam_width,
                     max_candidates=config.max_candidates,
                     search_index=search_index,
-                    row_scores=row_scores,
+                    row_scores=None,
                     stats=stats,
                 )
                 attempts.append(
                     SearchAttemptReport(
-                        strategy="generic_broadened",
+                        strategy="generic",
                         candidate_count=len(search_index.candidate_words),
-                        beam_width=broadened_beam_width,
+                        beam_width=config.beam_width,
                         solutions_found=len(attempt),
                         stats=stats.snapshot(),
+                        used_semantic_ordering=False,
                     )
                 )
                 if attempt:
@@ -588,6 +781,11 @@ def benchmark_generation(
         if selected_grid is not None
         else ()
     )
+    selected_theme_subset, selected_theme_weakest_link = _selected_theme_metrics(
+        selected_grid,
+        available_seeds,
+        semantic_vectors,
+    )
     return GenerationBenchmark(
         requested_seeds=seeds,
         normalized_seeds=normalized_seeds,
@@ -598,6 +796,10 @@ def benchmark_generation(
         used_demo_grid=False,
         selected_grid=selected_grid,
         selected_theme_words=selected_theme_words,
+        selected_theme_subset=selected_theme_subset,
+        selected_theme_weakest_link=selected_theme_weakest_link,
+        budget_exhausted=budget_exhausted,
+        used_budget_fallback=used_budget_fallback,
     )
 
 

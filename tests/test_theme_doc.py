@@ -15,7 +15,22 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("A direct seeded search experiment for `doggy`", text)
         self.assertIn("src/byewords/data/word_vectors.json", text)
         self.assertIn("store one semantic vector for every bundled word", text)
+        self.assertIn("Stage 1 is now complete.", text)
+        self.assertIn("Stage 5 has deterministic runtime budget enforcement.", text)
         self.assertIn("Stage 6 now has a real but still incomplete offline cache pipeline.", text)
+        self.assertIn("the representative easy, medium, and hard seed corpus now lives in code via `THEME_BENCHMARK_SEEDS`", text)
+        self.assertIn(
+            "the lightweight manual-review corpus for answer/theme plausibility now lives in code via `THEME_MANUAL_REVIEW_CASES`",
+            text,
+        )
+        self.assertIn(
+            "seeded semantic search now enforces a deterministic runtime budget and falls back to heuristic row ordering when it expires",
+            text,
+        )
+        self.assertIn(
+            "benchmark reports now surface budget exhaustion, heuristic fallback, and selected theme-subset telemetry",
+            text,
+        )
         self.assertIn("the offline cache path now performs real per-seed puzzle generation", text)
         self.assertIn("the offline cache now retains a bounded top-N answer-only candidate set per seed", text)
         self.assertIn("offline answer-only curation now ranks records without clue-score influence", text)
@@ -47,6 +62,7 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("## Progressive implementation plan", text)
         self.assertIn("### Stage 1. Baseline measurement", text)
         self.assertIn("### Stage 7. Top-100 clue stage", text)
+        self.assertIn("Stage 1 is now fully closed:", text)
         self.assertIn(
             "seeded and generic runtime search now order already-legal viable rows by semantic score first and branching score second",
             text,
@@ -79,6 +95,10 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("semantic row ordering is now wired into the runtime search hot path without changing legality pruning", text)
         self.assertIn(
             "semantic vector loading, viable-row ordering, and completed-grid reranking are now wired into seeded selection when the bundled table matches the active lexicon",
+            text,
+        )
+        self.assertIn(
+            "benchmark reports now surface budget exhaustion, fallback usage, and selected theme-subset coherence telemetry",
             text,
         )
         self.assertIn("## Appendix: Research papers", text)

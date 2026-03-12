@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from byewords.grid import grid_columns
 from byewords.prefixes import build_prefix_index
@@ -191,6 +192,23 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(grids[0].rows, TEST_GRID_ROWS)
         self.assertLessEqual(stats.states_visited, 7)
         self.assertLessEqual(stats.candidate_rows_ranked, 6)
+
+    def test_search_grids_marks_budget_exhaustion_when_deadline_is_reached(self) -> None:
+        prefix_index = build_prefix_index(TEST_LEXICON)
+        stats = SearchStats()
+
+        with patch("byewords.search.time.monotonic", return_value=1.0):
+            grids = search_grids(
+                candidate_words=TEST_GRID_ROWS,
+                prefix_index=prefix_index,
+                beam_width=10,
+                max_candidates=5,
+                stats=stats,
+                deadline_monotonic=0.5,
+            )
+
+        self.assertEqual(grids, ())
+        self.assertTrue(stats.budget_exhausted)
 
 if __name__ == "__main__":
     unittest.main()

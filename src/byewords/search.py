@@ -1,5 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
+import time
 from typing import cast
 
 from byewords.grid import GRID_SIZE, grid_columns, has_unique_entries, make_grid, partial_column_prefixes
@@ -29,6 +30,7 @@ class SearchStats:
     mask_intersections: int = 0
     candidate_rows_ranked: int = 0
     fixed_row_shortcuts: int = 0
+    budget_exhausted: bool = False
 
     def snapshot(self) -> "SearchStatsSnapshot":
         return SearchStatsSnapshot(
@@ -37,6 +39,7 @@ class SearchStats:
             mask_intersections=self.mask_intersections,
             candidate_rows_ranked=self.candidate_rows_ranked,
             fixed_row_shortcuts=self.fixed_row_shortcuts,
+            budget_exhausted=self.budget_exhausted,
         )
 
 
@@ -47,6 +50,7 @@ class SearchStatsSnapshot:
     mask_intersections: int = 0
     candidate_rows_ranked: int = 0
     fixed_row_shortcuts: int = 0
+    budget_exhausted: bool = False
 
 
 def _next_prefixes(partial_rows: tuple[str, ...], next_row: str) -> tuple[str, str, str, str, str]:
@@ -245,12 +249,25 @@ def search_grids(
     row_scores: RowScoreMap | None = None,
     stats: SearchStats | None = None,
     progress_callback: ProgressCallback | None = None,
+    deadline_monotonic: float | None = None,
 ) -> tuple[Grid, ...]:
     if search_index is None:
         search_index = build_search_index(candidate_words, prefix_index)
     found_grids: list[Grid] = []
+    budget_exhausted = False
+
+    def _budget_reached() -> bool:
+        return deadline_monotonic is not None and time.monotonic() >= deadline_monotonic
 
     def search(partial_rows: tuple[str, ...], remaining_rows_mask: int) -> None:
+        nonlocal budget_exhausted
+        if budget_exhausted:
+            return
+        if _budget_reached():
+            budget_exhausted = True
+            if stats is not None:
+                stats.budget_exhausted = True
+            return
         if stats is not None:
             stats.states_visited += 1
         if progress_callback is not None and partial_rows:
@@ -318,8 +335,13 @@ def search_grids(
                         stats.candidate_rows_ranked += 1
                 ranked_rows.sort(key=lambda item: (-item[0], item[1], item[2]))
                 for _, _, candidate, row_bit in ranked_rows[:beam_width]:
+                    if _budget_reached():
+                        budget_exhausted = True
+                        if stats is not None:
+                            stats.budget_exhausted = True
+                        return
                     search(partial_rows + (candidate,), remaining_rows_mask & ~row_bit)
-                    if len(found_grids) >= max_candidates:
+                    if budget_exhausted or len(found_grids) >= max_candidates:
                         return
                 return
         if not next_rows:
@@ -327,9 +349,14 @@ def search_grids(
                 stats.dead_ends += 1
             return
         for next_row in next_rows[:beam_width]:
+            if _budget_reached():
+                budget_exhausted = True
+                if stats is not None:
+                    stats.budget_exhausted = True
+                return
             next_row_bit = search_index.row_bits.get(next_row, 0)
             search(partial_rows + (next_row,), remaining_rows_mask & ~next_row_bit)
-            if len(found_grids) >= max_candidates:
+            if budget_exhausted or len(found_grids) >= max_candidates:
                 return
 
     search((), search_index.all_rows_mask)

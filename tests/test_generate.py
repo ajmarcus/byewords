@@ -14,7 +14,7 @@ from byewords.generate import (
 )
 from byewords.grid import distinct_entries, make_grid
 from byewords.theme import lexicon_hash, load_word_vectors
-from byewords.types import ProgressUpdate
+from byewords.types import GenerateConfig, ProgressUpdate
 from tests.fixtures import TEST_GRID_ROWS, TEST_LEXICON
 
 
@@ -61,6 +61,10 @@ class TestGenerate(unittest.TestCase):
             raise AssertionError("expected a selected grid")
         self.assertEqual(selected_grid.rows, TEST_LEXICON[:5])
         self.assertEqual(benchmark.selected_theme_words, ("snail",))
+        self.assertEqual(benchmark.selected_theme_subset, ())
+        self.assertEqual(benchmark.selected_theme_weakest_link, 0.0)
+        self.assertFalse(benchmark.budget_exhausted)
+        self.assertFalse(benchmark.used_budget_fallback)
         self.assertFalse(benchmark.used_demo_grid)
 
     def test_benchmark_generation_reports_generic_search_for_unknown_seed(self) -> None:
@@ -75,6 +79,7 @@ class TestGenerate(unittest.TestCase):
         self.assertEqual(benchmark.available_seeds, ())
         self.assertEqual(len(benchmark.attempts), 1)
         self.assertEqual(benchmark.attempts[0].strategy, "generic")
+        self.assertFalse(benchmark.attempts[0].used_semantic_ordering)
         selected_grid = benchmark.selected_grid
         self.assertIsNotNone(selected_grid)
         if selected_grid is None:
@@ -97,6 +102,8 @@ class TestGenerate(unittest.TestCase):
             raise AssertionError("expected a selected grid")
         self.assertEqual(selected_grid.rows, DEFAULT_DEMO_ENTRIES[:5])
         self.assertEqual(benchmark.selected_theme_words, ("ozone",))
+        self.assertEqual(benchmark.selected_theme_subset, ())
+        self.assertFalse(benchmark.budget_exhausted)
 
     def test_generate_puzzle_builds_complete_puzzle(self) -> None:
         puzzle = generate_puzzle(
@@ -303,6 +310,72 @@ class TestGenerate(unittest.TestCase):
         }
         self.assertTrue(solution_rows)
         self.assertIn(puzzle.grid.rows, solution_rows)
+
+    def test_generate_puzzle_falls_back_to_heuristic_ordering_after_budget_exhaustion(self) -> None:
+        observed_row_scores: list[dict[str, float] | None] = []
+
+        def fake_seeded_search(**kwargs: object) -> tuple[object, ...]:
+            stats = kwargs.get("stats")
+            row_scores = cast(dict[str, float] | None, kwargs.get("row_scores"))
+            observed_row_scores.append(row_scores)
+            if row_scores is not None:
+                if hasattr(stats, "budget_exhausted"):
+                    setattr(stats, "budget_exhausted", True)
+                return ()
+            return (make_grid(TEST_GRID_ROWS),)
+
+        with patch("byewords.generate._load_semantic_vectors", return_value=None), patch(
+            "byewords.generate._semantic_row_scores",
+            return_value={word: float(index) for index, word in enumerate(TEST_LEXICON)},
+        ), patch(
+            "byewords.generate._search_seeded_grids",
+            side_effect=fake_seeded_search,
+        ):
+            puzzle = generate_puzzle(
+                seeds=("snail",),
+                lexicon_words=TEST_LEXICON,
+                clue_bank={"snail": ("Mollusk hauling its studio apartment",)},
+                config=GenerateConfig(runtime_budget_ms=1),
+            )
+
+        self.assertGreaterEqual(len(observed_row_scores), 2)
+        self.assertIsNotNone(observed_row_scores[0])
+        self.assertIsNone(observed_row_scores[-1])
+        self.assertEqual(puzzle.grid.rows, TEST_GRID_ROWS)
+
+    def test_benchmark_generation_records_budget_fallback_attempts(self) -> None:
+        def fake_seeded_search(**kwargs: object) -> tuple[object, ...]:
+            stats = kwargs.get("stats")
+            row_scores = cast(dict[str, float] | None, kwargs.get("row_scores"))
+            if row_scores is not None:
+                if hasattr(stats, "budget_exhausted"):
+                    setattr(stats, "budget_exhausted", True)
+                return ()
+            return (make_grid(TEST_GRID_ROWS),)
+
+        with patch("byewords.generate._load_semantic_vectors", return_value=None), patch(
+            "byewords.generate._semantic_row_scores",
+            return_value={word: float(index) for index, word in enumerate(TEST_LEXICON)},
+        ), patch(
+            "byewords.generate._search_seeded_grids",
+            side_effect=fake_seeded_search,
+        ):
+            benchmark = benchmark_generation(
+                seeds=("snail",),
+                lexicon_words=TEST_LEXICON,
+                clue_bank={},
+                config=GenerateConfig(runtime_budget_ms=1),
+            )
+
+        self.assertTrue(benchmark.budget_exhausted)
+        self.assertTrue(benchmark.used_budget_fallback)
+        self.assertEqual(len(benchmark.attempts), 2)
+        self.assertTrue(benchmark.attempts[0].used_semantic_ordering)
+        self.assertFalse(benchmark.attempts[1].used_semantic_ordering)
+        self.assertIsNotNone(benchmark.selected_grid)
+        if benchmark.selected_grid is None:
+            raise AssertionError("expected a selected grid")
+        self.assertEqual(benchmark.selected_grid.rows, TEST_GRID_ROWS)
 
     def test_generate_puzzle_cached_reuses_saved_puzzle(self) -> None:
         with TemporaryDirectory() as temp_dir:

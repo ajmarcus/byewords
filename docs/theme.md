@@ -31,26 +31,30 @@ This plan is based on the experiments performed so far.
 
 ## Current implementation progress
 
-Stage 1 is partially complete. Stage 2 is substantially complete. Stage 6 now has a real but still incomplete offline cache pipeline.
+Stage 1 is now complete. Stage 2 is substantially complete. Stage 5 has deterministic runtime budget enforcement. Stage 6 now has a real but still incomplete offline cache pipeline.
 
 Implemented now:
 
 - `benchmark_generation()` mirrors the current generation path and records per-window search attempts
 - `SearchStatsSnapshot` captures deterministic counters without mutating the runtime search behavior
 - regression tests cover seeded, unseeded, and demo-grid benchmark cases
+- the representative easy, medium, and hard seed corpus now lives in code via `THEME_BENCHMARK_SEEDS`
+- the lightweight manual-review corpus for answer/theme plausibility now lives in code via `THEME_MANUAL_REVIEW_CASES`
 - Stage 2 vector loading now exists with a bundled `word_vectors.json` table and deterministic whole-lexicon ranking APIs
 - completed-grid ranking can now add vector-backed theme scores when the bundled table matches the active lexicon
 - completed-grid ranking now hard-rejects weak fills and weak semantic subsets while surfacing theme-bearing subset metadata in `CandidateGrid`
+- seeded semantic search now enforces a deterministic runtime budget and falls back to heuristic row ordering when it expires
+- benchmark reports now surface budget exhaustion, heuristic fallback, and selected theme-subset telemetry
 - the CLI now supports an offline-first cache build that writes lexicon-wide puzzle records to `src/byewords/data/puzzles.json`
 - the offline cache path now performs real per-seed puzzle generation and stores answer-only metadata for each retained record
 - the offline cache now retains a bounded top-N answer-only candidate set per seed before final clue-stage curation
 - offline answer-only curation now ranks records without clue-score influence and can deterministically select a global top-100 slice from the curated seed winners
 - clue regeneration can now be forced from both the Groq clue tool and the main puzzle CLI, but clue quality is still intentionally out of the ranking path until the top-100 offline stage
 
-What remains before Stage 1 is fully closed:
+Stage 1 is now fully closed:
 
-- define the representative easy, medium, and hard seed corpus explicitly in code or fixtures
-- add a lightweight manual-review corpus for checking whether the current heuristic fill produces plausible theme-bearing answers
+- the benchmark harness has explicit easy, medium, and hard corpus fixtures
+- the manual-review seed corpus is checked against bundled lexicon and clue-bank coverage
 
 What remains before Stage 2 can be treated as fully closed:
 
@@ -65,7 +69,7 @@ What remains before the offline pipeline is doing the intended job:
 Working conclusion:
 
 - the existing search counters appear sufficient for the semantic rollout
-- the next implementation chunk should focus on runtime budget enforcement and benchmark-corpus review rather than more answer-only infrastructure
+- the next implementation chunk should focus on retrieval-quality review and process-based offline generation rather than more runtime-budget plumbing
 
 ## Findings from experiments
 
@@ -429,8 +433,8 @@ Status update:
 
 - done: benchmark harness for seeded generation
 - done: deterministic search counters are now captured as immutable benchmark snapshots
-- remaining: seed corpus selection
-- remaining: manual review fixtures for answer/theme plausibility
+- done: seed corpus selection now lives in explicit code fixtures
+- done: manual review fixtures for answer/theme plausibility now live in code fixtures
 
 Unknown resolved:
 
@@ -535,10 +539,12 @@ Decision gate:
 
 Status update:
 
-- partially complete for the non-semantic path
+- partially complete
 - seeded runtime generation, fallback search windows, and cache reuse exist today
 - semantic vector loading, viable-row ordering, and completed-grid reranking are now wired into seeded selection when the bundled table matches the active lexicon
-- explicit runtime budget enforcement and theme-coherence telemetry are still not wired into the hot path
+- seeded semantic search now enforces a deterministic runtime budget and falls back to heuristic row ordering when it expires
+- benchmark reports now surface budget exhaustion, fallback usage, and selected theme-subset coherence telemetry
+- per-request runtime telemetry is still benchmark-only rather than a user-facing runtime report
 
 ### Stage 6. Offline lexicon-wide generation
 

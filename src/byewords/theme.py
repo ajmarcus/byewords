@@ -14,6 +14,37 @@ from byewords.types import ThemeScoreBreakdown
 DEFAULT_THEME_WORD_LIMIT = 4
 DEFAULT_MMR_LAMBDA = 0.8
 DEFAULT_REDUNDANCY_THRESHOLD = 0.9
+THEME_BENCHMARK_SEEDS = {
+    "easy": ("beach", "music", "ocean"),
+    "medium": ("snail", "tempo", "water"),
+    "hard": ("doggy", "llama", "wharf"),
+}
+
+
+@dataclass(frozen=True)
+class ThemeReviewCase:
+    seed: str
+    expected_related_words: tuple[str, ...]
+    note: str
+
+
+THEME_MANUAL_REVIEW_CASES = (
+    ThemeReviewCase(
+        seed="beach",
+        expected_related_words=("ocean", "waves", "wharf"),
+        note="Coastal vocabulary should surface without collapsing into generic filler.",
+    ),
+    ThemeReviewCase(
+        seed="music",
+        expected_related_words=("choir", "piano", "tempo"),
+        note="Performance and instrument words should outrank unrelated bridge fill.",
+    ),
+    ThemeReviewCase(
+        seed="snail",
+        expected_related_words=("shell", "slime", "trail"),
+        note="The review set should catch when retrieval drifts away from a concrete organism theme.",
+    ),
+)
 
 
 @dataclass(frozen=True)

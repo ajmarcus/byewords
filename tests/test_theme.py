@@ -4,6 +4,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from byewords.theme import (
+    THEME_BENCHMARK_SEEDS,
+    THEME_MANUAL_REVIEW_CASES,
     build_candidate_pool,
     diversify_theme_words,
     lexicon_hash,
@@ -38,6 +40,24 @@ def _write_vector_table(
 
 
 class TestTheme(unittest.TestCase):
+    def test_theme_benchmark_seed_corpus_is_grouped_by_difficulty(self) -> None:
+        self.assertEqual(tuple(THEME_BENCHMARK_SEEDS), ("easy", "medium", "hard"))
+        self.assertEqual(THEME_BENCHMARK_SEEDS["easy"], ("beach", "music", "ocean"))
+        self.assertEqual(THEME_BENCHMARK_SEEDS["medium"], ("snail", "tempo", "water"))
+        self.assertEqual(THEME_BENCHMARK_SEEDS["hard"], ("doggy", "llama", "wharf"))
+
+    def test_theme_manual_review_cases_are_unique_and_non_empty(self) -> None:
+        self.assertEqual(len(THEME_MANUAL_REVIEW_CASES), 3)
+        self.assertEqual(
+            tuple(case.seed for case in THEME_MANUAL_REVIEW_CASES),
+            ("beach", "music", "snail"),
+        )
+        for case in THEME_MANUAL_REVIEW_CASES:
+            with self.subTest(seed=case.seed):
+                self.assertTrue(case.note)
+                self.assertEqual(len(case.expected_related_words), 3)
+                self.assertEqual(len(set(case.expected_related_words)), 3)
+
     def test_normalize_seeds_filters_invalid_entries(self) -> None:
         self.assertEqual(normalize_seeds(("Snail", "bad!", "eases", "snail")), ("snail", "eases"))
 
