@@ -10,6 +10,7 @@ from byewords.puzzle_store import (
     persist_puzzle_store,
     puzzle_answers_for_id,
     puzzle_store_version,
+    top_answer_only_records,
 )
 from byewords.theme import lexicon_hash, load_word_vectors
 from byewords.types import Puzzle
@@ -172,6 +173,10 @@ class TestPuzzleStore(unittest.TestCase):
 
         snail_record = next(record for record in store.values() if record["seed"] == "snail")
         self.assertEqual(snail_record["theme_subset"], ["eases", "antra", "donna"])
+        self.assertEqual(
+            snail_record["answer_scores"]["answer_only_score"],
+            snail_record["answer_scores"]["fill_score"] + snail_record["answer_scores"]["theme_score"],
+        )
         self.assertGreater(snail_record["answer_scores"]["theme_score"], 0.0)
         self.assertGreater(
             snail_record["answer_scores"]["total_score"],
@@ -259,6 +264,163 @@ class TestPuzzleStore(unittest.TestCase):
         self.assertEqual(generated_records, 0)
         self.assertEqual(set(store), {"adieu", "newer"})
         self.assertEqual(store["newer"]["answer_scores"]["total_score"], 1.7)
+
+    def test_build_batch_puzzle_cache_curates_by_answer_only_score_before_clue_score(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store_path = Path(temp_dir) / "puzzles.json"
+            version = puzzle_store_version(("snail",), {})
+            persist_puzzle_store(
+                {
+                    "answer-first": {
+                        "uuid": "00000000-0000-7000-8000-000000000010",
+                        "seed": "snail",
+                        "version": version,
+                        "title": "SNAIL Mini",
+                        "theme_words": ["snail"],
+                        "theme_subset": ["eases", "antra"],
+                        "grid": ["snail"] * 5,
+                        "answers": ["snail", "adieu"],
+                        "answer_scores": {
+                            "fill_score": 0.9,
+                            "theme_score": 0.7,
+                            "clue_score": 0.0,
+                            "total_score": 1.6,
+                            "answer_only_score": 1.6,
+                            "seed_entry_count": 1,
+                            "seed_row_count": 1,
+                        },
+                        "across": [],
+                        "down": [],
+                    },
+                    "clue-heavy": {
+                        "uuid": "00000000-0000-7000-8000-000000000011",
+                        "seed": "snail",
+                        "version": version,
+                        "title": "SNAIL Mini",
+                        "theme_words": ["snail"],
+                        "theme_subset": ["eases"],
+                        "grid": ["adieu"] * 5,
+                        "answers": ["snail", "adieu"],
+                        "answer_scores": {
+                            "fill_score": 0.7,
+                            "theme_score": 0.5,
+                            "clue_score": 0.8,
+                            "total_score": 2.0,
+                            "answer_only_score": 1.2,
+                            "seed_entry_count": 1,
+                            "seed_row_count": 1,
+                        },
+                        "across": [],
+                        "down": [],
+                    },
+                },
+                store_path,
+            )
+
+            _, total_records, generated_records = build_batch_puzzle_cache(
+                ("snail",),
+                {},
+                path=store_path,
+            )
+            store = load_puzzle_store(store_path)
+
+        self.assertEqual(total_records, 1)
+        self.assertEqual(generated_records, 0)
+        self.assertEqual(set(store), {"answer-first"})
+
+    def test_top_answer_only_records_returns_curated_global_order(self) -> None:
+        version = "current-version"
+        ranked = top_answer_only_records(
+            {
+                "old-best": {
+                    "uuid": "00000000-0000-7000-8000-000000000020",
+                    "seed": "snail",
+                    "version": "older-version",
+                    "title": "SNAIL Mini",
+                    "theme_words": ["snail"],
+                    "theme_subset": ["eases"],
+                    "grid": ["snail"] * 5,
+                    "answers": ["snail", "adieu"],
+                    "answer_scores": {
+                        "fill_score": 0.8,
+                        "theme_score": 0.8,
+                        "clue_score": 0.9,
+                        "total_score": 2.5,
+                        "answer_only_score": 1.6,
+                        "seed_entry_count": 1,
+                        "seed_row_count": 1,
+                    },
+                    "across": [],
+                    "down": [],
+                },
+                "new-best": {
+                    "uuid": "00000000-0000-7000-8000-000000000021",
+                    "seed": "snail",
+                    "version": version,
+                    "title": "SNAIL Mini",
+                    "theme_words": ["snail"],
+                    "theme_subset": ["eases", "antra"],
+                    "grid": ["snail"] * 5,
+                    "answers": ["snail", "adieu"],
+                    "answer_scores": {
+                        "fill_score": 0.7,
+                        "theme_score": 0.8,
+                        "clue_score": 0.1,
+                        "total_score": 1.6,
+                        "answer_only_score": 1.5,
+                        "seed_entry_count": 1,
+                        "seed_row_count": 1,
+                    },
+                    "across": [],
+                    "down": [],
+                },
+                "tempo": {
+                    "uuid": "00000000-0000-7000-8000-000000000022",
+                    "seed": "tempo",
+                    "version": version,
+                    "title": "TEMPO Mini",
+                    "theme_words": ["tempo"],
+                    "theme_subset": ["music", "piano"],
+                    "grid": ["tempo"] * 5,
+                    "answers": ["tempo", "music"],
+                    "answer_scores": {
+                        "fill_score": 0.9,
+                        "theme_score": 0.9,
+                        "clue_score": 0.2,
+                        "total_score": 2.0,
+                        "answer_only_score": 1.8,
+                        "seed_entry_count": 1,
+                        "seed_row_count": 1,
+                    },
+                    "across": [],
+                    "down": [],
+                },
+                "beach": {
+                    "uuid": "00000000-0000-7000-8000-000000000023",
+                    "seed": "beach",
+                    "version": version,
+                    "title": "BEACH Mini",
+                    "theme_words": ["beach"],
+                    "theme_subset": ["ocean", "coast"],
+                    "grid": ["beach"] * 5,
+                    "answers": ["beach", "ocean"],
+                    "answer_scores": {
+                        "fill_score": 0.8,
+                        "theme_score": 0.4,
+                        "clue_score": 0.9,
+                        "total_score": 2.1,
+                        "seed_entry_count": 1,
+                        "seed_row_count": 1,
+                    },
+                    "across": [],
+                    "down": [],
+                },
+            },
+            preferred_version=version,
+            limit=2,
+        )
+
+        self.assertEqual([public_id for public_id, _ in ranked], ["tempo", "new-best"])
 
     def test_puzzle_answers_for_id_supports_public_id_and_uuid_lookup(self) -> None:
         with TemporaryDirectory() as temp_dir:

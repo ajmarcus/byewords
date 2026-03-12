@@ -41,6 +41,7 @@ Implemented now:
 - Stage 2 vector loading now exists with a bundled `word_vectors.json` table and deterministic whole-lexicon ranking APIs
 - the CLI now supports an offline-first cache build that writes lexicon-wide puzzle records to `src/byewords/data/puzzles.json`
 - the offline cache path now performs real per-seed puzzle generation and stores answer-only metadata for each retained record
+- offline answer-only curation now ranks records without clue-score influence and can deterministically select a global top-100 slice from the curated seed winners
 - clue regeneration can now be forced from both the Groq clue tool and the main puzzle CLI, but clue quality is still intentionally out of the ranking path until the top-100 offline stage
 
 What remains before Stage 1 is fully closed:
@@ -56,9 +57,9 @@ What remains before Stage 2 can be treated as fully closed:
 What remains before the offline pipeline is doing the intended job:
 
 - replace the current thread-based batch execution with the planned process-based worker model
-- score and keep the best answer-only candidates per seed before any clue regeneration
 - add theme-bearing subset selection and weakest-link coherence to completed-grid evaluation
-- move from "cache every seed record" to "curate the best per-seed winners plus the global top 100"
+- persist multiple answer-only candidates per seed before any clue regeneration
+- wire clue regeneration and final curation to the deterministic global top-100 answer-only slice
 
 Working conclusion:
 
@@ -557,7 +558,8 @@ Status update:
 - partially complete
 - the CLI can now build `puzzles.json` across the full bundled lexicon
 - the offline cache now stores real per-seed winners together with answer-only metadata
-- process-based execution, intrusion evaluation, per-seed curation, and global top-100 selection are still missing
+- answer-only ranking now ignores clue score during offline curation, and a deterministic global top-100 answer-only selector now exists
+- process-based execution, intrusion evaluation, and multi-candidate per-seed retention are still missing
 
 ### Stage 7. Top-100 clue stage
 
@@ -647,11 +649,12 @@ The current implementation already:
 - generate a real seeded puzzle for each retained seed record
 - store answer-only metadata alongside the rendered puzzle payload
 - support lookups by stored puzzle id for later clue-regeneration work
+- rank offline winners by answer-only score before any clue-based signal and expose a deterministic top-100 answer-only selector
 
 It still should:
 
 - move batch execution from threads to processes
-- curate best-per-seed answer-only winners rather than storing the first acceptable record
+- retain multiple answer-only candidates per seed before final top-100 curation
 - preserve a stable puzzle id and canonical UUID per stored record
 
 ### `src/byewords/cli.py`

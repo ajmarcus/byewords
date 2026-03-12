@@ -27,6 +27,7 @@ class StoredAnswerScores(TypedDict):
     theme_score: float
     clue_score: float
     total_score: float
+    answer_only_score: NotRequired[float]
     seed_entry_count: int
     seed_row_count: int
 
@@ -76,6 +77,22 @@ def persist_puzzle_store(store: dict[str, StoredPuzzleRecord], path: Path | None
     store_path.parent.mkdir(parents=True, exist_ok=True)
     store_path.write_text(json.dumps(store, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return store_path
+
+
+def top_answer_only_records(
+    store: dict[str, StoredPuzzleRecord],
+    preferred_version: str,
+    limit: int = 100,
+) -> tuple[tuple[str, StoredPuzzleRecord], ...]:
+    if limit <= 0:
+        return ()
+    curated_store = _curate_seed_records(store, preferred_version)
+    ranked_records = sorted(
+        curated_store.items(),
+        key=lambda item: _record_rank_key(item[0], item[1], preferred_version),
+        reverse=True,
+    )
+    return tuple(ranked_records[:limit])
 
 
 def build_batch_puzzle_cache(
@@ -193,6 +210,7 @@ def _record_from_puzzle(
             fill_score=scores.fill_score,
             theme_score=theme_score,
             clue_score=scores.clue_score,
+            answer_only_score=scores.fill_score + theme_score,
             total_score=scores.fill_score + theme_score + scores.clue_score,
             seed_entry_count=sum(answer == seed for answer in answers),
             seed_row_count=sum(row == seed for row in puzzle.grid.rows),
@@ -290,11 +308,19 @@ def _record_rank_key(
     preferred_version: str,
 ) -> tuple[int, float, float, float, int, str]:
     scores = record["answer_scores"]
+    answer_only_score = _answer_only_score(scores)
     return (
         1 if record.get("version") == preferred_version else 0,
-        scores["total_score"],
+        answer_only_score,
         scores["theme_score"],
         scores["fill_score"],
         scores["seed_row_count"],
         public_id,
     )
+
+
+def _answer_only_score(scores: StoredAnswerScores) -> float:
+    stored_score = scores.get("answer_only_score")
+    if isinstance(stored_score, int | float):
+        return float(stored_score)
+    return float(scores["fill_score"] + scores["theme_score"])
