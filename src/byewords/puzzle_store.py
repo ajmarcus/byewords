@@ -5,7 +5,8 @@ import json
 import os
 import secrets
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 from typing import NotRequired, TypedDict, cast
@@ -21,6 +22,7 @@ from byewords.types import GenerateConfig, Puzzle
 
 _BASE62_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 DEFAULT_CANDIDATES_PER_SEED = 2
+_PROCESS_POOL_DISABLE_ENV = "BYEWWORDS_DISABLE_PROCESS_POOL"
 
 
 class StoredAnswerScores(TypedDict):
@@ -45,6 +47,19 @@ class StoredPuzzleRecord(TypedDict):
     answer_scores: StoredAnswerScores
     across: list[CluePayload]
     down: list[CluePayload]
+
+
+@dataclass(frozen=True)
+class OfflineBatchContext:
+    lexicon_words: tuple[str, ...]
+    clue_bank: dict[str, tuple[str, ...]]
+    version: str
+    semantic_vectors: WordVectorTable | None
+    candidates_per_seed: int
+
+
+_ORIGINAL_GENERATE_PUZZLE_CANDIDATES = generate_puzzle_candidates
+_OFFLINE_BATCH_CONTEXT: OfflineBatchContext | None = None
 
 
 def default_puzzle_store_path() -> Path:
@@ -128,30 +143,20 @@ def build_batch_puzzle_cache(
         return store_path, len(store), 0
 
     worker_count = max(1, os.cpu_count() or 1)
-    batch_size = worker_count
+    batch_context = OfflineBatchContext(
+        lexicon_words=lexicon_words,
+        clue_bank=clue_bank,
+        version=version,
+        semantic_vectors=semantic_vectors,
+        candidates_per_seed=candidates_per_seed,
+    )
     generated_records = 0
-    for offset in range(0, len(pending_seeds), batch_size):
-        batch = pending_seeds[offset:offset + batch_size]
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            for result in executor.map(
-                _record_for_seed_task,
-                (
-                    (
-                        seed,
-                        lexicon_words,
-                        clue_bank,
-                        version,
-                        semantic_vectors,
-                        candidates_per_seed,
-                    )
-                    for seed in batch
-                ),
-            ):
-                if not result:
-                    continue
-                for public_id, record in result:
-                    store[public_id] = record
-                    generated_records += 1
+    for result in _seed_record_results(pending_seeds, batch_context, worker_count):
+        if not result:
+            continue
+        for public_id, record in result:
+            store[public_id] = record
+            generated_records += 1
     store = _curate_seed_records(store, version, per_seed_limit=candidates_per_seed)
     persist_puzzle_store(store, store_path)
     return store_path, len(store), generated_records
@@ -171,23 +176,57 @@ def puzzle_answers_for_id(
     raise ValueError(f"puzzle id not found in puzzles.json: {puzzle_id}")
 
 
-def _record_for_seed_task(
-    task: tuple[
-        str,
-        tuple[str, ...],
-        dict[str, tuple[str, ...]],
-        str,
-        WordVectorTable | None,
-        int,
-    ],
+def _seed_record_results(
+    pending_seeds: tuple[str, ...],
+    batch_context: OfflineBatchContext,
+    worker_count: int,
+) -> tuple[tuple[tuple[str, StoredPuzzleRecord], ...], ...]:
+    if _use_process_pool(worker_count):
+        with ProcessPoolExecutor(
+            max_workers=worker_count,
+            initializer=_initialize_offline_batch_context,
+            initargs=(batch_context,),
+        ) as executor:
+            return tuple(executor.map(_record_for_seed_task, pending_seeds, chunksize=1))
+    _initialize_offline_batch_context(batch_context)
+    return tuple(_record_for_seed_task(seed) for seed in pending_seeds)
+
+
+def _use_process_pool(worker_count: int) -> bool:
+    if worker_count <= 1:
+        return False
+    if os.environ.get(_PROCESS_POOL_DISABLE_ENV) == "1":
+        return False
+    return generate_puzzle_candidates is _ORIGINAL_GENERATE_PUZZLE_CANDIDATES
+
+
+def _initialize_offline_batch_context(batch_context: OfflineBatchContext) -> None:
+    global _OFFLINE_BATCH_CONTEXT
+    _OFFLINE_BATCH_CONTEXT = batch_context
+
+
+def _record_for_seed_task(seed: str) -> tuple[tuple[str, StoredPuzzleRecord], ...]:
+    batch_context = _OFFLINE_BATCH_CONTEXT
+    if batch_context is None:
+        raise RuntimeError("offline batch context is not initialized")
+    return _record_for_seed(seed, batch_context)
+
+
+def _record_for_seed(
+    seed: str,
+    batch_context: OfflineBatchContext,
 ) -> tuple[tuple[str, StoredPuzzleRecord], ...]:
-    seed, lexicon_words, clue_bank, version, semantic_vectors, candidates_per_seed = task
     try:
         candidate_puzzles = generate_puzzle_candidates(
             (seed,),
-            lexicon_words,
-            clue_bank,
-            config=GenerateConfig(max_candidates=max(candidates_per_seed * 2, candidates_per_seed)),
+            batch_context.lexicon_words,
+            batch_context.clue_bank,
+            config=GenerateConfig(
+                max_candidates=max(
+                    batch_context.candidates_per_seed * 2,
+                    batch_context.candidates_per_seed,
+                )
+            ),
         )
     except ValueError:
         return ()
@@ -204,19 +243,19 @@ def _record_for_seed_task(
                 _record_from_puzzle(
                     seed,
                     puzzle,
-                    version,
+                    batch_context.version,
                     uuid_text,
-                    semantic_vectors=semantic_vectors,
+                    semantic_vectors=batch_context.semantic_vectors,
                 ),
             )
         )
 
     ranked_records = sorted(
         records,
-        key=lambda item: _record_rank_key(item[0], item[1], version),
+        key=lambda item: _record_rank_key(item[0], item[1], batch_context.version),
         reverse=True,
     )
-    return tuple(ranked_records[:candidates_per_seed])
+    return tuple(ranked_records[:batch_context.candidates_per_seed])
 
 
 def _record_from_puzzle(

@@ -18,7 +18,10 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("Stage 1 is now complete.", text)
         self.assertIn("Stage 2 is now fully closed.", text)
         self.assertIn("Stage 5 has deterministic runtime budget enforcement.", text)
-        self.assertIn("Stage 6 now has a real but still incomplete offline cache pipeline.", text)
+        self.assertIn(
+            "Stage 6 now uses process-based offline generation, but intrusion-style evaluation is still missing.",
+            text,
+        )
         self.assertIn("the representative easy, medium, and hard seed corpus now lives in code via `THEME_BENCHMARK_SEEDS`", text)
         self.assertIn(
             "the lightweight manual-review corpus for answer/theme plausibility now lives in code via `THEME_MANUAL_REVIEW_CASES`",
@@ -43,7 +46,11 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("the offline cache path now performs real per-seed puzzle generation", text)
         self.assertIn("the offline cache now retains a bounded top-N answer-only candidate set per seed", text)
         self.assertIn("offline answer-only curation now ranks records without clue-score influence", text)
-        self.assertIn("replace the current thread-based batch execution with the planned process-based worker model", text)
+        self.assertIn(
+            "the offline cache now uses process-based worker execution for default lexicon-wide generation while preserving an in-process fallback for tests and patched generators",
+            text,
+        )
+        self.assertIn("add intrusion-style evaluation for the theme scorer", text)
         self.assertIn("Scoring every word against one seed is cheap:", text)
         self.assertIn("1,485,000", text)
         self.assertIn("semantics decides ordering", text)
@@ -99,6 +106,10 @@ class TestThemeDoc(unittest.TestCase):
             text,
         )
         self.assertIn("answer-only ranking now ignores clue score during offline curation", text)
+        self.assertIn(
+            "process-based execution now exists for the default offline batch path, but intrusion evaluation is still missing",
+            text,
+        )
         self.assertIn("write lexicon-wide cached puzzle records to `src/byewords/data/puzzles.json`", text)
         self.assertIn("with no seeds: build or refresh the offline `puzzles.json` cache", text)
         self.assertIn("Decision gate:", text)

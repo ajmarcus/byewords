@@ -105,7 +105,14 @@ class TestPuzzleStore(unittest.TestCase):
                     title=f"{seed.upper()} Mini",
                 ),)
 
-            with patch("byewords.puzzle_store.generate_puzzle_candidates", side_effect=fake_generate):
+            with (
+                patch("byewords.puzzle_store.generate_puzzle_candidates", side_effect=fake_generate),
+                patch(
+                    "byewords.puzzle_store.ProcessPoolExecutor",
+                    side_effect=AssertionError("patched generation should stay in-process"),
+                ),
+                patch("byewords.puzzle_store.os.cpu_count", return_value=2),
+            ):
                 _, total_records, generated_records = build_batch_puzzle_cache(
                     ("adieu", "snail"),
                     {},
@@ -115,6 +122,85 @@ class TestPuzzleStore(unittest.TestCase):
         self.assertEqual(sorted(calls), [("adieu",), ("snail",)])
         self.assertEqual(total_records, 2)
         self.assertEqual(generated_records, 2)
+
+    def test_build_batch_puzzle_cache_uses_process_pool_for_default_generation(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store_path = Path(temp_dir) / "puzzles.json"
+            executor_calls: list[tuple[int, int]] = []
+            seen_seeds: list[str] = []
+            version = puzzle_store_version(("adieu", "snail"), {})
+
+            class FakeProcessPool:
+                def __init__(self, max_workers: int, initializer=None, initargs: tuple[object, ...] = ()) -> None:
+                    self.max_workers = max_workers
+                    self.initializer = initializer
+                    self.initargs = initargs
+                    executor_calls.append((max_workers, len(initargs)))
+
+                def __enter__(self) -> "FakeProcessPool":
+                    return self
+
+                def __exit__(self, exc_type, exc, tb) -> bool:
+                    del exc_type
+                    del exc
+                    del tb
+                    return False
+
+                def map(self, func, iterable, chunksize: int = 1):
+                    self.chunksize = chunksize
+                    if self.initializer is not None:
+                        self.initializer(*self.initargs)
+                    for item in iterable:
+                        yield func(item)
+
+            def fake_record_for_seed(seed: str, batch_context: object):
+                self.assertEqual(getattr(batch_context, "version"), version)
+                self.assertEqual(getattr(batch_context, "lexicon_words"), ("adieu", "snail"))
+                seen_seeds.append(seed)
+                return (
+                    (
+                        seed,
+                        {
+                            "uuid": f"00000000-0000-7000-8000-0000000000{1 if seed == 'adieu' else 2}",
+                            "seed": seed,
+                            "version": version,
+                            "title": f"{seed.upper()} Mini",
+                            "theme_words": [seed],
+                            "theme_subset": [seed],
+                            "grid": ["adieu", "booed", "oases", "eerie", "udals"],
+                            "answers": [seed, "adieu", "booed"],
+                            "answer_scores": {
+                                "fill_score": 1.0,
+                                "theme_score": 1.0,
+                                "clue_score": 0.0,
+                                "answer_only_score": 2.0,
+                                "total_score": 2.0,
+                                "seed_entry_count": 1,
+                                "seed_row_count": 1,
+                            },
+                            "across": [],
+                            "down": [],
+                        },
+                    ),
+                )
+
+            with (
+                patch("byewords.puzzle_store.ProcessPoolExecutor", FakeProcessPool),
+                patch("byewords.puzzle_store.os.cpu_count", return_value=2),
+                patch("byewords.puzzle_store._record_for_seed", side_effect=fake_record_for_seed),
+            ):
+                _, total_records, generated_records = build_batch_puzzle_cache(
+                    ("adieu", "snail"),
+                    {},
+                    path=store_path,
+                )
+                store = load_puzzle_store(store_path)
+
+        self.assertEqual(executor_calls, [(2, 1)])
+        self.assertEqual(sorted(seen_seeds), ["adieu", "snail"])
+        self.assertEqual(total_records, 2)
+        self.assertEqual(generated_records, 2)
+        self.assertEqual(set(store), {"adieu", "snail"})
 
     def test_build_batch_puzzle_cache_skips_generic_fallback_results(self) -> None:
         with TemporaryDirectory() as temp_dir:

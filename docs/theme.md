@@ -31,7 +31,7 @@ This plan is based on the experiments performed so far.
 
 ## Current implementation progress
 
-Stage 1 is now complete. Stage 2 is now fully closed. Stage 5 has deterministic runtime budget enforcement. Stage 6 now has a real but still incomplete offline cache pipeline.
+Stage 1 is now complete. Stage 2 is now fully closed. Stage 5 has deterministic runtime budget enforcement. Stage 6 now uses process-based offline generation, but intrusion-style evaluation is still missing.
 
 Implemented now:
 
@@ -51,6 +51,7 @@ Implemented now:
 - the offline cache path now performs real per-seed puzzle generation and stores answer-only metadata for each retained record
 - the offline cache now retains a bounded top-N answer-only candidate set per seed before final clue-stage curation
 - offline answer-only curation now ranks records without clue-score influence and can deterministically select a global top-100 slice from the curated seed winners
+- the offline cache now uses process-based worker execution for default lexicon-wide generation while preserving an in-process fallback for tests and patched generators
 - clue regeneration can now be forced from both the Groq clue tool and the main puzzle CLI, but clue quality is still intentionally out of the ranking path until the top-100 offline stage
 
 Stage 1 is now fully closed:
@@ -65,13 +66,13 @@ Stage 2 is now fully closed:
 
 What remains before the offline pipeline is doing the intended job:
 
-- replace the current thread-based batch execution with the planned process-based worker model
+- add intrusion-style evaluation for the theme scorer
 - wire clue regeneration and final curation to the deterministic global top-100 answer-only slice
 
 Working conclusion:
 
 - the existing search counters appear sufficient for the semantic rollout
-- the next implementation chunk should focus on process-based offline generation rather than more runtime-budget plumbing
+- the next implementation chunk should focus on intrusion evaluation and the top-100 clue stage rather than more runtime-budget plumbing
 
 ## Findings from experiments
 
@@ -573,7 +574,7 @@ Status update:
 - the offline cache now stores real per-seed winners together with answer-only metadata
 - the offline cache can now retain multiple answer-only candidates per seed before later top-100 clue selection
 - answer-only ranking now ignores clue score during offline curation, and a deterministic global top-100 answer-only selector now exists
-- process-based execution and intrusion evaluation are still missing
+- process-based execution now exists for the default offline batch path, but intrusion evaluation is still missing
 
 ### Stage 7. Top-100 clue stage
 
@@ -667,8 +668,8 @@ The current implementation already:
 
 It still should:
 
-- move batch execution from threads to processes
 - retain multiple answer-only candidates per seed before final top-100 curation
+- keep the default batch builder on the process-worker path while preserving an in-process fallback for test doubles
 - preserve a stable puzzle id and canonical UUID per stored record
 
 ### `src/byewords/cli.py`
