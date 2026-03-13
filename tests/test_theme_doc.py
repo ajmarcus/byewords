@@ -18,6 +18,7 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("Stage 1 is now complete.", text)
         self.assertIn("Stage 2 is now fully closed.", text)
         self.assertIn("Stage 3 is now fully closed.", text)
+        self.assertIn("Stage 4 is now fully closed.", text)
         self.assertIn("Stage 5 has deterministic runtime budget enforcement and is now fully closed.", text)
         self.assertIn("Stage 6 is now fully closed.", text)
         self.assertIn("Stage 7 is now fully closed.", text)
@@ -135,6 +136,7 @@ class TestThemeDoc(unittest.TestCase):
         )
         self.assertIn("Stage 1 is now fully closed:", text)
         self.assertIn("Stage 2 is now fully closed:", text)
+        self.assertIn("Stage 4 is now fully closed:", text)
         self.assertIn(
             "cosine and rank-overlap can now be compared deterministically through offline retrieval-review helpers",
             text,
@@ -169,6 +171,7 @@ class TestThemeDoc(unittest.TestCase):
             "store clue-stage validation and rerank metadata for the selected top-100 slice without changing answer-only curation inputs",
             text,
         )
+        self.assertNotIn("It still should:", text)
         self.assertIn("write lexicon-wide cached puzzle records to `src/byewords/data/puzzles.json`", text)
         self.assertIn("with no seeds: build or refresh the offline `puzzles.json` cache", text)
         self.assertIn(

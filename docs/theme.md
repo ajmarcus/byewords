@@ -31,7 +31,7 @@ This plan is based on the experiments performed so far.
 
 ## Current implementation progress
 
-Stage 1 is now complete. Stage 2 is now fully closed. Stage 3 is now fully closed. Stage 5 has deterministic runtime budget enforcement and is now fully closed. Stage 6 is now fully closed. Stage 7 is now fully closed.
+Stage 1 is now complete. Stage 2 is now fully closed. Stage 3 is now fully closed. Stage 4 is now fully closed. Stage 5 has deterministic runtime budget enforcement and is now fully closed. Stage 6 is now fully closed. Stage 7 is now fully closed.
 
 Implemented now:
 
@@ -79,6 +79,12 @@ Stage 3 is now fully closed:
 - seeded and generic runtime search now order already-legal viable rows by semantic score first and branching score second when bundled vectors match the active lexicon
 - lightweight MMR-style novelty penalties now down-rank semantically redundant provisional theme rows without changing legality pruning
 - benchmark attempts now include deterministic heuristic-baseline counter snapshots for before/after search comparisons
+
+Stage 4 is now fully closed:
+
+- completed-grid scoring now applies explicit fill-quality gates and weakest-link theme thresholds during runtime ranking
+- theme-bearing subset selection is now surfaced on ranked candidates and reused by the offline store as answer-only metadata
+- vector-backed theme scoring and diversity-aware subset selection now participate in completed-grid ranking without changing legality pruning
 
 Stage 6 is now fully closed:
 
@@ -536,7 +542,7 @@ Decision gate:
 
 Status update:
 
-- substantially complete
+- fully closed
 - completed-grid scoring can now add vector-backed `theme_score` during runtime ranking when the bundled table matches the active lexicon
 - explicit fill-quality gates and weakest-link thresholds now reject weak completed grids during runtime ranking
 - theme-bearing subset metadata is now surfaced on ranked runtime candidates and reused by the offline puzzle store
@@ -693,9 +699,6 @@ The current implementation already:
 - store answer-only metadata alongside the rendered puzzle payload
 - support lookups by stored puzzle id for later clue-regeneration work
 - rank offline winners by answer-only score before any clue-based signal and expose a deterministic top-100 answer-only selector
-
-It still should:
-
 - retain multiple answer-only candidates per seed before final top-100 curation
 - keep the default batch builder on the process-worker path while preserving an in-process fallback for test doubles
 - preserve a stable puzzle id and canonical UUID per stored record
