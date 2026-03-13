@@ -2,6 +2,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import cast
 import unittest
 from unittest.mock import patch
 
@@ -11,16 +12,81 @@ from byewords.theme import (
     ThemeRetrievalComparison,
     ThemeRetrievalMetricReport,
 )
-from byewords.theme_index_builder import main, parse_args
+from byewords.theme_index_builder import (
+    DEFAULT_EMBEDDING_LICENSE,
+    DEFAULT_EMBEDDING_SOURCE,
+    DEFAULT_EMBEDDING_URL,
+    build_word_vector_payload,
+    main,
+    parse_args,
+)
+
+
+class _FakeEncoder:
+    def encode(
+        self,
+        words: list[str],
+        *,
+        batch_size: int,
+        convert_to_numpy: bool,
+        normalize_embeddings: bool,
+        show_progress_bar: bool,
+    ) -> list[list[float]]:
+        del batch_size
+        self.convert_to_numpy = convert_to_numpy
+        self.normalize_embeddings = normalize_embeddings
+        self.show_progress_bar = show_progress_bar
+        return [
+            [1.0, 0.0, 0.0] if word == "beach" else
+            [0.6, 0.8, 0.0] if word == "ocean" else
+            [0.0, 1.0, 0.0]
+            for word in words
+        ]
 
 
 class TestThemeIndexBuilder(unittest.TestCase):
     def test_parse_args_preserves_legacy_vector_invocation(self) -> None:
-        args = parse_args(["--output", "custom.json", "--dimensions", "64"])
+        args = parse_args(["--output", "custom.json", "--batch-size", "16", "--device", "cpu"])
 
         self.assertEqual(args.command, "vectors")
         self.assertEqual(args.output, Path("custom.json"))
-        self.assertEqual(args.dimensions, 64)
+        self.assertEqual(args.batch_size, 16)
+        self.assertEqual(args.device, "cpu")
+
+    def test_build_word_vector_payload_extracts_bge_vectors(self) -> None:
+        encoder = _FakeEncoder()
+        with patch("byewords.theme_index_builder._load_sentence_transformer", return_value=encoder):
+            payload = build_word_vector_payload(("beach", "ocean", "music"), batch_size=8, device="cpu")
+
+        self.assertEqual(payload["source"], DEFAULT_EMBEDDING_SOURCE)
+        self.assertEqual(payload["dimensions"], 3)
+        self.assertEqual(payload["source_url"], DEFAULT_EMBEDDING_URL)
+        self.assertEqual(payload["license"], DEFAULT_EMBEDDING_LICENSE)
+        self.assertEqual(payload["model_name"], "BAAI/bge-large-en-v1.5")
+        attribution = payload["attribution"]
+        vectors = payload["vectors"]
+        self.assertIsInstance(attribution, str)
+        self.assertIsInstance(vectors, dict)
+        typed_vectors = cast(dict[str, list[int]], vectors)
+        self.assertIn("bge-large-en-v1.5", cast(str, attribution))
+        self.assertEqual(tuple(sorted(typed_vectors)), ("beach", "music", "ocean"))
+        self.assertTrue(encoder.convert_to_numpy)
+        self.assertTrue(encoder.normalize_embeddings)
+        self.assertFalse(encoder.show_progress_bar)
+        for vector in typed_vectors.values():
+            self.assertEqual(len(vector), 3)
+            self.assertTrue(any(component != 0 for component in vector))
+
+    def test_build_word_vector_payload_rejects_dimension_mismatch(self) -> None:
+        class BadEncoder:
+            def encode(self, words: list[str], **_: object) -> list[list[float]]:
+                return [[1.0, 0.0], [0.0, 1.0, 0.0], [0.5, 0.5, 0.5]][:len(words)]
+
+        with (
+            patch("byewords.theme_index_builder._load_sentence_transformer", return_value=BadEncoder()),
+            self.assertRaisesRegex(ValueError, "inconsistent vector dimensions"),
+        ):
+            build_word_vector_payload(("beach", "ocean", "music"))
 
     def test_parse_args_supports_cache_command(self) -> None:
         args = parse_args(["cache", "--candidates-per-seed", "3", "--top-clue-limit", "20"])
@@ -93,6 +159,18 @@ class TestThemeIndexBuilder(unittest.TestCase):
         output = stdout.getvalue()
         self.assertIn('"seed": "beach"', output)
         self.assertIn('"metric": "cosine"', output)
+
+    def test_main_vectors_command_builds_vectors(self) -> None:
+        stdout = StringIO()
+        with (
+            redirect_stdout(stdout),
+            patch("byewords.theme_index_builder.write_word_vectors") as write_word_vectors,
+        ):
+            exit_code = main(["vectors", "--output", "custom.json", "--batch-size", "32", "--device", "cpu"])
+
+        self.assertEqual(exit_code, 0)
+        write_word_vectors.assert_called_once_with(Path("custom.json"), batch_size=32, device="cpu")
+        self.assertIn("Wrote semantic vectors to custom.json", stdout.getvalue())
 
     def test_main_intrusion_review_prints_text_summary(self) -> None:
         stdout = StringIO()

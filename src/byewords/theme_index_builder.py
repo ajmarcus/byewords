@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
+import importlib
 import json
-import math
-import re
 import sys
 from dataclasses import asdict
 from importlib import resources
@@ -25,27 +23,13 @@ from byewords.theme import (
     review_theme_retrieval,
 )
 
-DEFAULT_DIMENSIONS = 128
-TOKEN_PATTERN = re.compile(r"[a-z]+")
-STOPWORDS = frozenset(
-    {
-        "a",
-        "an",
-        "and",
-        "as",
-        "at",
-        "be",
-        "for",
-        "from",
-        "in",
-        "into",
-        "of",
-        "on",
-        "or",
-        "the",
-        "to",
-        "with",
-    }
+DEFAULT_EMBEDDING_MODEL = "BAAI/bge-large-en-v1.5"
+DEFAULT_EMBEDDING_SOURCE = "baai-bge-large-en-v1.5"
+DEFAULT_EMBEDDING_URL = "https://huggingface.co/BAAI/bge-large-en-v1.5"
+DEFAULT_EMBEDDING_LICENSE = "MIT"
+DEFAULT_EMBEDDING_ATTRIBUTION = (
+    "This data contains semantic vectors derived from BAAI/bge-large-en-v1.5, "
+    "released under the MIT license."
 )
 _COMMANDS = frozenset(("vectors", "cache", "retrieval-review", "intrusion-review"))
 
@@ -54,79 +38,80 @@ def _data_path(filename: str) -> Path:
     return Path(str(resources.files("byewords").joinpath("data", filename)))
 
 
-def _hash_feature(feature: str, dimensions: int) -> tuple[int, int]:
-    digest = hashlib.sha256(feature.encode("utf-8")).digest()
-    index = int.from_bytes(digest[:8], "big") % dimensions
-    sign = 1 if digest[8] % 2 == 0 else -1
-    return index, sign
-
-
-def _clue_tokens(clues: tuple[str, ...], answer: str) -> list[str]:
-    tokens: list[str] = []
-    for clue in clues:
-        for token in TOKEN_PATTERN.findall(clue.lower()):
-            if len(token) < 3 or token in STOPWORDS or token == answer:
-                continue
-            tokens.append(token)
-    return tokens
-
-
-def _word_features(
-    word: str,
-    clues: tuple[str, ...],
-) -> list[tuple[str, float]]:
-    features: list[tuple[str, float]] = [(f"answer:{word}", 4.0)]
-    for ngram_size in (2, 3):
-        for index in range(len(word) - ngram_size + 1):
-            ngram = word[index:index + ngram_size]
-            features.append((f"ngram:{ngram}", 1.0))
-    tokens = _clue_tokens(clues, word)
-    token_counts: dict[str, int] = {}
-    for token in tokens:
-        token_counts[token] = token_counts.get(token, 0) + 1
-    for token, count in sorted(token_counts.items()):
-        features.append((f"token:{token}", 1.5 + (count - 1) * 0.25))
-    for left_token, right_token in zip(tokens, tokens[1:], strict=False):
-        features.append((f"pair:{left_token}_{right_token}", 0.75))
-    return features
-
-
-def _raw_vector(
-    word: str,
-    clues: tuple[str, ...],
-    dimensions: int,
-) -> list[float]:
-    vector = [0.0] * dimensions
-    for feature, weight in _word_features(word, clues):
-        index, sign = _hash_feature(feature, dimensions)
-        vector[index] += weight * sign
-    norm = math.sqrt(sum(component * component for component in vector))
-    if norm == 0:
-        vector[0] = 1.0
-        return vector
-    return [component / norm for component in vector]
-
-
-def build_word_vector_payload(
-    lexicon_words: tuple[str, ...],
-    clue_bank: dict[str, tuple[str, ...]],
-    dimensions: int = DEFAULT_DIMENSIONS,
-) -> dict[str, object]:
-    float_vectors = {
-        word: _raw_vector(word, clue_bank.get(word, ()), dimensions)
-        for word in lexicon_words
-    }
+def _quantize_vectors(float_vectors: dict[str, list[float]]) -> tuple[dict[str, list[int]], float]:
     max_abs = max(abs(component) for vector in float_vectors.values() for component in vector)
     scale = max_abs / 127 if max_abs else 1 / 127
     quantized_vectors = {
         word: [max(-127, min(127, int(round(component / scale)))) for component in vector]
         for word, vector in float_vectors.items()
     }
+    return quantized_vectors, scale
+
+
+def _load_sentence_transformer(model_name: str, device: str | None):
+    try:
+        sentence_transformers = importlib.import_module("sentence_transformers")
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Building semantic vectors requires sentence-transformers and torch; run "
+            "`uv run --with sentence-transformers --with torch python -m byewords.theme_index_builder vectors`."
+        ) from exc
+    SentenceTransformer = sentence_transformers.SentenceTransformer
+    return SentenceTransformer(model_name, device=device)
+
+
+def _load_embedding_vectors(
+    lexicon_words: tuple[str, ...],
+    model_name: str,
+    batch_size: int,
+    device: str | None,
+) -> tuple[dict[str, list[float]], int]:
+    model = _load_sentence_transformer(model_name, device)
+    raw_vectors = model.encode(
+        list(lexicon_words),
+        batch_size=batch_size,
+        convert_to_numpy=True,
+        normalize_embeddings=True,
+        show_progress_bar=False,
+    )
+    if len(raw_vectors) != len(lexicon_words):
+        raise ValueError("embedding model returned the wrong number of vectors")
+
+    vectors: dict[str, list[float]] = {}
+    dimensions = 0
+    for word, raw_vector in zip(lexicon_words, raw_vectors, strict=True):
+        components = raw_vector.tolist() if hasattr(raw_vector, "tolist") else list(raw_vector)
+        vector = [float(component) for component in components]
+        if not vector:
+            raise ValueError(f"embedding model returned an empty vector for {word.upper()}")
+        if dimensions == 0:
+            dimensions = len(vector)
+        elif len(vector) != dimensions:
+            raise ValueError(
+                "embedding model returned inconsistent vector dimensions "
+                f"(expected {dimensions}, found {len(vector)} for {word.upper()})"
+            )
+        vectors[word] = vector
+    return vectors, dimensions
+
+
+def build_word_vector_payload(
+    lexicon_words: tuple[str, ...],
+    model_name: str = DEFAULT_EMBEDDING_MODEL,
+    batch_size: int = 64,
+    device: str | None = None,
+) -> dict[str, object]:
+    float_vectors, dimensions = _load_embedding_vectors(lexicon_words, model_name, batch_size, device)
+    quantized_vectors, scale = _quantize_vectors(float_vectors)
     return {
         "version": 1,
-        "source": "hashed-clue-features-v1",
+        "source": DEFAULT_EMBEDDING_SOURCE,
         "dimensions": dimensions,
         "lexicon_hash": lexicon_hash(lexicon_words),
+        "model_name": model_name,
+        "source_url": DEFAULT_EMBEDDING_URL,
+        "license": DEFAULT_EMBEDDING_LICENSE,
+        "attribution": DEFAULT_EMBEDDING_ATTRIBUTION,
         "quantization": {
             "scheme": "int8",
             "scale": round(scale, 10),
@@ -137,11 +122,15 @@ def build_word_vector_payload(
 
 def write_word_vectors(
     output_path: Path,
-    dimensions: int = DEFAULT_DIMENSIONS,
+    batch_size: int = 64,
+    device: str | None = None,
 ) -> None:
     lexicon_words = load_word_list(str(_data_path("words_5.txt")))
-    clue_bank = load_clue_bank(str(_data_path("clue_bank.json")))
-    payload = build_word_vector_payload(lexicon_words, clue_bank, dimensions)
+    payload = build_word_vector_payload(
+        lexicon_words,
+        batch_size=batch_size,
+        device=device,
+    )
     output_path.write_text(
         json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n",
         encoding="utf-8",
@@ -166,10 +155,18 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Path to the generated vector table JSON.",
     )
     vectors_parser.add_argument(
-        "--dimensions",
+        "--batch-size",
         type=int,
-        default=DEFAULT_DIMENSIONS,
-        help="Embedding dimensionality for the generated table.",
+        default=64,
+        help="Batch size to use while encoding the bundled lexicon with the embedding model.",
+    )
+    vectors_parser.add_argument(
+        "--device",
+        default=None,
+        help=(
+            "Optional device override passed to sentence-transformers, such as "
+            "`cpu`, `cuda`, or `mps`."
+        ),
     )
 
     cache_parser = subparsers.add_parser(
@@ -308,7 +305,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
 
     if args.command == "vectors":
-        write_word_vectors(args.output, args.dimensions)
+        write_word_vectors(args.output, batch_size=args.batch_size, device=args.device)
         print(f"Wrote semantic vectors to {args.output}")
         return 0
 

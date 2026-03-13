@@ -39,7 +39,13 @@ class TestBundledData(unittest.TestCase):
 
         self.assertEqual(vectors.version, 1)
         self.assertEqual(vectors.quantization_scheme, "int8")
-        self.assertEqual(vectors.dimensions, 128)
+        self.assertIn(
+            (vectors.source, vectors.dimensions),
+            {
+                ("hashed-clue-features-v1", 128),
+                ("baai-bge-large-en-v1.5", 1024),
+            },
+        )
         self.assertEqual(vectors.lexicon_hash, lexicon_hash(lexicon_words))
         self.assertEqual(tuple(sorted(vectors.vectors)), lexicon_words)
 
@@ -49,6 +55,8 @@ class TestBundledData(unittest.TestCase):
         self.assertIn("Five reliable single-word seeds with end-to-end regression coverage:", text)
         for seed in README_RECOMMENDED_SEEDS:
             self.assertIn(seed, text)
+        self.assertIn("BAAI/bge-large-en-v1.5", text)
+        self.assertIn("MIT", text)
 
     def test_readme_recommended_seeds_generate_seeded_puzzles(self) -> None:
         lexicon_words, clue_bank = load_default_inputs()

@@ -31,20 +31,17 @@ DEFAULT_USER_AGENT = (
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
 QUALITY_EXAMPLES = (
-    "Example 1\n"
     "Answer: TRADE\n"
-    "Clue: What a tariff threat can rattle overnight\n"
-    "Why it works: topical, concise, and precise without requiring obscure trivia.\n"
+    "Clue 1: Market-moving exchange at the center of tariff talk\n"
+    "Clue 2: Business between nations that can spark a customs fight\n"
     "\n"
-    "Example 2\n"
     "Answer: EERIE\n"
-    "Clue: Like a hallway after the lights blink out\n"
-    "Why it works: vivid sensory image, memorable surface, exact definition.\n"
+    "Clue 1: Like a nursery rhyme heard through static\n"
+    "Clue 2: Unsettling in the way an empty playground feels at dusk\n"
     "\n"
-    "Example 3\n"
     "Answer: CABLE\n"
-    "Clue: San Francisco car pulled by an underground loop\n"
-    "Why it works: concrete, specific, and rich with place without sounding dusty."
+    "Clue 1: Coiled connector hiding in a junk drawer\n"
+    "Clue 2: Wire that turns low battery panic into relief"
 )
 CLUE_RULES = (
     "Follow these rules for every clue:\n"
@@ -271,7 +268,6 @@ def build_clue_payload(
                 "content": (
                     f"Answer: {answer.strip()}\n"
                     f"Return exactly {count} standalone clues. "
-                    f"{CLUE_RULES}\n"
                     "Return only a JSON object with one key, 'clues'."
                 ),
             },
