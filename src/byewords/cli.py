@@ -32,7 +32,7 @@ class BuildAnimator:
         if not self._enabled:
             return
         now = time.monotonic()
-        should_force = progress.stage in {"cache_hit", "solution"}
+        should_force = progress.stage in {"cache_hit", "candidate_solution", "solution"}
         if not should_force and now - self._last_draw < self._frame_interval:
             return
         lines = self._render_lines(progress)
@@ -63,7 +63,7 @@ class BuildAnimator:
                 rows.append(" ".join(progress.partial_rows[row_index].upper()))
                 continue
             cells = ["."] * 5
-            if progress.stage not in {"cache_hit", "solution"} and row_index == active_row_index:
+            if progress.stage not in {"cache_hit", "candidate_solution", "solution"} and row_index == active_row_index:
                 cells[active_column_index] = spinner
             rows.append(" ".join(cells))
         return [f"{spinner} {progress.message}"] + rows
@@ -151,12 +151,23 @@ def main() -> int:
         return 0
     animator = BuildAnimator(sys.stderr)
     runtime_report: RuntimeReport | None = None
+    candidate_solution_reported = False
+    persistent_candidate_updates = (
+        args.output is None and args.format == "text" and sys.stdout.isatty()
+    )
 
     def handle_progress(progress: ProgressUpdate) -> None:
-        nonlocal runtime_report
+        nonlocal candidate_solution_reported, runtime_report
         if progress.runtime_report is not None:
             runtime_report = progress.runtime_report
             return
+        if (
+            persistent_candidate_updates
+            and progress.stage == "candidate_solution"
+            and not candidate_solution_reported
+        ):
+            print(progress.message, file=sys.stdout, flush=True)
+            candidate_solution_reported = True
         animator.update(progress)
 
     try:

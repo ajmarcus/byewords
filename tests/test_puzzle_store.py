@@ -11,6 +11,7 @@ from byewords.grid import grid_columns, make_grid
 from byewords.puzzle_store import (
     ClueStageReviewCase,
     StoredPuzzleRecord,
+    _default_clue_regenerator,
     build_batch_puzzle_cache,
     load_puzzle_store,
     persist_puzzle_store,
@@ -110,6 +111,15 @@ def _stored_record(
 
 
 class TestPuzzleStore(unittest.TestCase):
+    def test_default_clue_regenerator_falls_back_to_cached_packages_when_generation_fails(self) -> None:
+        with (
+            patch("byewords.groq_clues.cached_clues_for_answer", return_value=None),
+            patch("byewords.groq_clues.regenerate_clues", side_effect=RuntimeError("generation failed")),
+        ):
+            packages = _default_clue_regenerator(("snail", "adieu"), {}, "/tmp/clue_bank.json")
+
+        self.assertEqual(packages, ())
+
     def test_build_batch_puzzle_cache_populates_one_record_per_seed(self) -> None:
         with TemporaryDirectory() as temp_dir:
             store_path = Path(temp_dir) / "puzzles.json"

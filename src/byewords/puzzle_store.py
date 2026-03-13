@@ -730,7 +730,7 @@ def _default_clue_regenerator(
             clue_bank,
             clue_bank_path,
         )
-    except ValueError:
+    except (OSError, RuntimeError, ValueError):
         return tuple(cached_packages)
 
     return tuple(cached_packages) + tuple(generated_packages)

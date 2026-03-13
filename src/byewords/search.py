@@ -313,8 +313,8 @@ def search_grids(
                 if progress_callback is not None:
                     progress_callback(
                         ProgressUpdate(
-                            stage="solution",
-                            message="Locked the final grid",
+                            stage="candidate_solution",
+                            message="Found a complete candidate grid; continuing search",
                             partial_rows=grid.rows,
                         )
                     )

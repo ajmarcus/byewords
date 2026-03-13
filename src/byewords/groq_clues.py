@@ -334,6 +334,21 @@ def parse_clue_package(payload: str) -> tuple[str, ...]:
     return tuple(clues)
 
 
+def _merged_clues(
+    existing_clues: Sequence[str],
+    new_clues: Sequence[str],
+) -> tuple[str, ...]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for clue in tuple(existing_clues) + tuple(new_clues):
+        normalized = clue.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        merged.append(normalized)
+    return tuple(merged)
+
+
 def generate_clue_package(
     client: CompletionClient,
     answer: str,
@@ -343,21 +358,23 @@ def generate_clue_package(
     count: int = DEFAULT_CLUE_COUNT,
     force: bool = False,
 ) -> CluePackage:
-    cached_clues = cached_clues_for_answer(answer, clue_bank)
+    answer_text = answer.strip()
+    existing_clues = tuple(clue_bank.get(answer_text, ()))
+    cached_clues = cached_clues_for_answer(answer_text, clue_bank)
     if cached_clues and not force:
-        return CluePackage(answer=answer.strip(), cached=True, clues=cached_clues)
+        return CluePackage(answer=answer_text, cached=True, clues=cached_clues)
 
     clue_payload = build_clue_payload(
-        answer=answer,
+        answer=answer_text,
         count=count,
     )
     clue_response = client.create_chat_completion(clue_payload)
     clue_content = extract_message_content(clue_response)
-    clues = parse_clue_package(clue_content)
+    clues = _merged_clues(existing_clues, parse_clue_package(clue_content))
     with lock:
-        clue_bank[answer.strip()] = clues
+        clue_bank[answer_text] = clues
         persist_clue_bank(clue_bank_path, clue_bank)
-    return CluePackage(answer=answer.strip(), cached=False, clues=clues)
+    return CluePackage(answer=answer_text, cached=False, clues=clues)
 
 
 def load_default_answer_inputs() -> tuple[tuple[str, ...], dict[str, tuple[str, ...]]]:

@@ -62,13 +62,13 @@ class TestThemeIndexBuilder(unittest.TestCase):
         self.assertEqual(payload["dimensions"], 3)
         self.assertEqual(payload["source_url"], DEFAULT_EMBEDDING_URL)
         self.assertEqual(payload["license"], DEFAULT_EMBEDDING_LICENSE)
-        self.assertEqual(payload["model_name"], "BAAI/bge-large-en-v1.5")
+        self.assertEqual(payload["model_name"], "BAAI/bge-small-en-v1.5")
         attribution = payload["attribution"]
         vectors = payload["vectors"]
         self.assertIsInstance(attribution, str)
         self.assertIsInstance(vectors, dict)
         typed_vectors = cast(dict[str, list[int]], vectors)
-        self.assertIn("bge-large-en-v1.5", cast(str, attribution))
+        self.assertIn("bge-small-en-v1.5", cast(str, attribution))
         self.assertEqual(tuple(sorted(typed_vectors)), ("beach", "music", "ocean"))
         self.assertTrue(encoder.convert_to_numpy)
         self.assertTrue(encoder.normalize_embeddings)

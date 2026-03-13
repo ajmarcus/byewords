@@ -2,7 +2,15 @@ from dataclasses import dataclass
 from typing import Callable, Literal, TypeAlias
 
 Direction = Literal["across", "down"]
-ProgressStage = Literal["cache_hit", "runtime_report", "search", "seed_search", "solution", "window"]
+ProgressStage = Literal[
+    "cache_hit",
+    "candidate_solution",
+    "runtime_report",
+    "search",
+    "seed_search",
+    "solution",
+    "window",
+]
 
 
 @dataclass(frozen=True)

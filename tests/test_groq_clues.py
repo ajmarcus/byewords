@@ -419,7 +419,14 @@ class TestGroqClues(unittest.TestCase):
 
         self.assertEqual(len(client.payloads), 1)
         self.assertFalse(package.cached)
-        self.assertEqual(package.clues, ("Snail option A", "Snail option B"))
+        self.assertEqual(
+            package.clues,
+            (
+                "Slow walker carrying its whole rent situation",
+                "Snail option A",
+                "Snail option B",
+            ),
+        )
 
     def test_generate_clue_package_writes_generated_clues_to_clue_bank(self) -> None:
         client = FakeGroqClient()
@@ -443,6 +450,43 @@ class TestGroqClues(unittest.TestCase):
         self.assertFalse(package.cached)
         self.assertEqual(clue_bank["snail"], ("Snail option A", "Snail option B"))
         self.assertEqual(persisted["snail"], ["Snail option A", "Snail option B"])
+
+    def test_generate_clue_package_force_appends_new_clues_without_deleting_existing_ones(self) -> None:
+        client = FakeGroqClient()
+
+        with TemporaryDirectory() as directory:
+            clue_bank_path = str(Path(directory, "clue_bank.json"))
+            Path(clue_bank_path).write_text("{}\n", encoding="utf-8")
+            clue_bank: dict[str, tuple[str, ...]] = {
+                "snail": (
+                    "Slow walker carrying its whole rent situation",
+                    "Creature living the ultimate one-bag lifestyle",
+                )
+            }
+
+            package = generate_clue_package(
+                client=client,
+                answer="snail",
+                clue_bank=clue_bank,
+                clue_bank_path=clue_bank_path,
+                lock=threading.Lock(),
+                count=DEFAULT_CLUE_COUNT,
+                force=True,
+            )
+
+            persisted = json.loads(Path(clue_bank_path).read_text(encoding="utf-8"))
+
+        self.assertFalse(package.cached)
+        self.assertEqual(
+            package.clues,
+            (
+                "Slow walker carrying its whole rent situation",
+                "Creature living the ultimate one-bag lifestyle",
+                "Snail option A",
+                "Snail option B",
+            ),
+        )
+        self.assertEqual(list(package.clues), persisted["snail"])
 
     def test_main_reports_missing_api_key_to_stderr(self) -> None:
         stdout = StringIO()
@@ -590,7 +634,14 @@ class TestGroqClues(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         parsed = json.loads(stdout.getvalue())
         self.assertEqual(parsed[0]["cached"], False)
-        self.assertEqual(parsed[0]["clues"], ["Snail option A", "Snail option B"])
+        self.assertEqual(
+            parsed[0]["clues"],
+            [
+                "Slow walker carrying its whole rent situation",
+                "Snail option A",
+                "Snail option B",
+            ],
+        )
 
     def test_main_json_output_wraps_packages_when_puzzle_uuid_is_supplied(self) -> None:
         stdout = StringIO()

@@ -303,6 +303,7 @@ class TestGenerate(unittest.TestCase):
 
         self.assertTrue(any(update.stage == "window" for update in updates))
         self.assertTrue(any(update.stage == "search" and update.partial_rows for update in updates))
+        self.assertTrue(any(update.stage == "candidate_solution" for update in updates))
         runtime_reports = [update for update in updates if update.stage == "runtime_report"]
         self.assertEqual(len(runtime_reports), 1)
         runtime_report = runtime_reports[0].runtime_report

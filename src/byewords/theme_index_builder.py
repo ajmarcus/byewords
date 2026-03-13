@@ -23,12 +23,12 @@ from byewords.theme import (
     review_theme_retrieval,
 )
 
-DEFAULT_EMBEDDING_MODEL = "BAAI/bge-large-en-v1.5"
-DEFAULT_EMBEDDING_SOURCE = "baai-bge-large-en-v1.5"
-DEFAULT_EMBEDDING_URL = "https://huggingface.co/BAAI/bge-large-en-v1.5"
+DEFAULT_EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
+DEFAULT_EMBEDDING_SOURCE = "baai-bge-small-en-v1.5"
+DEFAULT_EMBEDDING_URL = "https://huggingface.co/BAAI/bge-small-en-v1.5"
 DEFAULT_EMBEDDING_LICENSE = "MIT"
 DEFAULT_EMBEDDING_ATTRIBUTION = (
-    "This data contains semantic vectors derived from BAAI/bge-large-en-v1.5, "
+    "This data contains semantic vectors derived from BAAI/bge-small-en-v1.5, "
     "released under the MIT license."
 )
 _COMMANDS = frozenset(("vectors", "cache", "retrieval-review", "intrusion-review"))
