@@ -31,6 +31,7 @@ from byewords.types import (
     ProgressStage,
     ProgressUpdate,
     Puzzle,
+    RuntimeReport,
 )
 
 DEFAULT_DEMO_ROWS = ("ozone", "liven", "inert", "verve", "ester")
@@ -69,6 +70,19 @@ class GenerationBenchmark:
     selected_theme_words: tuple[str, ...]
     selected_theme_subset: tuple[str, ...]
     selected_theme_weakest_link: float
+    budget_exhausted: bool
+    used_budget_fallback: bool
+
+
+@dataclass(frozen=True)
+class RuntimeSearchState:
+    requested_seeds: tuple[str, ...]
+    normalized_seeds: tuple[str, ...]
+    available_seeds: tuple[str, ...]
+    candidate_count: int
+    candidate_window_sizes: tuple[int, ...]
+    semantic_ordering: bool
+    used_demo_grid: bool
     budget_exhausted: bool
     used_budget_fallback: bool
 
@@ -251,10 +265,18 @@ def _emit_progress(
     stage: ProgressStage,
     message: str,
     partial_rows: tuple[str, ...] = (),
+    runtime_report: RuntimeReport | None = None,
 ) -> None:
     if progress_callback is None:
         return
-    progress_callback(ProgressUpdate(stage=stage, message=message, partial_rows=partial_rows))
+    progress_callback(
+        ProgressUpdate(
+            stage=stage,
+            message=message,
+            partial_rows=partial_rows,
+            runtime_report=runtime_report,
+        )
+    )
 
 
 def _runtime_deadline(config: GenerateConfig) -> float | None:
@@ -311,6 +333,57 @@ def _selected_theme_metrics(
     if not ranked:
         return (), 0.0
     return ranked[0].theme_subset, ranked[0].theme_weakest_link
+
+
+def _build_runtime_report(
+    search_state: RuntimeSearchState,
+    selected_theme_words: tuple[str, ...],
+    selected_theme_subset: tuple[str, ...],
+    selected_theme_weakest_link: float,
+) -> RuntimeReport:
+    return RuntimeReport(
+        requested_seeds=search_state.requested_seeds,
+        normalized_seeds=search_state.normalized_seeds,
+        available_seeds=search_state.available_seeds,
+        candidate_count=search_state.candidate_count,
+        candidate_window_sizes=search_state.candidate_window_sizes,
+        semantic_ordering=search_state.semantic_ordering,
+        used_demo_grid=search_state.used_demo_grid,
+        budget_exhausted=search_state.budget_exhausted,
+        used_budget_fallback=search_state.used_budget_fallback,
+        selected_theme_words=selected_theme_words,
+        selected_theme_subset=selected_theme_subset,
+        selected_theme_weakest_link=selected_theme_weakest_link,
+    )
+
+
+def _format_runtime_report(report: RuntimeReport) -> str:
+    mode = "demo" if report.used_demo_grid else ("semantic" if report.semantic_ordering else "heuristic")
+    subset_text = ", ".join(word.upper() for word in report.selected_theme_subset) or "none"
+    theme_word_text = ", ".join(word.upper() for word in report.selected_theme_words) or "none"
+    fallback_text = "yes" if report.used_budget_fallback else "no"
+    return (
+        "Runtime report: "
+        f"mode={mode}; "
+        f"candidates={report.candidate_count}; "
+        f"windows={len(report.candidate_window_sizes)}; "
+        f"budget_fallback={fallback_text}; "
+        f"seed_hits={theme_word_text}; "
+        f"theme_subset={subset_text}; "
+        f"weakest_link={report.selected_theme_weakest_link:.3f}"
+    )
+
+
+def _emit_runtime_report(
+    progress_callback: ProgressCallback | None,
+    report: RuntimeReport,
+) -> None:
+    _emit_progress(
+        progress_callback,
+        "runtime_report",
+        _format_runtime_report(report),
+        runtime_report=report,
+    )
 
 
 def _search_candidate_windows(
@@ -539,12 +612,22 @@ def _find_candidate_grids(
     clue_bank: dict[str, tuple[str, ...]],
     config: GenerateConfig,
     progress_callback: ProgressCallback | None = None,
-) -> tuple[tuple[Grid, ...], tuple[str, ...]]:
+) -> tuple[tuple[Grid, ...], RuntimeSearchState]:
     normalized_seeds = normalize_seeds(seeds)
     lexicon_set = set(lexicon_words)
     available_seeds = tuple(seed for seed in normalized_seeds if seed in lexicon_set)
     if _is_demo_seed_hit(available_seeds, lexicon_words):
-        return (DEFAULT_DEMO_GRID,), available_seeds
+        return (DEFAULT_DEMO_GRID,), RuntimeSearchState(
+            requested_seeds=seeds,
+            normalized_seeds=normalized_seeds,
+            available_seeds=available_seeds,
+            candidate_count=0,
+            candidate_window_sizes=(),
+            semantic_ordering=False,
+            used_demo_grid=True,
+            budget_exhausted=False,
+            used_budget_fallback=False,
+        )
 
     preferred_words = preferred_clue_words(clue_bank)
     candidate_words = build_candidate_pool(
@@ -585,7 +668,17 @@ def _find_candidate_grids(
             semantic_ordering=None,
             progress_callback=progress_callback,
         )
-    return grids, available_seeds
+    return grids, RuntimeSearchState(
+        requested_seeds=seeds,
+        normalized_seeds=normalized_seeds,
+        available_seeds=available_seeds,
+        candidate_count=len(candidate_words),
+        candidate_window_sizes=tuple(len(window) for window in candidate_windows),
+        semantic_ordering=row_scores is not None,
+        used_demo_grid=False,
+        budget_exhausted=budget_exhausted,
+        used_budget_fallback=budget_exhausted and row_scores is not None,
+    )
 
 
 def generate_puzzle_candidates(
@@ -595,19 +688,46 @@ def generate_puzzle_candidates(
     config: GenerateConfig = GenerateConfig(),
     progress_callback: ProgressCallback | None = None,
 ) -> tuple[Puzzle, ...]:
-    grids, available_seeds = _find_candidate_grids(
+    find_result = _find_candidate_grids(
         seeds,
         lexicon_words,
         clue_bank,
         config,
         progress_callback=progress_callback,
     )
-    semantic_vectors = _load_semantic_vectors(lexicon_words, available_seeds)
-    ranked_grids = _rank_candidate_grids(grids, available_seeds, semantic_vectors)
+    if isinstance(find_result[1], RuntimeSearchState):
+        grids, search_state = find_result
+    else:
+        grids, available_seeds = find_result
+        normalized_seeds = normalize_seeds(seeds)
+        search_state = RuntimeSearchState(
+            requested_seeds=seeds,
+            normalized_seeds=normalized_seeds,
+            available_seeds=available_seeds,
+            candidate_count=len(lexicon_words),
+            candidate_window_sizes=(len(lexicon_words),),
+            semantic_ordering=False,
+            used_demo_grid=False,
+            budget_exhausted=False,
+            used_budget_fallback=False,
+        )
+    semantic_vectors = _load_semantic_vectors(lexicon_words, search_state.available_seeds)
+    ranked_grids = _rank_candidate_grids(grids, search_state.available_seeds, semantic_vectors)
     if not ranked_grids:
         raise ValueError("unable to generate a valid 5x5 puzzle from the current lexicon")
+    selected_candidate = ranked_grids[0]
+    selected_theme_words = tuple(
+        seed for seed in search_state.available_seeds if seed in distinct_entries(selected_candidate.grid)
+    )
+    runtime_report = _build_runtime_report(
+        search_state,
+        selected_theme_words,
+        selected_candidate.theme_subset,
+        selected_candidate.theme_weakest_link,
+    )
+    _emit_runtime_report(progress_callback, runtime_report)
     return tuple(
-        _build_puzzle_from_grid(candidate.grid, clue_bank, available_seeds)
+        _build_puzzle_from_grid(candidate.grid, clue_bank, search_state.available_seeds)
         for candidate in ranked_grids
     )
 

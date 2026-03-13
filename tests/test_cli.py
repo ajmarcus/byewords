@@ -3,10 +3,10 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from byewords.cli import main, parse_args
-from byewords.types import ProgressUpdate
+from byewords.types import ProgressUpdate, RuntimeReport
 from tests.test_puz import build_test_puzzle
 
 
@@ -110,7 +110,7 @@ class TestCli(unittest.TestCase):
             exit_code = main()
 
         self.assertEqual(exit_code, 0)
-        generate_cached.assert_called_once_with(("snail",), (), {})
+        generate_cached.assert_called_once_with(("snail",), (), {}, progress_callback=ANY)
         self.assertEqual(stdout.getvalue(), "cached puzzle\n")
 
     def test_cli_regenerates_clues_for_seeded_runs(self) -> None:
@@ -155,6 +155,26 @@ class TestCli(unittest.TestCase):
             )
             progress_callback(
                 ProgressUpdate(
+                    stage="runtime_report",
+                    message="Runtime report: semantic on",
+                    runtime_report=RuntimeReport(
+                        requested_seeds=("snail",),
+                        normalized_seeds=("snail",),
+                        available_seeds=("snail",),
+                        candidate_count=10,
+                        candidate_window_sizes=(10,),
+                        semantic_ordering=True,
+                        used_demo_grid=False,
+                        budget_exhausted=False,
+                        used_budget_fallback=False,
+                        selected_theme_words=("snail",),
+                        selected_theme_subset=("eases", "antra", "donna"),
+                        selected_theme_weakest_link=0.25,
+                    ),
+                )
+            )
+            progress_callback(
+                ProgressUpdate(
                     stage="solution",
                     message="Locked the final grid",
                     partial_rows=("snail", "oases", "atone", "ileum", "lends"),
@@ -176,6 +196,7 @@ class TestCli(unittest.TestCase):
         self.assertEqual(stdout.getvalue(), "animated puzzle\n")
         self.assertIn("Locked the final grid", stderr.getvalue())
         self.assertIn("S N A I L", stderr.getvalue())
+        self.assertIn("runtime: semantic=on fallback=no theme_subset=EASES, ANTRA, DONNA weakest_link=0.250", stderr.getvalue())
         self.assertIn("\x1b[?25l", stderr.getvalue())
 
     def test_parse_args_supports_positional_seeds(self) -> None:

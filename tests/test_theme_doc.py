@@ -18,7 +18,7 @@ class TestThemeDoc(unittest.TestCase):
         self.assertIn("Stage 1 is now complete.", text)
         self.assertIn("Stage 2 is now fully closed.", text)
         self.assertIn("Stage 3 is now fully closed.", text)
-        self.assertIn("Stage 5 has deterministic runtime budget enforcement.", text)
+        self.assertIn("Stage 5 has deterministic runtime budget enforcement and is now fully closed.", text)
         self.assertIn("Stage 6 is now fully closed.", text)
         self.assertIn("Stage 7 is now fully closed.", text)
         self.assertIn("the representative easy, medium, and hard seed corpus now lives in code via `THEME_BENCHMARK_SEEDS`", text)
@@ -58,6 +58,10 @@ class TestThemeDoc(unittest.TestCase):
             "benchmark reports now surface budget exhaustion, heuristic fallback, and selected theme-subset telemetry",
             text,
         )
+        self.assertIn(
+            "seeded generation now emits a per-request runtime report through progress updates, and the CLI now surfaces that report after puzzle generation",
+            text,
+        )
         self.assertIn("the offline cache path now performs real per-seed puzzle generation", text)
         self.assertIn("the offline cache now retains a bounded top-N answer-only candidate set per seed", text)
         self.assertIn("offline answer-only curation now ranks records without clue-score influence", text)
@@ -75,6 +79,14 @@ class TestThemeDoc(unittest.TestCase):
         )
         self.assertIn(
             "final offline ranking can now include clue-quality signal only after top-100 clue refresh, while preserving answer-only selection for the initial slice",
+            text,
+        )
+        self.assertIn(
+            "clue-aware reranking can now be reviewed deterministically against expected answer-only and clue-stage winners for a small editorial corpus",
+            text,
+        )
+        self.assertIn(
+            "`theme_index_builder.py` now supports vector building, lexicon-wide cache generation, and deterministic retrieval and intrusion review reports for offline evaluation",
             text,
         )
         self.assertIn("Scoring every word against one seed is cheap:", text)
@@ -117,6 +129,10 @@ class TestThemeDoc(unittest.TestCase):
             "Groq regeneration is now attempted only for selected answers that still lack non-generic clue-bank coverage, preserving offline-first batch builds when API credentials are absent",
             text,
         )
+        self.assertIn(
+            "clue-stage review helpers can now compare answer-only winners against clue-stage winners for a small reviewed corpus without changing offline ranking inputs",
+            text,
+        )
         self.assertIn("Stage 1 is now fully closed:", text)
         self.assertIn("Stage 2 is now fully closed:", text)
         self.assertIn(
@@ -155,6 +171,10 @@ class TestThemeDoc(unittest.TestCase):
         )
         self.assertIn("write lexicon-wide cached puzzle records to `src/byewords/data/puzzles.json`", text)
         self.assertIn("with no seeds: build or refresh the offline `puzzles.json` cache", text)
+        self.assertIn(
+            "clue-aware reranking is now measurable enough to decide whether the reviewed clue corpus should expand",
+            text,
+        )
         self.assertIn("Decision gate:", text)
         self.assertIn(
             "explicit fill-quality gates and weakest-link thresholds now reject weak completed grids during runtime ranking",
@@ -179,6 +199,10 @@ class TestThemeDoc(unittest.TestCase):
         )
         self.assertIn(
             "benchmark reports now surface budget exhaustion, fallback usage, and selected theme-subset coherence telemetry",
+            text,
+        )
+        self.assertIn(
+            "seeded generation now emits a per-request runtime report through progress updates, and the CLI surfaces a stable post-build runtime summary for interactive and non-interactive runs",
             text,
         )
         self.assertIn("## Appendix: Research papers", text)

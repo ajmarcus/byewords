@@ -31,7 +31,7 @@ This plan is based on the experiments performed so far.
 
 ## Current implementation progress
 
-Stage 1 is now complete. Stage 2 is now fully closed. Stage 3 is now fully closed. Stage 5 has deterministic runtime budget enforcement. Stage 6 is now fully closed. Stage 7 is now fully closed.
+Stage 1 is now complete. Stage 2 is now fully closed. Stage 3 is now fully closed. Stage 5 has deterministic runtime budget enforcement and is now fully closed. Stage 6 is now fully closed. Stage 7 is now fully closed.
 
 Implemented now:
 
@@ -51,6 +51,7 @@ Implemented now:
 - benchmark search attempts can now capture heuristic-baseline counter snapshots for deterministic before/after search comparisons
 - seeded semantic search now enforces a deterministic runtime budget and falls back to heuristic row ordering when it expires
 - benchmark reports now surface budget exhaustion, heuristic fallback, and selected theme-subset telemetry
+- seeded generation now emits a per-request runtime report through progress updates, and the CLI now surfaces that report after puzzle generation
 - the CLI now supports an offline-first cache build that writes lexicon-wide puzzle records to `src/byewords/data/puzzles.json`
 - the offline cache path now performs real per-seed puzzle generation and stores answer-only metadata for each retained record
 - the offline cache now retains a bounded top-N answer-only candidate set per seed before final clue-stage curation
@@ -60,6 +61,8 @@ Implemented now:
 - the offline cache now refreshes clues only for the deterministic top-100 answer-only slice, validates those refreshed clue sets, and stores clue-stage ranking metadata beside each selected record
 - the top-100 clue stage now uses `clue_bank.json` first and only attempts Groq regeneration for selected answers that still lack non-generic clues
 - final offline ranking can now include clue-quality signal only after top-100 clue refresh, while preserving answer-only selection for the initial slice
+- clue-aware reranking can now be reviewed deterministically against expected answer-only and clue-stage winners for a small editorial corpus
+- `theme_index_builder.py` now supports vector building, lexicon-wide cache generation, and deterministic retrieval and intrusion review reports for offline evaluation
 
 Stage 1 is now fully closed:
 
@@ -83,14 +86,11 @@ Stage 6 is now fully closed:
 - deterministic intrusion-review helpers now exercise the current theme scorer directly instead of relying on manual inspection alone
 - the intrusion-review corpus is checked against bundled lexicon coverage so offline scorer regressions are measured rather than assumed
 
-What remains before the offline pipeline is doing the intended job:
-
-- measure whether clue-aware reranking improves editorial quality enough to justify expanding the reviewed clue corpus
-
 Working conclusion:
 
 - the existing search counters appear sufficient for the semantic rollout
-- the next implementation chunk should measure whether clue-aware reranking improves editorial quality enough to justify expanding the reviewed clue corpus
+- clue-aware reranking is now measurable enough to decide whether the reviewed clue corpus should expand
+- the latest implementation pass closed Stage 5 in code by surfacing per-request runtime reports and expanded the offline builder into a single entry point for vectors, cache generation, and semantic review reports
 
 ## Findings from experiments
 
@@ -561,12 +561,12 @@ Decision gate:
 
 Status update:
 
-- partially complete
+- fully closed
 - seeded runtime generation, fallback search windows, and cache reuse exist today
 - semantic vector loading, viable-row ordering, and completed-grid reranking are now wired into seeded selection when the bundled table matches the active lexicon
 - seeded semantic search now enforces a deterministic runtime budget and falls back to heuristic row ordering when it expires
 - benchmark reports now surface budget exhaustion, fallback usage, and selected theme-subset coherence telemetry
-- per-request runtime telemetry is still benchmark-only rather than a user-facing runtime report
+- seeded generation now emits a per-request runtime report through progress updates, and the CLI surfaces a stable post-build runtime summary for interactive and non-interactive runs
 
 ### Stage 6. Offline lexicon-wide generation
 
@@ -619,6 +619,7 @@ Status update:
 - refreshed clue sets are now validated for non-generic multi-word clue text before clue-stage ranking metadata is persisted
 - clue-stage reranking now happens only within the selected top-100 slice, so clue quality cannot pull weaker answer-only records into the curated set
 - Groq regeneration is now attempted only for selected answers that still lack non-generic clue-bank coverage, preserving offline-first batch builds when API credentials are absent
+- clue-stage review helpers can now compare answer-only winners against clue-stage winners for a small reviewed corpus without changing offline ranking inputs
 
 ## Module changes
 
@@ -719,7 +720,7 @@ The clue-regeneration CLI should now support:
 
 Add an offline tool such as `src/byewords/theme_index_builder.py`.
 
-It should support vector building first, then lexicon-wide parallel puzzle generation, then the top-100 clue stage, plus coherence and intrusion evaluation reports. It should never run in normal puzzle generation.
+It now supports vector building, lexicon-wide parallel puzzle generation with the top-100 clue stage, and deterministic retrieval and intrusion evaluation reports. It still should never run in normal puzzle generation.
 
 ## Testing plan
 

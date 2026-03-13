@@ -10,7 +10,7 @@ from byewords.groq_clues import default_clue_bank_path, regenerate_clues as run_
 from byewords.puz import puzzle_to_puz_bytes
 from byewords.puzzle_store import build_batch_puzzle_cache
 from byewords.render import render_puzzle_text
-from byewords.types import ProgressUpdate, Puzzle
+from byewords.types import ProgressUpdate, Puzzle, RuntimeReport
 
 
 class BuildAnimator:
@@ -150,21 +150,47 @@ def main() -> int:
         )
         return 0
     animator = BuildAnimator(sys.stderr)
+    runtime_report: RuntimeReport | None = None
+
+    def handle_progress(progress: ProgressUpdate) -> None:
+        nonlocal runtime_report
+        if progress.runtime_report is not None:
+            runtime_report = progress.runtime_report
+            return
+        animator.update(progress)
+
     try:
         if animator.enabled:
             puzzle = generate_puzzle_cached(
                 args.seeds,
                 lexicon_words,
                 clue_bank,
-                progress_callback=animator.update,
+                progress_callback=handle_progress,
             )
         else:
-            puzzle = generate_puzzle_cached(args.seeds, lexicon_words, clue_bank)
+            puzzle = generate_puzzle_cached(
+                args.seeds,
+                lexicon_words,
+                clue_bank,
+                progress_callback=handle_progress,
+            )
     except ValueError as exc:
         animator.finish()
         print(f"error: {exc}")
         return 1
     animator.finish()
+    if runtime_report is not None:
+        theme_subset = ", ".join(word.upper() for word in runtime_report.selected_theme_subset) or "none"
+        print(
+            (
+                "runtime: "
+                f"semantic={'on' if runtime_report.semantic_ordering else 'off'} "
+                f"fallback={'yes' if runtime_report.used_budget_fallback else 'no'} "
+                f"theme_subset={theme_subset} "
+                f"weakest_link={runtime_report.selected_theme_weakest_link:.3f}"
+            ),
+            file=sys.stderr,
+        )
     if args.regenerate_clues:
         try:
             run_clue_regeneration(

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Callable, Literal, TypeAlias
 
 Direction = Literal["across", "down"]
-ProgressStage = Literal["cache_hit", "search", "seed_search", "solution", "window"]
+ProgressStage = Literal["cache_hit", "runtime_report", "search", "seed_search", "solution", "window"]
 
 
 @dataclass(frozen=True)
@@ -64,11 +64,28 @@ class GenerateConfig:
     runtime_budget_ms: int | None = None
 
 
+@dataclass(frozen=True)
+class RuntimeReport:
+    requested_seeds: tuple[str, ...]
+    normalized_seeds: tuple[str, ...]
+    available_seeds: tuple[str, ...]
+    candidate_count: int
+    candidate_window_sizes: tuple[int, ...]
+    semantic_ordering: bool
+    used_demo_grid: bool
+    budget_exhausted: bool
+    used_budget_fallback: bool
+    selected_theme_words: tuple[str, ...] = ()
+    selected_theme_subset: tuple[str, ...] = ()
+    selected_theme_weakest_link: float = 0.0
+
+
 @dataclass(frozen=True, slots=True)
 class ProgressUpdate:
     stage: ProgressStage
     message: str
     partial_rows: tuple[str, ...] = ()
+    runtime_report: RuntimeReport | None = None
 
 
 ProgressCallback: TypeAlias = Callable[[ProgressUpdate], None]

@@ -9,12 +9,14 @@ from unittest.mock import patch
 from byewords.cache import CluePayload
 from byewords.grid import grid_columns, make_grid
 from byewords.puzzle_store import (
+    ClueStageReviewCase,
     StoredPuzzleRecord,
     build_batch_puzzle_cache,
     load_puzzle_store,
     persist_puzzle_store,
     puzzle_answers_for_id,
     puzzle_store_version,
+    review_clue_stage_reranking,
     top_clue_stage_records,
     top_answer_only_records,
 )
@@ -794,6 +796,141 @@ class TestPuzzleStore(unittest.TestCase):
         self.assertEqual(snail_clue_stage["answer_only_rank"], 1)
         self.assertEqual(tempo_clue_stage["answer_only_rank"], 2)
         self.assertTrue(any("generic clue" in error for error in snail_clue_stage["validation_errors"]))
+
+    def test_review_clue_stage_reranking_reports_expected_winners(self) -> None:
+        version = puzzle_store_version(("snail", "tempo"), {})
+        snail_answer_first = _stored_record(
+            "00000000-0000-7000-8000-000000000050",
+            "snail",
+            version,
+            build_test_puzzle(),
+            fill_score=0.9,
+            theme_score=0.7,
+            clue_score=0.0,
+            answer_only_score=1.6,
+            theme_subset=["eases", "antra"],
+        )
+        snail_clue_best = _stored_record(
+            "00000000-0000-7000-8000-000000000051",
+            "snail",
+            version,
+            _build_seed_puzzle("snail", ("snail", "adieu", "tempo", "music", "piano")),
+            fill_score=0.8,
+            theme_score=0.7,
+            clue_score=0.0,
+            answer_only_score=1.5,
+            theme_subset=["tempo", "music"],
+        )
+        tempo_best = _stored_record(
+            "00000000-0000-7000-8000-000000000052",
+            "tempo",
+            version,
+            _build_seed_puzzle("tempo", ("tempo", "music", "piano", "choir", "drums")),
+            fill_score=0.8,
+            theme_score=0.6,
+            clue_score=0.0,
+            answer_only_score=1.4,
+            theme_subset=["music", "piano"],
+        )
+        tempo_other = _stored_record(
+            "00000000-0000-7000-8000-000000000053",
+            "tempo",
+            version,
+            _build_seed_puzzle("tempo", ("tempo", "choir", "drums", "piano", "music")),
+            fill_score=0.7,
+            theme_score=0.5,
+            clue_score=0.0,
+            answer_only_score=1.2,
+            theme_subset=["choir", "drums"],
+        )
+
+        snail_answer_first["clue_stage"] = {
+            "answer_only_rank": 1,
+            "selected_rank": 2,
+            "clue_score": 0.05,
+            "total_score": 1.65,
+            "validation_passed": False,
+            "validation_errors": ["snail: generic clue"],
+            "cached_answer_count": 10,
+            "regenerated_answer_count": 0,
+        }
+        snail_clue_best["clue_stage"] = {
+            "answer_only_rank": 2,
+            "selected_rank": 1,
+            "clue_score": 0.6,
+            "total_score": 2.1,
+            "validation_passed": True,
+            "validation_errors": [],
+            "cached_answer_count": 6,
+            "regenerated_answer_count": 4,
+        }
+        tempo_best["clue_stage"] = {
+            "answer_only_rank": 1,
+            "selected_rank": 1,
+            "clue_score": 0.55,
+            "total_score": 1.95,
+            "validation_passed": True,
+            "validation_errors": [],
+            "cached_answer_count": 7,
+            "regenerated_answer_count": 3,
+        }
+        tempo_other["clue_stage"] = {
+            "answer_only_rank": 2,
+            "selected_rank": 2,
+            "clue_score": 0.4,
+            "total_score": 1.6,
+            "validation_passed": True,
+            "validation_errors": [],
+            "cached_answer_count": 8,
+            "regenerated_answer_count": 2,
+        }
+        store = {
+            "snail-answer": snail_answer_first,
+            "snail-clue": snail_clue_best,
+            "tempo-best": tempo_best,
+            "tempo-other": tempo_other,
+        }
+
+        reports = review_clue_stage_reranking(
+            (
+                ClueStageReviewCase(
+                    seed="snail",
+                    expected_answer_only_grid=cast(
+                        tuple[str, str, str, str, str],
+                        tuple(snail_answer_first["grid"]),
+                    ),
+                    expected_clue_stage_grid=cast(
+                        tuple[str, str, str, str, str],
+                        tuple(snail_clue_best["grid"]),
+                    ),
+                    note="Clue-stage reranking should promote the validated snail puzzle.",
+                ),
+                ClueStageReviewCase(
+                    seed="tempo",
+                    expected_answer_only_grid=cast(
+                        tuple[str, str, str, str, str],
+                        tuple(tempo_best["grid"]),
+                    ),
+                    expected_clue_stage_grid=cast(
+                        tuple[str, str, str, str, str],
+                        tuple(tempo_best["grid"]),
+                    ),
+                    note="Tempo should remain stable when the answer-only winner also has the best clue package.",
+                ),
+            ),
+            store,
+            preferred_version=version,
+        )
+
+        self.assertEqual(tuple(report.seed for report in reports), ("snail", "tempo"))
+        self.assertTrue(reports[0].answer_only_matches)
+        self.assertTrue(reports[0].clue_stage_matches)
+        self.assertTrue(reports[0].rerank_changed)
+        self.assertTrue(reports[0].clue_stage_validation_passed)
+        self.assertTrue(reports[1].answer_only_matches)
+        self.assertTrue(reports[1].clue_stage_matches)
+        self.assertFalse(reports[1].rerank_changed)
+        self.assertTrue(reports[1].clue_stage_validation_passed)
 
     def test_puzzle_answers_for_id_supports_public_id_and_uuid_lookup(self) -> None:
         with TemporaryDirectory() as temp_dir:

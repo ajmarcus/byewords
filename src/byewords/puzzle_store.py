@@ -73,6 +73,27 @@ class OfflineBatchContext:
     candidates_per_seed: int
 
 
+@dataclass(frozen=True)
+class ClueStageReviewCase:
+    seed: str
+    expected_answer_only_grid: tuple[str, str, str, str, str]
+    expected_clue_stage_grid: tuple[str, str, str, str, str]
+    note: str
+
+
+@dataclass(frozen=True)
+class ClueStageReviewReport:
+    seed: str
+    expected_answer_only_grid: tuple[str, str, str, str, str]
+    expected_clue_stage_grid: tuple[str, str, str, str, str]
+    answer_only_grid: tuple[str, str, str, str, str] | None
+    clue_stage_grid: tuple[str, str, str, str, str] | None
+    answer_only_matches: bool
+    clue_stage_matches: bool
+    rerank_changed: bool
+    clue_stage_validation_passed: bool
+
+
 _ORIGINAL_GENERATE_PUZZLE_CANDIDATES = generate_puzzle_candidates
 _OFFLINE_BATCH_CONTEXT: OfflineBatchContext | None = None
 
@@ -159,6 +180,44 @@ def top_clue_stage_records(
         reverse=True,
     )
     return tuple(ranked_records[:limit])
+
+
+def review_clue_stage_reranking(
+    cases: tuple[ClueStageReviewCase, ...],
+    store: dict[str, StoredPuzzleRecord],
+    preferred_version: str,
+) -> tuple[ClueStageReviewReport, ...]:
+    reports: list[ClueStageReviewReport] = []
+    for case in cases:
+        seed_store = {
+            public_id: record
+            for public_id, record in store.items()
+            if record.get("seed") == case.seed
+        }
+        answer_only_ranked = top_answer_only_records(seed_store, preferred_version=preferred_version, limit=1)
+        clue_stage_ranked = top_clue_stage_records(seed_store, preferred_version=preferred_version, limit=1)
+        answer_only_record = answer_only_ranked[0][1] if answer_only_ranked else None
+        clue_stage_record = clue_stage_ranked[0][1] if clue_stage_ranked else None
+        answer_only_grid = _record_grid_rows(answer_only_record)
+        clue_stage_grid = _record_grid_rows(clue_stage_record)
+        clue_stage_metadata = clue_stage_record.get("clue_stage") if clue_stage_record is not None else None
+        clue_stage_validation_passed = bool(
+            isinstance(clue_stage_metadata, dict) and clue_stage_metadata.get("validation_passed")
+        )
+        reports.append(
+            ClueStageReviewReport(
+                seed=case.seed,
+                expected_answer_only_grid=case.expected_answer_only_grid,
+                expected_clue_stage_grid=case.expected_clue_stage_grid,
+                answer_only_grid=answer_only_grid,
+                clue_stage_grid=clue_stage_grid,
+                answer_only_matches=answer_only_grid == case.expected_answer_only_grid,
+                clue_stage_matches=clue_stage_grid == case.expected_clue_stage_grid,
+                rerank_changed=answer_only_grid != clue_stage_grid,
+                clue_stage_validation_passed=clue_stage_validation_passed,
+            )
+        )
+    return tuple(reports)
 
 
 def build_batch_puzzle_cache(
@@ -390,6 +449,19 @@ def _record_answers(record: StoredPuzzleRecord) -> tuple[str, ...]:
         return tuple(dict.fromkeys(stored_answers))
     clues = record["across"] + record["down"]
     return tuple(dict.fromkeys(clue["answer"] for clue in clues))
+
+
+def _record_grid_rows(
+    record: StoredPuzzleRecord | None,
+) -> tuple[str, str, str, str, str] | None:
+    if record is None:
+        return None
+    raw_grid = record.get("grid")
+    if not isinstance(raw_grid, list) or len(raw_grid) != 5 or not all(
+        isinstance(row, str) for row in raw_grid
+    ):
+        return None
+    return cast(tuple[str, str, str, str, str], tuple(raw_grid))
 
 
 def _resolve_semantic_vectors(

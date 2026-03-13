@@ -303,6 +303,16 @@ class TestGenerate(unittest.TestCase):
 
         self.assertTrue(any(update.stage == "window" for update in updates))
         self.assertTrue(any(update.stage == "search" and update.partial_rows for update in updates))
+        runtime_reports = [update for update in updates if update.stage == "runtime_report"]
+        self.assertEqual(len(runtime_reports), 1)
+        runtime_report = runtime_reports[0].runtime_report
+        self.assertIsNotNone(runtime_report)
+        if runtime_report is None:
+            raise AssertionError("expected a runtime report")
+        self.assertEqual(runtime_report.requested_seeds, ("snail",))
+        self.assertEqual(runtime_report.available_seeds, ("snail",))
+        self.assertFalse(runtime_report.used_budget_fallback)
+        self.assertIn("Runtime report:", runtime_reports[0].message)
         solution_rows = {
             update.partial_rows
             for update in updates
