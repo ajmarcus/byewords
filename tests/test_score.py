@@ -39,11 +39,11 @@ class TestScore(unittest.TestCase):
 
     def test_rank_grids_orders_higher_scoring_grid_first(self) -> None:
         themed_grid = make_grid(TEST_GRID_ROWS)
-        bland_grid = make_grid(("sator", "arepo", "tenet", "opera", "rotas"))
+        neutral_grid = make_grid(("abcde", "fghij", "klmno", "pqrst", "uvwxy"))
 
-        ranked = rank_grids((bland_grid, themed_grid))
+        ranked = rank_grids((neutral_grid, themed_grid))
 
-        self.assertEqual(ranked[0].grid.rows, TEST_GRID_ROWS)
+        self.assertEqual(ranked[0].grid, neutral_grid)
         self.assertGreater(ranked[0].total_score, ranked[1].total_score)
 
     def test_score_grid_returns_decomposed_scores(self) -> None:
@@ -54,6 +54,8 @@ class TestScore(unittest.TestCase):
         self.assertGreater(scored.total_score, 0)
         self.assertEqual(scored.theme_score, 0)
         self.assertEqual(scored.grid, grid)
+        self.assertEqual(scored.theme_subset, ())
+        self.assertTrue(scored.passes_quality_gates)
 
     def test_score_grid_adds_semantic_theme_score_when_vectors_match(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -82,6 +84,9 @@ class TestScore(unittest.TestCase):
 
         self.assertGreater(scored.theme_score, 0.0)
         self.assertGreater(scored.total_score, scored.fill_score + scored.clue_score)
+        self.assertEqual(scored.theme_subset, ("eases", "antra", "donna"))
+        self.assertGreater(scored.theme_weakest_link, 0.5)
+        self.assertTrue(scored.passes_quality_gates)
 
     def test_rank_grids_uses_theme_score_when_fill_scores_tie(self) -> None:
         neutral_grid = make_grid(("abcde", "fghij", "klmno", "pqrst", "uvwxy"))
@@ -93,9 +98,10 @@ class TestScore(unittest.TestCase):
             path = Path(temp_dir) / "vectors.json"
             lexicon = ("beach",) + neutral_entries + themed_entries
             neutral_vectors = {word: [0, 0, 4, 0] for word in neutral_entries}
+            themed_vector_cycle = ([4, 1, 0, 0], [3, 3, 0, 0], [2, 4, 0, 0])
             themed_vectors = {
-                word: [4, 1, 0, 0]
-                for word in themed_entries
+                word: themed_vector_cycle[index % len(themed_vector_cycle)]
+                for index, word in enumerate(themed_entries)
             }
             _write_vector_table(
                 path,
@@ -115,7 +121,52 @@ class TestScore(unittest.TestCase):
             ranked = rank_grids((neutral_grid, themed_grid), seeds=("beach",), vectors=vectors)
 
         self.assertEqual(ranked[0].grid, themed_grid)
+        self.assertEqual(len(ranked), 2)
         self.assertGreater(ranked[0].theme_score, ranked[1].theme_score)
+
+    def test_score_grid_rejects_duplicate_heavy_fill(self) -> None:
+        scored = score_grid(make_grid(("aaaaa", "bbbbb", "ccccc", "ddddd", "eeeee")))
+
+        self.assertLess(scored.fill_score, 0.3)
+        self.assertFalse(scored.passes_quality_gates)
+
+    def test_rank_grids_filters_semantically_weak_candidates(self) -> None:
+        weak_grid = make_grid(("abcde", "fghij", "klmno", "pqrst", "uvwxy"))
+        themed_grid = make_grid(("zebra", "cumin", "vodka", "glyph", "fjord"))
+        weak_entries = distinct_entries(weak_grid)
+        themed_entries = distinct_entries(themed_grid)
+
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "vectors.json"
+            lexicon = ("beach",) + weak_entries + themed_entries
+            weak_vector_cycle = ([4, 6, 0, 0], [4, -6, 0, 0])
+            weak_vectors = {
+                word: weak_vector_cycle[index % len(weak_vector_cycle)]
+                for index, word in enumerate(weak_entries)
+            }
+            themed_vector_cycle = ([4, 1, 0, 0], [3, 3, 0, 0], [2, 4, 0, 0])
+            themed_vectors = {
+                word: themed_vector_cycle[index % len(themed_vector_cycle)]
+                for index, word in enumerate(themed_entries)
+            }
+            _write_vector_table(
+                path,
+                lexicon,
+                {
+                    "beach": [4, 0, 0, 0],
+                    **weak_vectors,
+                    **themed_vectors,
+                },
+            )
+            vectors = load_word_vectors(str(path))
+
+        with patch("byewords.score.score_fill_quality", return_value=1.0), patch(
+            "byewords.score.score_entry_diversity",
+            return_value=1.0,
+        ):
+            ranked = rank_grids((weak_grid, themed_grid), seeds=("beach",), vectors=vectors)
+
+        self.assertEqual(tuple(candidate.grid for candidate in ranked), (themed_grid,))
 
 
 if __name__ == "__main__":

@@ -149,6 +149,33 @@ class TestGroqClues(unittest.TestCase):
         mock_sleep.assert_called_once_with(7.0)
         self.assertEqual(payload["choices"][0]["message"]["content"], '{"clues": ["A", "B"]}')
 
+    def test_groq_client_retries_after_timeout(self) -> None:
+        response = Mock()
+        response.read.return_value = b'{"choices": [{"message": {"content": "{\\"clues\\": [\\"A\\", \\"B\\"]}"}}]}'
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=None)
+        mock_sleep = Mock()
+
+        with patch(
+            "byewords.groq_clues.urlopen",
+            side_effect=[TimeoutError("timed out"), response],
+        ) as mock_urlopen:
+            payload = GroqClient("test-key", sleep_fn=mock_sleep).create_chat_completion({"messages": []})
+
+        self.assertEqual(mock_urlopen.call_count, 2)
+        mock_sleep.assert_called_once_with(1.0)
+        self.assertEqual(payload["choices"][0]["message"]["content"], '{"clues": ["A", "B"]}')
+
+    def test_groq_client_reports_timeout_after_exhausting_retries(self) -> None:
+        with (
+            patch("byewords.groq_clues.urlopen", side_effect=TimeoutError("timed out")),
+            self.assertRaisesRegex(
+                RuntimeError,
+                "Groq API request timed out after 60 seconds across 3 attempts",
+            ),
+        ):
+            GroqClient("test-key").create_chat_completion({"messages": []})
+
     def test_status_reporter_logs_every_fifty_completed_words(self) -> None:
         progress = StringIO()
         reporter = StatusReporter(progress, total=51)
@@ -258,9 +285,15 @@ class TestGroqClues(unittest.TestCase):
         self.assertEqual(payload["model"], MODEL_NAME)
         self.assertEqual(response_format["type"], "json_schema")
         self.assertTrue(response_format["json_schema"]["strict"])
-        self.assertIn("Example 1", system_prompt)
         self.assertIn("Answer: TRADE", system_prompt)
+        self.assertIn("Clue 1: Market-moving exchange at the center of tariff talk", system_prompt)
+        self.assertIn("Clue 2: Business between nations that can spark a customs fight", system_prompt)
+        self.assertIn("Answer: EERIE", system_prompt)
+        self.assertIn("Clue 1: Like a nursery rhyme heard through static", system_prompt)
+        self.assertIn("Clue 2: Unsettling in the way an empty playground feels at dusk", system_prompt)
         self.assertIn("Answer: CABLE", system_prompt)
+        self.assertIn("Clue 1: Coiled connector hiding in a junk drawer", system_prompt)
+        self.assertIn("Clue 2: Wire that turns low battery panic into relief", system_prompt)
         self.assertIn("best crossword editors of all time", system_prompt)
         self.assertIn("Write two funny, memorable and precise clues", system_prompt)
         self.assertIn("clear reference to the provided answer", system_prompt)
@@ -275,17 +308,19 @@ class TestGroqClues(unittest.TestCase):
         self.assertIn("MUST NOT create single-word clues", system_prompt)
         self.assertIn("MUST use a mix of diverse clue styles", system_prompt)
         self.assertIn("MUST capitalize the first word of every clue", system_prompt)
+        self.assertNotIn("Why it works", system_prompt)
+        self.assertNotIn("Example 1", system_prompt)
         self.assertIn("Return exactly 2 standalone clues", user_prompt)
-        self.assertIn("same part of speech as the answer", user_prompt)
-        self.assertIn("MUST NOT use words from the answer or inflected forms", user_prompt)
-        self.assertIn("Avoid reusing prefixes and suffixes from the answer", user_prompt)
-        self.assertIn("Avoid reusing words from the puzzle", user_prompt)
-        self.assertIn("MUST NOT define the answer by example", user_prompt)
-        self.assertIn("MUST NOT editorialize", user_prompt)
-        self.assertIn("MUST NOT create single-word clues", user_prompt)
-        self.assertIn("MUST use a mix of diverse clue styles", user_prompt)
-        self.assertIn("MUST capitalize the first word of every clue", user_prompt)
         self.assertIn("Return only a JSON object with one key, 'clues'", user_prompt)
+        self.assertNotIn("same part of speech as the answer", user_prompt)
+        self.assertNotIn("MUST NOT use words from the answer or inflected forms", user_prompt)
+        self.assertNotIn("Avoid reusing prefixes and suffixes from the answer", user_prompt)
+        self.assertNotIn("Avoid reusing words from the puzzle", user_prompt)
+        self.assertNotIn("MUST NOT define the answer by example", user_prompt)
+        self.assertNotIn("MUST NOT editorialize", user_prompt)
+        self.assertNotIn("MUST NOT create single-word clues", user_prompt)
+        self.assertNotIn("MUST use a mix of diverse clue styles", user_prompt)
+        self.assertNotIn("MUST capitalize the first word of every clue", user_prompt)
         schema = response_format["json_schema"]["schema"]
         self.assertEqual(schema["type"], "object")
         self.assertEqual(schema["required"], ["clues"])
@@ -328,6 +363,28 @@ class TestGroqClues(unittest.TestCase):
             )
 
         self.assertEqual(tuple(package.answer for package in packages), ("abase", "asked"))
+
+    def test_generate_clue_packages_parallel_reports_timeout_failures(self) -> None:
+        timeout_client = Mock()
+        timeout_client.create_chat_completion.side_effect = RuntimeError(
+            "Groq API request timed out after 60 seconds across 3 attempts."
+        )
+        with TemporaryDirectory() as directory:
+            clue_bank_path = str(Path(directory, "clue_bank.json"))
+            Path(clue_bank_path).write_text("{}\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "Failed to generate clues for 1 answers:\nasked: Groq API request timed out after 60 seconds across 3 attempts.",
+            ):
+                generate_clue_packages_parallel(
+                    client=timeout_client,
+                    answers=("asked",),
+                    clue_bank={},
+                    clue_bank_path=clue_bank_path,
+                    count=DEFAULT_CLUE_COUNT,
+                    parallelism=1,
+                )
 
     def test_parse_clue_package_returns_clue_list(self) -> None:
         clues = parse_clue_package(
@@ -411,7 +468,14 @@ class TestGroqClues(unittest.TestCase):
 
         self.assertEqual(len(client.payloads), 1)
         self.assertFalse(package.cached)
-        self.assertEqual(package.clues, ("Snail option A", "Snail option B"))
+        self.assertEqual(
+            package.clues,
+            (
+                "Slow walker carrying its whole rent situation",
+                "Snail option A",
+                "Snail option B",
+            ),
+        )
 
     def test_generate_clue_package_writes_generated_clues_to_clue_bank(self) -> None:
         client = FakeGroqClient()
@@ -435,6 +499,43 @@ class TestGroqClues(unittest.TestCase):
         self.assertFalse(package.cached)
         self.assertEqual(clue_bank["snail"], ("Snail option A", "Snail option B"))
         self.assertEqual(persisted["snail"], ["Snail option A", "Snail option B"])
+
+    def test_generate_clue_package_force_appends_new_clues_without_deleting_existing_ones(self) -> None:
+        client = FakeGroqClient()
+
+        with TemporaryDirectory() as directory:
+            clue_bank_path = str(Path(directory, "clue_bank.json"))
+            Path(clue_bank_path).write_text("{}\n", encoding="utf-8")
+            clue_bank: dict[str, tuple[str, ...]] = {
+                "snail": (
+                    "Slow walker carrying its whole rent situation",
+                    "Creature living the ultimate one-bag lifestyle",
+                )
+            }
+
+            package = generate_clue_package(
+                client=client,
+                answer="snail",
+                clue_bank=clue_bank,
+                clue_bank_path=clue_bank_path,
+                lock=threading.Lock(),
+                count=DEFAULT_CLUE_COUNT,
+                force=True,
+            )
+
+            persisted = json.loads(Path(clue_bank_path).read_text(encoding="utf-8"))
+
+        self.assertFalse(package.cached)
+        self.assertEqual(
+            package.clues,
+            (
+                "Slow walker carrying its whole rent situation",
+                "Creature living the ultimate one-bag lifestyle",
+                "Snail option A",
+                "Snail option B",
+            ),
+        )
+        self.assertEqual(list(package.clues), persisted["snail"])
 
     def test_main_reports_missing_api_key_to_stderr(self) -> None:
         stdout = StringIO()
@@ -582,7 +683,14 @@ class TestGroqClues(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         parsed = json.loads(stdout.getvalue())
         self.assertEqual(parsed[0]["cached"], False)
-        self.assertEqual(parsed[0]["clues"], ["Snail option A", "Snail option B"])
+        self.assertEqual(
+            parsed[0]["clues"],
+            [
+                "Slow walker carrying its whole rent situation",
+                "Snail option A",
+                "Snail option B",
+            ],
+        )
 
     def test_main_json_output_wraps_packages_when_puzzle_uuid_is_supplied(self) -> None:
         stdout = StringIO()

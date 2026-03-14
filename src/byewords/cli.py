@@ -10,7 +10,7 @@ from byewords.groq_clues import default_clue_bank_path, regenerate_clues as run_
 from byewords.puz import puzzle_to_puz_bytes
 from byewords.puzzle_store import build_batch_puzzle_cache
 from byewords.render import render_puzzle_text
-from byewords.types import ProgressUpdate, Puzzle
+from byewords.types import ProgressUpdate, Puzzle, RuntimeReport
 
 
 class BuildAnimator:
@@ -32,7 +32,7 @@ class BuildAnimator:
         if not self._enabled:
             return
         now = time.monotonic()
-        should_force = progress.stage in {"cache_hit", "solution"}
+        should_force = progress.stage in {"cache_hit", "candidate_solution", "solution"}
         if not should_force and now - self._last_draw < self._frame_interval:
             return
         lines = self._render_lines(progress)
@@ -63,7 +63,7 @@ class BuildAnimator:
                 rows.append(" ".join(progress.partial_rows[row_index].upper()))
                 continue
             cells = ["."] * 5
-            if progress.stage not in {"cache_hit", "solution"} and row_index == active_row_index:
+            if progress.stage not in {"cache_hit", "candidate_solution", "solution"} and row_index == active_row_index:
                 cells[active_column_index] = spinner
             rows.append(" ".join(cells))
         return [f"{spinner} {progress.message}"] + rows
@@ -131,7 +131,7 @@ def _write_puz_output(payload: bytes, output_path: str | None) -> None:
 
 
 def main() -> int:
-    lexicon_words, clue_bank = load_default_inputs()
+    lexicon_words, clue_bank = load_default_inputs(include_fallback_clues=False)
     args = parse_args()
     if not args.seeds:
         if args.format != "text":
@@ -150,21 +150,58 @@ def main() -> int:
         )
         return 0
     animator = BuildAnimator(sys.stderr)
+    runtime_report: RuntimeReport | None = None
+    candidate_solution_reported = False
+    persistent_candidate_updates = (
+        args.output is None and args.format == "text" and sys.stdout.isatty()
+    )
+
+    def handle_progress(progress: ProgressUpdate) -> None:
+        nonlocal candidate_solution_reported, runtime_report
+        if progress.runtime_report is not None:
+            runtime_report = progress.runtime_report
+            return
+        if (
+            persistent_candidate_updates
+            and progress.stage == "candidate_solution"
+            and not candidate_solution_reported
+        ):
+            print(progress.message, file=sys.stdout, flush=True)
+            candidate_solution_reported = True
+        animator.update(progress)
+
     try:
         if animator.enabled:
             puzzle = generate_puzzle_cached(
                 args.seeds,
                 lexicon_words,
                 clue_bank,
-                progress_callback=animator.update,
+                progress_callback=handle_progress,
             )
         else:
-            puzzle = generate_puzzle_cached(args.seeds, lexicon_words, clue_bank)
+            puzzle = generate_puzzle_cached(
+                args.seeds,
+                lexicon_words,
+                clue_bank,
+                progress_callback=handle_progress,
+            )
     except ValueError as exc:
         animator.finish()
         print(f"error: {exc}")
         return 1
     animator.finish()
+    if runtime_report is not None:
+        theme_subset = ", ".join(word.upper() for word in runtime_report.selected_theme_subset) or "none"
+        print(
+            (
+                "runtime: "
+                f"semantic={'on' if runtime_report.semantic_ordering else 'off'} "
+                f"fallback={'yes' if runtime_report.used_budget_fallback else 'no'} "
+                f"theme_subset={theme_subset} "
+                f"weakest_link={runtime_report.selected_theme_weakest_link:.3f}"
+            ),
+            file=sys.stderr,
+        )
     if args.regenerate_clues:
         try:
             run_clue_regeneration(

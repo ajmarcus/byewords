@@ -1,16 +1,24 @@
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from typing import cast
 from unittest.mock import patch
 
+from byewords.cache import CluePayload
 from byewords.grid import grid_columns, make_grid
 from byewords.puzzle_store import (
+    ClueStageReviewCase,
+    StoredPuzzleRecord,
+    _default_clue_regenerator,
     build_batch_puzzle_cache,
     load_puzzle_store,
     persist_puzzle_store,
     puzzle_answers_for_id,
     puzzle_store_version,
+    review_clue_stage_reranking,
+    top_clue_stage_records,
     top_answer_only_records,
 )
 from byewords.score import score_grid
@@ -59,7 +67,59 @@ def _build_seed_puzzle(seed: str, rows: tuple[str, str, str, str, str]) -> Puzzl
     )
 
 
+@dataclass(frozen=True)
+class _FakeCluePackage:
+    answer: str
+    cached: bool
+    clues: tuple[str, ...]
+
+
+def _stored_record(
+    public_uuid: str,
+    seed: str,
+    version: str,
+    puzzle: Puzzle,
+    *,
+    fill_score: float,
+    theme_score: float,
+    clue_score: float,
+    answer_only_score: float,
+    theme_subset: list[str],
+) -> StoredPuzzleRecord:
+    answers = list(dict.fromkeys(clue.answer for clue in puzzle.across + puzzle.down))
+    return StoredPuzzleRecord(
+        uuid=public_uuid,
+        seed=seed,
+        version=version,
+        title=puzzle.title,
+        theme_words=list(puzzle.theme_words),
+        theme_subset=theme_subset,
+        grid=list(puzzle.grid.rows),
+        answers=answers,
+        answer_scores={
+            "fill_score": fill_score,
+            "theme_score": theme_score,
+            "clue_score": clue_score,
+            "total_score": answer_only_score + clue_score,
+            "answer_only_score": answer_only_score,
+            "seed_entry_count": sum(answer == seed for answer in answers),
+            "seed_row_count": sum(row == seed for row in puzzle.grid.rows),
+        },
+        across=[cast(CluePayload, clue.__dict__) for clue in puzzle.across],
+        down=[cast(CluePayload, clue.__dict__) for clue in puzzle.down],
+    )
+
+
 class TestPuzzleStore(unittest.TestCase):
+    def test_default_clue_regenerator_falls_back_to_cached_packages_when_generation_fails(self) -> None:
+        with (
+            patch("byewords.groq_clues.cached_clues_for_answer", return_value=None),
+            patch("byewords.groq_clues.regenerate_clues", side_effect=RuntimeError("generation failed")),
+        ):
+            packages = _default_clue_regenerator(("snail", "adieu"), {}, "/tmp/clue_bank.json")
+
+        self.assertEqual(packages, ())
+
     def test_build_batch_puzzle_cache_populates_one_record_per_seed(self) -> None:
         with TemporaryDirectory() as temp_dir:
             store_path = Path(temp_dir) / "puzzles.json"
@@ -105,7 +165,14 @@ class TestPuzzleStore(unittest.TestCase):
                     title=f"{seed.upper()} Mini",
                 ),)
 
-            with patch("byewords.puzzle_store.generate_puzzle_candidates", side_effect=fake_generate):
+            with (
+                patch("byewords.puzzle_store.generate_puzzle_candidates", side_effect=fake_generate),
+                patch(
+                    "byewords.puzzle_store.ProcessPoolExecutor",
+                    side_effect=AssertionError("patched generation should stay in-process"),
+                ),
+                patch("byewords.puzzle_store.os.cpu_count", return_value=2),
+            ):
                 _, total_records, generated_records = build_batch_puzzle_cache(
                     ("adieu", "snail"),
                     {},
@@ -115,6 +182,85 @@ class TestPuzzleStore(unittest.TestCase):
         self.assertEqual(sorted(calls), [("adieu",), ("snail",)])
         self.assertEqual(total_records, 2)
         self.assertEqual(generated_records, 2)
+
+    def test_build_batch_puzzle_cache_uses_process_pool_for_default_generation(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store_path = Path(temp_dir) / "puzzles.json"
+            executor_calls: list[tuple[int, int]] = []
+            seen_seeds: list[str] = []
+            version = puzzle_store_version(("adieu", "snail"), {})
+
+            class FakeProcessPool:
+                def __init__(self, max_workers: int, initializer=None, initargs: tuple[object, ...] = ()) -> None:
+                    self.max_workers = max_workers
+                    self.initializer = initializer
+                    self.initargs = initargs
+                    executor_calls.append((max_workers, len(initargs)))
+
+                def __enter__(self) -> "FakeProcessPool":
+                    return self
+
+                def __exit__(self, exc_type, exc, tb) -> bool:
+                    del exc_type
+                    del exc
+                    del tb
+                    return False
+
+                def map(self, func, iterable, chunksize: int = 1):
+                    self.chunksize = chunksize
+                    if self.initializer is not None:
+                        self.initializer(*self.initargs)
+                    for item in iterable:
+                        yield func(item)
+
+            def fake_record_for_seed(seed: str, batch_context: object):
+                self.assertEqual(getattr(batch_context, "version"), version)
+                self.assertEqual(getattr(batch_context, "lexicon_words"), ("adieu", "snail"))
+                seen_seeds.append(seed)
+                return (
+                    (
+                        seed,
+                        {
+                            "uuid": f"00000000-0000-7000-8000-0000000000{1 if seed == 'adieu' else 2}",
+                            "seed": seed,
+                            "version": version,
+                            "title": f"{seed.upper()} Mini",
+                            "theme_words": [seed],
+                            "theme_subset": [seed],
+                            "grid": ["adieu", "booed", "oases", "eerie", "udals"],
+                            "answers": [seed, "adieu", "booed"],
+                            "answer_scores": {
+                                "fill_score": 1.0,
+                                "theme_score": 1.0,
+                                "clue_score": 0.0,
+                                "answer_only_score": 2.0,
+                                "total_score": 2.0,
+                                "seed_entry_count": 1,
+                                "seed_row_count": 1,
+                            },
+                            "across": [],
+                            "down": [],
+                        },
+                    ),
+                )
+
+            with (
+                patch("byewords.puzzle_store.ProcessPoolExecutor", FakeProcessPool),
+                patch("byewords.puzzle_store.os.cpu_count", return_value=2),
+                patch("byewords.puzzle_store._record_for_seed", side_effect=fake_record_for_seed),
+            ):
+                _, total_records, generated_records = build_batch_puzzle_cache(
+                    ("adieu", "snail"),
+                    {},
+                    path=store_path,
+                )
+                store = load_puzzle_store(store_path)
+
+        self.assertEqual(executor_calls, [(2, 1)])
+        self.assertEqual(sorted(seen_seeds), ["adieu", "snail"])
+        self.assertEqual(total_records, 2)
+        self.assertEqual(generated_records, 2)
+        self.assertEqual(set(store), {"adieu", "snail"})
 
     def test_build_batch_puzzle_cache_skips_generic_fallback_results(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -197,6 +343,36 @@ class TestPuzzleStore(unittest.TestCase):
             )
 
         self.assertEqual(total_records, initial_total_records)
+        self.assertEqual(generated_records, 0)
+
+    def test_build_batch_puzzle_cache_reuses_default_store_when_packaged_version_drifts(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store_path = Path(temp_dir) / "puzzles.json"
+            puzzle = build_test_puzzle()
+            persist_puzzle_store(
+                {
+                    "existing": _stored_record(
+                        "00000000-0000-7000-8000-000000000001",
+                        "snail",
+                        "older-version",
+                        puzzle,
+                        fill_score=0.8,
+                        theme_score=0.9,
+                        clue_score=0.7,
+                        answer_only_score=1.7,
+                        theme_subset=["snail"],
+                    )
+                },
+                store_path,
+            )
+
+            with patch("byewords.puzzle_store.default_puzzle_store_path", return_value=store_path):
+                _, total_records, generated_records = build_batch_puzzle_cache(
+                    ("snail",),
+                    {"snail": ("Fresh packaged clue",)},
+                )
+
+        self.assertEqual(total_records, 1)
         self.assertEqual(generated_records, 0)
 
     def test_build_batch_puzzle_cache_upgrades_legacy_records_missing_answer_scores(self) -> None:
@@ -517,6 +693,284 @@ class TestPuzzleStore(unittest.TestCase):
         )
 
         self.assertEqual([public_id for public_id, _ in ranked], ["tempo", "new-best"])
+
+    def test_build_batch_puzzle_cache_runs_clue_stage_only_for_top_answer_only_slice(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store_path = Path(temp_dir) / "puzzles.json"
+            version = puzzle_store_version(("snail", "tempo"), {})
+            top_puzzle = build_test_puzzle()
+            other_puzzle = _build_seed_puzzle("tempo", ("tempo", "music", "piano", "choir", "drums"))
+            persist_puzzle_store(
+                {
+                    "top": _stored_record(
+                        "00000000-0000-7000-8000-000000000030",
+                        "snail",
+                        version,
+                        top_puzzle,
+                        fill_score=0.9,
+                        theme_score=0.8,
+                        clue_score=0.0,
+                        answer_only_score=1.7,
+                        theme_subset=["eases", "antra"],
+                    ),
+                    "other": _stored_record(
+                        "00000000-0000-7000-8000-000000000031",
+                        "tempo",
+                        version,
+                        other_puzzle,
+                        fill_score=0.7,
+                        theme_score=0.4,
+                        clue_score=0.9,
+                        answer_only_score=1.1,
+                        theme_subset=["music", "piano"],
+                    ),
+                },
+                store_path,
+            )
+            regenerator_calls: list[tuple[str, ...]] = []
+
+            def fake_regenerator(
+                answers: tuple[str, ...],
+                clue_bank: dict[str, tuple[str, ...]],
+                clue_bank_path: str,
+            ) -> tuple[_FakeCluePackage, ...]:
+                del clue_bank_path
+                regenerator_calls.append(answers)
+                packages = []
+                for answer in answers:
+                    clues = (
+                        f"{answer.title()} clue alpha",
+                        f"{answer.title()} clue beta",
+                    )
+                    clue_bank[answer] = clues
+                    packages.append(_FakeCluePackage(answer=answer, cached=False, clues=clues))
+                return tuple(packages)
+
+            _, total_records, generated_records = build_batch_puzzle_cache(
+                ("snail", "tempo"),
+                {},
+                path=store_path,
+                top_clue_limit=1,
+                clue_regenerator=fake_regenerator,
+            )
+            store = load_puzzle_store(store_path)
+
+        self.assertEqual(total_records, 2)
+        self.assertEqual(generated_records, 0)
+        self.assertEqual(len(regenerator_calls), 1)
+        self.assertEqual(set(regenerator_calls[0]), set(store["top"]["answers"]))
+        self.assertIn("clue_stage", store["top"])
+        self.assertNotIn("clue_stage", store["other"])
+
+    def test_build_batch_puzzle_cache_records_clue_stage_metadata_and_final_rerank(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store_path = Path(temp_dir) / "puzzles.json"
+            version = puzzle_store_version(("snail", "tempo"), {})
+            snail_puzzle = build_test_puzzle()
+            tempo_puzzle = _build_seed_puzzle("tempo", ("tempo", "music", "piano", "choir", "drums"))
+            persist_puzzle_store(
+                {
+                    "snail": _stored_record(
+                        "00000000-0000-7000-8000-000000000040",
+                        "snail",
+                        version,
+                        snail_puzzle,
+                        fill_score=0.9,
+                        theme_score=0.6,
+                        clue_score=0.0,
+                        answer_only_score=1.5,
+                        theme_subset=["eases", "antra"],
+                    ),
+                    "tempo": _stored_record(
+                        "00000000-0000-7000-8000-000000000041",
+                        "tempo",
+                        version,
+                        tempo_puzzle,
+                        fill_score=0.9,
+                        theme_score=0.5,
+                        clue_score=0.0,
+                        answer_only_score=1.4,
+                        theme_subset=["music", "piano"],
+                    ),
+                },
+                store_path,
+            )
+
+            def fake_regenerator(
+                answers: tuple[str, ...],
+                clue_bank: dict[str, tuple[str, ...]],
+                clue_bank_path: str,
+            ) -> tuple[_FakeCluePackage, ...]:
+                del clue_bank_path
+                packages = []
+                for answer in answers:
+                    if answer in {"adieu", "booed", "antra", "snail", "eases"}:
+                        clues = ('Past tense of "ask"', "Word")
+                    else:
+                        clues = (
+                            f"Specific {answer} clue one",
+                            f"Specific {answer} clue two",
+                        )
+                    clue_bank[answer] = clues
+                    packages.append(_FakeCluePackage(answer=answer, cached=False, clues=clues))
+                return tuple(packages)
+
+            build_batch_puzzle_cache(
+                ("snail", "tempo"),
+                {},
+                path=store_path,
+                top_clue_limit=2,
+                clue_regenerator=fake_regenerator,
+            )
+            store = load_puzzle_store(store_path)
+            ranked = top_clue_stage_records(store, preferred_version=version, limit=2)
+
+        self.assertEqual([public_id for public_id, _ in ranked], ["tempo", "snail"])
+        tempo_clue_stage = store["tempo"]["clue_stage"]
+        snail_clue_stage = store["snail"]["clue_stage"]
+        self.assertTrue(tempo_clue_stage["validation_passed"])
+        self.assertFalse(snail_clue_stage["validation_passed"])
+        self.assertGreater(tempo_clue_stage["clue_score"], snail_clue_stage["clue_score"])
+        self.assertEqual(tempo_clue_stage["selected_rank"], 1)
+        self.assertEqual(snail_clue_stage["selected_rank"], 2)
+        self.assertEqual(snail_clue_stage["answer_only_rank"], 1)
+        self.assertEqual(tempo_clue_stage["answer_only_rank"], 2)
+        self.assertTrue(any("generic clue" in error for error in snail_clue_stage["validation_errors"]))
+
+    def test_review_clue_stage_reranking_reports_expected_winners(self) -> None:
+        version = puzzle_store_version(("snail", "tempo"), {})
+        snail_answer_first = _stored_record(
+            "00000000-0000-7000-8000-000000000050",
+            "snail",
+            version,
+            build_test_puzzle(),
+            fill_score=0.9,
+            theme_score=0.7,
+            clue_score=0.0,
+            answer_only_score=1.6,
+            theme_subset=["eases", "antra"],
+        )
+        snail_clue_best = _stored_record(
+            "00000000-0000-7000-8000-000000000051",
+            "snail",
+            version,
+            _build_seed_puzzle("snail", ("snail", "adieu", "tempo", "music", "piano")),
+            fill_score=0.8,
+            theme_score=0.7,
+            clue_score=0.0,
+            answer_only_score=1.5,
+            theme_subset=["tempo", "music"],
+        )
+        tempo_best = _stored_record(
+            "00000000-0000-7000-8000-000000000052",
+            "tempo",
+            version,
+            _build_seed_puzzle("tempo", ("tempo", "music", "piano", "choir", "drums")),
+            fill_score=0.8,
+            theme_score=0.6,
+            clue_score=0.0,
+            answer_only_score=1.4,
+            theme_subset=["music", "piano"],
+        )
+        tempo_other = _stored_record(
+            "00000000-0000-7000-8000-000000000053",
+            "tempo",
+            version,
+            _build_seed_puzzle("tempo", ("tempo", "choir", "drums", "piano", "music")),
+            fill_score=0.7,
+            theme_score=0.5,
+            clue_score=0.0,
+            answer_only_score=1.2,
+            theme_subset=["choir", "drums"],
+        )
+
+        snail_answer_first["clue_stage"] = {
+            "answer_only_rank": 1,
+            "selected_rank": 2,
+            "clue_score": 0.05,
+            "total_score": 1.65,
+            "validation_passed": False,
+            "validation_errors": ["snail: generic clue"],
+            "cached_answer_count": 10,
+            "regenerated_answer_count": 0,
+        }
+        snail_clue_best["clue_stage"] = {
+            "answer_only_rank": 2,
+            "selected_rank": 1,
+            "clue_score": 0.6,
+            "total_score": 2.1,
+            "validation_passed": True,
+            "validation_errors": [],
+            "cached_answer_count": 6,
+            "regenerated_answer_count": 4,
+        }
+        tempo_best["clue_stage"] = {
+            "answer_only_rank": 1,
+            "selected_rank": 1,
+            "clue_score": 0.55,
+            "total_score": 1.95,
+            "validation_passed": True,
+            "validation_errors": [],
+            "cached_answer_count": 7,
+            "regenerated_answer_count": 3,
+        }
+        tempo_other["clue_stage"] = {
+            "answer_only_rank": 2,
+            "selected_rank": 2,
+            "clue_score": 0.4,
+            "total_score": 1.6,
+            "validation_passed": True,
+            "validation_errors": [],
+            "cached_answer_count": 8,
+            "regenerated_answer_count": 2,
+        }
+        store = {
+            "snail-answer": snail_answer_first,
+            "snail-clue": snail_clue_best,
+            "tempo-best": tempo_best,
+            "tempo-other": tempo_other,
+        }
+
+        reports = review_clue_stage_reranking(
+            (
+                ClueStageReviewCase(
+                    seed="snail",
+                    expected_answer_only_grid=cast(
+                        tuple[str, str, str, str, str],
+                        tuple(snail_answer_first["grid"]),
+                    ),
+                    expected_clue_stage_grid=cast(
+                        tuple[str, str, str, str, str],
+                        tuple(snail_clue_best["grid"]),
+                    ),
+                    note="Clue-stage reranking should promote the validated snail puzzle.",
+                ),
+                ClueStageReviewCase(
+                    seed="tempo",
+                    expected_answer_only_grid=cast(
+                        tuple[str, str, str, str, str],
+                        tuple(tempo_best["grid"]),
+                    ),
+                    expected_clue_stage_grid=cast(
+                        tuple[str, str, str, str, str],
+                        tuple(tempo_best["grid"]),
+                    ),
+                    note="Tempo should remain stable when the answer-only winner also has the best clue package.",
+                ),
+            ),
+            store,
+            preferred_version=version,
+        )
+
+        self.assertEqual(tuple(report.seed for report in reports), ("snail", "tempo"))
+        self.assertTrue(reports[0].answer_only_matches)
+        self.assertTrue(reports[0].clue_stage_matches)
+        self.assertTrue(reports[0].rerank_changed)
+        self.assertTrue(reports[0].clue_stage_validation_passed)
+        self.assertTrue(reports[1].answer_only_matches)
+        self.assertTrue(reports[1].clue_stage_matches)
+        self.assertFalse(reports[1].rerank_changed)
+        self.assertTrue(reports[1].clue_stage_validation_passed)
 
     def test_puzzle_answers_for_id_supports_public_id_and_uuid_lookup(self) -> None:
         with TemporaryDirectory() as temp_dir:

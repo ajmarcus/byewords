@@ -31,6 +31,8 @@ If you want to force fresh Groq clues for a generated puzzle, add `--regenerate-
 
 Created puzzles are cached on disk in `.byewords-cache/` by normalized seed set and generation config, so rerunning the same request reuses the saved puzzle instead of searching again. Set `BYEWORDS_CACHE_DIR` to place the cache somewhere else.
 
+The bundled semantic vectors in `src/byewords/data/word_vectors.json` are quantized embeddings generated offline from `BAAI/bge-small-en-v1.5`. The upstream model is distributed under the `MIT` license.
+
 Bundled data maintenance
 ------------------------
 

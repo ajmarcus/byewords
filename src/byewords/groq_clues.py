@@ -26,25 +26,24 @@ API_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEFAULT_CLUE_COUNT = 2
 DEFAULT_PARALLELISM = 5
 DEFAULT_TIMEOUT_SECONDS = 60.0
+DEFAULT_TIMEOUT_RETRIES = 2
+DEFAULT_TIMEOUT_RETRY_DELAY_SECONDS = 1.0
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
 QUALITY_EXAMPLES = (
-    "Example 1\n"
     "Answer: TRADE\n"
-    "Clue: What a tariff threat can rattle overnight\n"
-    "Why it works: topical, concise, and precise without requiring obscure trivia.\n"
+    "Clue 1: Market-moving exchange at the center of tariff talk\n"
+    "Clue 2: Business between nations that can spark a customs fight\n"
     "\n"
-    "Example 2\n"
     "Answer: EERIE\n"
-    "Clue: Like a hallway after the lights blink out\n"
-    "Why it works: vivid sensory image, memorable surface, exact definition.\n"
+    "Clue 1: Like a nursery rhyme heard through static\n"
+    "Clue 2: Unsettling in the way an empty playground feels at dusk\n"
     "\n"
-    "Example 3\n"
     "Answer: CABLE\n"
-    "Clue: San Francisco car pulled by an underground loop\n"
-    "Why it works: concrete, specific, and rich with place without sounding dusty."
+    "Clue 1: Coiled connector hiding in a junk drawer\n"
+    "Clue 2: Wire that turns low battery panic into relief"
 )
 CLUE_RULES = (
     "Follow these rules for every clue:\n"
@@ -149,6 +148,7 @@ class GroqClient:
             method="POST",
         )
 
+        timeout_retries = 0
         while True:
             try:
                 with urlopen(request, timeout=self.timeout_seconds) as response:
@@ -161,6 +161,16 @@ class GroqClient:
                     self.sleep_fn(retry_after_seconds)
                     continue
                 raise RuntimeError(_format_http_error(exc)) from exc
+            except TimeoutError as exc:
+                if timeout_retries < DEFAULT_TIMEOUT_RETRIES:
+                    timeout_retries += 1
+                    self.sleep_fn(DEFAULT_TIMEOUT_RETRY_DELAY_SECONDS * timeout_retries)
+                    continue
+                raise RuntimeError(
+                    "Groq API request timed out "
+                    f"after {self.timeout_seconds:g} seconds "
+                    f"across {timeout_retries + 1} attempts."
+                ) from exc
             except URLError as exc:
                 raise RuntimeError(f"Could not reach the Groq API: {exc.reason}") from exc
             break
@@ -271,7 +281,6 @@ def build_clue_payload(
                 "content": (
                     f"Answer: {answer.strip()}\n"
                     f"Return exactly {count} standalone clues. "
-                    f"{CLUE_RULES}\n"
                     "Return only a JSON object with one key, 'clues'."
                 ),
             },
@@ -338,6 +347,21 @@ def parse_clue_package(payload: str) -> tuple[str, ...]:
     return tuple(clues)
 
 
+def _merged_clues(
+    existing_clues: Sequence[str],
+    new_clues: Sequence[str],
+) -> tuple[str, ...]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for clue in tuple(existing_clues) + tuple(new_clues):
+        normalized = clue.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        merged.append(normalized)
+    return tuple(merged)
+
+
 def generate_clue_package(
     client: CompletionClient,
     answer: str,
@@ -347,21 +371,23 @@ def generate_clue_package(
     count: int = DEFAULT_CLUE_COUNT,
     force: bool = False,
 ) -> CluePackage:
-    cached_clues = cached_clues_for_answer(answer, clue_bank)
+    answer_text = answer.strip()
+    existing_clues = tuple(clue_bank.get(answer_text, ()))
+    cached_clues = cached_clues_for_answer(answer_text, clue_bank)
     if cached_clues and not force:
-        return CluePackage(answer=answer.strip(), cached=True, clues=cached_clues)
+        return CluePackage(answer=answer_text, cached=True, clues=cached_clues)
 
     clue_payload = build_clue_payload(
-        answer=answer,
+        answer=answer_text,
         count=count,
     )
     clue_response = client.create_chat_completion(clue_payload)
     clue_content = extract_message_content(clue_response)
-    clues = parse_clue_package(clue_content)
+    clues = _merged_clues(existing_clues, parse_clue_package(clue_content))
     with lock:
-        clue_bank[answer.strip()] = clues
+        clue_bank[answer_text] = clues
         persist_clue_bank(clue_bank_path, clue_bank)
-    return CluePackage(answer=answer.strip(), cached=False, clues=clues)
+    return CluePackage(answer=answer_text, cached=False, clues=clues)
 
 
 def load_default_answer_inputs() -> tuple[tuple[str, ...], dict[str, tuple[str, ...]]]:

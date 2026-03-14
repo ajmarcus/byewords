@@ -7,6 +7,7 @@ from itertools import combinations
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from byewords.lexicon import normalize_word
 from byewords.types import ThemeScoreBreakdown
@@ -14,6 +15,135 @@ from byewords.types import ThemeScoreBreakdown
 DEFAULT_THEME_WORD_LIMIT = 4
 DEFAULT_MMR_LAMBDA = 0.8
 DEFAULT_REDUNDANCY_THRESHOLD = 0.9
+THEME_BENCHMARK_SEEDS = {
+    "easy": ("beach", "music", "ocean"),
+    "medium": ("snail", "tempo", "water"),
+    "hard": ("doggy", "llama", "wharf"),
+}
+
+
+@dataclass(frozen=True)
+class ThemeReviewCase:
+    seed: str
+    expected_related_words: tuple[str, ...]
+    note: str
+
+
+@dataclass(frozen=True)
+class ThemeRetrievalReviewCase:
+    seed: str
+    expected_top_words: tuple[str, ...]
+    unexpected_top_words: tuple[str, ...]
+    note: str
+
+
+@dataclass(frozen=True)
+class ThemeRetrievalMetricReport:
+    metric: str
+    top_words: tuple[str, ...]
+    expected_hits: tuple[str, ...]
+    unexpected_hits: tuple[str, ...]
+    expected_coverage: float
+    unexpected_intrusion_rate: float
+
+
+@dataclass(frozen=True)
+class ThemeRetrievalComparison:
+    seed: str
+    cosine: ThemeRetrievalMetricReport
+    rank_overlap: ThemeRetrievalMetricReport
+
+
+@dataclass(frozen=True)
+class ThemeIntrusionReviewCase:
+    seed: str
+    expected_theme_words: tuple[str, ...]
+    intruder_words: tuple[str, ...]
+    note: str
+
+
+@dataclass(frozen=True)
+class ThemeIntrusionTrialReport:
+    intruder: str
+    selected_words: tuple[str, ...]
+    intruder_selected: bool
+    total: float
+    weakest_link: float
+    total_delta: float
+    weakest_link_delta: float
+    passed: bool
+
+
+@dataclass(frozen=True)
+class ThemeIntrusionComparison:
+    seed: str
+    expected_theme_words: tuple[str, ...]
+    baseline_selected_words: tuple[str, ...]
+    baseline_total: float
+    baseline_weakest_link: float
+    trials: tuple[ThemeIntrusionTrialReport, ...]
+    pass_rate: float
+
+
+THEME_MANUAL_REVIEW_CASES = (
+    ThemeReviewCase(
+        seed="beach",
+        expected_related_words=("ocean", "waves", "wharf"),
+        note="Coastal vocabulary should surface without collapsing into generic filler.",
+    ),
+    ThemeReviewCase(
+        seed="music",
+        expected_related_words=("choir", "piano", "tempo"),
+        note="Performance and instrument words should outrank unrelated bridge fill.",
+    ),
+    ThemeReviewCase(
+        seed="snail",
+        expected_related_words=("shell", "slime", "trail"),
+        note="The review set should catch when retrieval drifts away from a concrete organism theme.",
+    ),
+)
+
+THEME_RETRIEVAL_REVIEW_CASES = (
+    ThemeRetrievalReviewCase(
+        seed="beach",
+        expected_top_words=("ocean", "waves", "wharf"),
+        unexpected_top_words=("piano", "choir", "snail"),
+        note="Coastal retrieval should keep music and animal words out of the top slice.",
+    ),
+    ThemeRetrievalReviewCase(
+        seed="music",
+        expected_top_words=("choir", "piano", "tempo"),
+        unexpected_top_words=("ocean", "waves", "snail"),
+        note="Music retrieval should surface instruments and performance terms before bridge fill.",
+    ),
+    ThemeRetrievalReviewCase(
+        seed="snail",
+        expected_top_words=("shell", "slime", "trail"),
+        unexpected_top_words=("music", "piano", "tempo"),
+        note="Concrete organism themes should not drift into unrelated entertainment vocabulary.",
+    ),
+)
+
+THEME_INTRUSION_REVIEW_CASES = (
+    ThemeIntrusionReviewCase(
+        seed="beach",
+        expected_theme_words=("ocean", "waves", "wharf"),
+        intruder_words=("piano", "choir", "snail"),
+        note="Coastal theme sets should exclude unrelated music and animal answers.",
+    ),
+    ThemeIntrusionReviewCase(
+        seed="music",
+        expected_theme_words=("choir", "piano", "tempo"),
+        intruder_words=("ocean", "waves", "snail"),
+        note="Music theme sets should keep coastal and animal words out of the selected subset.",
+    ),
+    ThemeIntrusionReviewCase(
+        seed="snail",
+        expected_theme_words=("shell", "slime", "trail"),
+        intruder_words=("music", "piano", "tempo"),
+        note="Concrete organism themes should reject unrelated entertainment answers.",
+    ),
+)
 
 
 @dataclass(frozen=True)
@@ -26,6 +156,82 @@ class WordVectorTable:
     quantization_scale: float
     vectors: dict[str, tuple[int, ...]]
     norms: dict[str, float]
+
+
+@dataclass(frozen=True)
+class SemanticRowScore:
+    score: float
+    base_score: float
+    provisional_theme_words: tuple[str, ...]
+    redundancy: float
+
+
+@dataclass(frozen=True)
+class SemanticRowOrderingContext:
+    base_scores: dict[str, float]
+    vectors: WordVectorTable
+    provisional_theme_words: tuple[str, ...]
+    mmr_lambda: float
+
+    def score(self, word: str) -> SemanticRowScore:
+        base_score = self.base_scores.get(word, 0.0)
+        if base_score <= 0.0 or word not in self.vectors.vectors:
+            return SemanticRowScore(base_score, base_score, self.provisional_theme_words, 0.0)
+        redundancy = max(
+            (
+                _cosine_similarity(word, selected_word, self.vectors)
+                for selected_word in self.provisional_theme_words
+                if selected_word != word
+            ),
+            default=0.0,
+        )
+        if redundancy <= 0.0:
+            return SemanticRowScore(base_score, base_score, self.provisional_theme_words, 0.0)
+        adjusted_score = self.mmr_lambda * base_score - (1.0 - self.mmr_lambda) * redundancy
+        return SemanticRowScore(
+            score=adjusted_score,
+            base_score=base_score,
+            provisional_theme_words=self.provisional_theme_words,
+            redundancy=redundancy,
+        )
+
+
+@dataclass(frozen=True)
+class SemanticRowOrdering:
+    seeds: tuple[str, ...]
+    base_scores: dict[str, float]
+    vectors: WordVectorTable
+    limit: int = DEFAULT_THEME_WORD_LIMIT
+    mmr_lambda: float = DEFAULT_MMR_LAMBDA
+
+    def context(self, partial_rows: tuple[str, ...]) -> SemanticRowOrderingContext:
+        provisional_limit = max(0, self.limit - 1)
+        if provisional_limit <= 0:
+            provisional_theme_words: tuple[str, ...] = ()
+        else:
+            ranked_partial_words = tuple(
+                sorted(
+                    (
+                        word
+                        for word in dict.fromkeys(partial_rows)
+                        if word in self.base_scores and word in self.vectors.vectors
+                    ),
+                    key=lambda word: (-self.base_scores.get(word, 0.0), word),
+                )
+            )
+            provisional_theme_words = diversify_theme_words(
+                ranked_partial_words,
+                self.seeds,
+                self.vectors,
+                provisional_limit,
+                mmr_lambda=self.mmr_lambda,
+            )
+        return SemanticRowOrderingContext(
+            base_scores=self.base_scores,
+            vectors=self.vectors,
+            provisional_theme_words=provisional_theme_words,
+            mmr_lambda=self.mmr_lambda,
+        )
 
 
 def normalize_seeds(seeds: tuple[str, ...]) -> tuple[str, ...]:
@@ -185,6 +391,208 @@ def score_word_for_seed(
     return max(_cosine_similarity(normalized_word, seed, vectors) for seed in normalized_seeds)
 
 
+def seed_relevance_scores(
+    words: tuple[str, ...],
+    seeds: tuple[str, ...],
+    vectors: WordVectorTable,
+) -> dict[str, float]:
+    normalized_seeds = normalize_seeds(seeds)
+    if not normalized_seeds:
+        return {}
+    missing_seeds = tuple(seed for seed in normalized_seeds if seed not in vectors.vectors)
+    if missing_seeds:
+        missing_text = ", ".join(word.upper() for word in missing_seeds)
+        raise ValueError(f"missing vector for word: {missing_text}")
+    return {
+        word: score_word_for_seed(word, normalized_seeds, vectors)
+        for word in dict.fromkeys(words)
+        if word in vectors.vectors
+    }
+
+
+def _neighbor_rank_index(
+    word: str,
+    lexicon: tuple[str, ...],
+    vectors: WordVectorTable,
+    neighbor_count: int,
+) -> dict[str, int]:
+    if neighbor_count <= 0:
+        return {}
+    ranked_neighbors = sorted(
+        (
+            candidate
+            for candidate in lexicon
+            if candidate in vectors.vectors and candidate != word
+        ),
+        key=lambda candidate: (-_cosine_similarity(word, candidate, vectors), candidate),
+    )
+    return {
+        candidate: index + 1
+        for index, candidate in enumerate(ranked_neighbors[:neighbor_count])
+    }
+
+
+def _rank_overlap_similarity(
+    left_word: str,
+    right_word: str,
+    lexicon: tuple[str, ...],
+    vectors: WordVectorTable,
+    neighbor_count: int,
+    neighbor_cache: dict[str, dict[str, int]] | None = None,
+) -> float:
+    if left_word == right_word:
+        return 1.0
+    if neighbor_count <= 0:
+        return 0.0
+    cache = neighbor_cache if neighbor_cache is not None else {}
+    left_ranks = cache.setdefault(
+        left_word,
+        _neighbor_rank_index(left_word, lexicon, vectors, neighbor_count),
+    )
+    right_ranks = cache.setdefault(
+        right_word,
+        _neighbor_rank_index(right_word, lexicon, vectors, neighbor_count),
+    )
+    effective_limit = min(neighbor_count, len(left_ranks), len(right_ranks))
+    if effective_limit <= 0:
+        return 0.0
+    shared_neighbors = set(left_ranks) & set(right_ranks)
+    weighted_overlap = sum(
+        1.0 / (1.0 + abs(left_ranks[neighbor] - right_ranks[neighbor]))
+        for neighbor in shared_neighbors
+    )
+    return weighted_overlap / effective_limit
+
+
+def rank_overlap_relevance_scores(
+    words: tuple[str, ...],
+    seeds: tuple[str, ...],
+    lexicon: tuple[str, ...],
+    vectors: WordVectorTable,
+    neighbor_count: int = 32,
+) -> dict[str, float]:
+    unique_words = tuple(dict.fromkeys(words))
+    unique_lexicon = tuple(dict.fromkeys(lexicon))
+    _require_lexicon_vectors(unique_lexicon, vectors)
+    validated_seeds = validate_seed_words(seeds, unique_lexicon)
+    if not validated_seeds:
+        return {}
+    neighbor_cache: dict[str, dict[str, int]] = {}
+    return {
+        word: max(
+            _rank_overlap_similarity(
+                word,
+                seed,
+                unique_lexicon,
+                vectors,
+                neighbor_count,
+                neighbor_cache,
+            )
+            for seed in validated_seeds
+        )
+        for word in unique_words
+        if word in vectors.vectors
+    }
+
+
+def _retrieval_metric_report(
+    case: ThemeRetrievalReviewCase,
+    ranked_words: tuple[str, ...],
+    top_n: int,
+) -> ThemeRetrievalMetricReport:
+    top_words = tuple(word for word in ranked_words if word != case.seed)[:top_n]
+    expected_hits = tuple(word for word in case.expected_top_words if word in top_words)
+    unexpected_hits = tuple(word for word in case.unexpected_top_words if word in top_words)
+    expected_total = len(case.expected_top_words)
+    unexpected_total = len(case.unexpected_top_words)
+    return ThemeRetrievalMetricReport(
+        metric="",
+        top_words=top_words,
+        expected_hits=expected_hits,
+        unexpected_hits=unexpected_hits,
+        expected_coverage=(len(expected_hits) / expected_total) if expected_total else 0.0,
+        unexpected_intrusion_rate=(len(unexpected_hits) / unexpected_total) if unexpected_total else 0.0,
+    )
+
+
+def compare_retrieval_metrics(
+    case: ThemeRetrievalReviewCase,
+    lexicon: tuple[str, ...],
+    vectors: WordVectorTable,
+    *,
+    top_n: int = 8,
+    neighbor_count: int = 32,
+) -> ThemeRetrievalComparison:
+    cosine_report = _retrieval_metric_report(
+        case,
+        rank_lexicon_for_seed((case.seed,), lexicon, vectors),
+        top_n,
+    )
+    rank_overlap_report = _retrieval_metric_report(
+        case,
+        rank_lexicon_for_seed(
+            (case.seed,),
+            lexicon,
+            vectors,
+            similarity_metric="rank_overlap",
+            neighbor_count=neighbor_count,
+        ),
+        top_n,
+    )
+    return ThemeRetrievalComparison(
+        seed=case.seed,
+        cosine=ThemeRetrievalMetricReport(
+            metric="cosine",
+            top_words=cosine_report.top_words,
+            expected_hits=cosine_report.expected_hits,
+            unexpected_hits=cosine_report.unexpected_hits,
+            expected_coverage=cosine_report.expected_coverage,
+            unexpected_intrusion_rate=cosine_report.unexpected_intrusion_rate,
+        ),
+        rank_overlap=ThemeRetrievalMetricReport(
+            metric="rank_overlap",
+            top_words=rank_overlap_report.top_words,
+            expected_hits=rank_overlap_report.expected_hits,
+            unexpected_hits=rank_overlap_report.unexpected_hits,
+            expected_coverage=rank_overlap_report.expected_coverage,
+            unexpected_intrusion_rate=rank_overlap_report.unexpected_intrusion_rate,
+        ),
+    )
+
+
+def review_theme_retrieval(
+    cases: tuple[ThemeRetrievalReviewCase, ...],
+    lexicon: tuple[str, ...],
+    vectors: WordVectorTable,
+    *,
+    top_n: int = 8,
+    neighbor_count: int = 32,
+) -> tuple[ThemeRetrievalComparison, ...]:
+    return tuple(
+        compare_retrieval_metrics(
+            case,
+            lexicon,
+            vectors,
+            top_n=top_n,
+            neighbor_count=neighbor_count,
+        )
+        for case in cases
+    )
+
+
+def _validate_review_case_words(
+    words: tuple[str, ...],
+    lexicon: tuple[str, ...],
+    label: str,
+) -> tuple[str, ...]:
+    lexicon_set = set(lexicon)
+    missing_words = tuple(word for word in dict.fromkeys(words) if word not in lexicon_set)
+    if missing_words:
+        missing_text = ", ".join(word.upper() for word in missing_words)
+        raise ValueError(f"{label} missing from lexicon: {missing_text}")
+    return tuple(dict.fromkeys(words))
+
+
 def diversify_theme_words(
     ranked_words: tuple[str, ...],
     seeds: tuple[str, ...],
@@ -297,25 +705,134 @@ def score_theme_subset(
     )
 
 
+def compare_theme_intrusions(
+    case: ThemeIntrusionReviewCase,
+    lexicon: tuple[str, ...],
+    vectors: WordVectorTable,
+    *,
+    limit: int | None = None,
+) -> ThemeIntrusionComparison:
+    unique_lexicon = tuple(dict.fromkeys(lexicon))
+    _require_lexicon_vectors(unique_lexicon, vectors)
+    validated_seed = validate_seed_words((case.seed,), unique_lexicon)
+    expected_theme_words = _validate_review_case_words(
+        case.expected_theme_words,
+        unique_lexicon,
+        "expected theme words",
+    )
+    intruder_words = _validate_review_case_words(
+        case.intruder_words,
+        unique_lexicon,
+        "intruder words",
+    )
+    subset_limit = (
+        min(DEFAULT_THEME_WORD_LIMIT, len(expected_theme_words))
+        if limit is None
+        else min(limit, len(expected_theme_words))
+    )
+    if subset_limit <= 0:
+        raise ValueError("intrusion review cases must include at least one expected theme word")
+
+    baseline = score_theme_subset(
+        expected_theme_words,
+        validated_seed,
+        vectors,
+        limit=subset_limit,
+    )
+    trials = tuple(
+        _compare_intrusion_trial(
+            intruder,
+            expected_theme_words,
+            validated_seed,
+            vectors,
+            subset_limit,
+            baseline,
+        )
+        for intruder in intruder_words
+    )
+    passed_trials = sum(trial.passed for trial in trials)
+    return ThemeIntrusionComparison(
+        seed=case.seed,
+        expected_theme_words=expected_theme_words,
+        baseline_selected_words=baseline.selected_words,
+        baseline_total=baseline.total,
+        baseline_weakest_link=baseline.weakest_link,
+        trials=trials,
+        pass_rate=passed_trials / len(trials) if trials else 0.0,
+    )
+
+
+def _compare_intrusion_trial(
+    intruder: str,
+    expected_theme_words: tuple[str, ...],
+    validated_seed: tuple[str, ...],
+    vectors: WordVectorTable,
+    subset_limit: int,
+    baseline: ThemeScoreBreakdown,
+) -> ThemeIntrusionTrialReport:
+    intruded_breakdown = score_theme_subset(
+        expected_theme_words + (intruder,),
+        validated_seed,
+        vectors,
+        limit=subset_limit,
+    )
+    intruder_selected = intruder in intruded_breakdown.selected_words
+    return ThemeIntrusionTrialReport(
+        intruder=intruder,
+        selected_words=intruded_breakdown.selected_words,
+        intruder_selected=intruder_selected,
+        total=intruded_breakdown.total,
+        weakest_link=intruded_breakdown.weakest_link,
+        total_delta=intruded_breakdown.total - baseline.total,
+        weakest_link_delta=intruded_breakdown.weakest_link - baseline.weakest_link,
+        passed=not intruder_selected,
+    )
+
+
+def review_theme_intrusions(
+    cases: tuple[ThemeIntrusionReviewCase, ...],
+    lexicon: tuple[str, ...],
+    vectors: WordVectorTable,
+    *,
+    limit: int | None = None,
+) -> tuple[ThemeIntrusionComparison, ...]:
+    return tuple(
+        compare_theme_intrusions(case, lexicon, vectors, limit=limit)
+        for case in cases
+    )
+
+
 def rank_lexicon_for_seed(
     seeds: tuple[str, ...],
     lexicon: tuple[str, ...],
     vectors: WordVectorTable,
     preferred_words: tuple[str, ...] = (),
+    *,
+    similarity_metric: Literal["cosine", "rank_overlap"] = "cosine",
+    neighbor_count: int = 32,
 ) -> tuple[str, ...]:
     unique_lexicon = tuple(dict.fromkeys(lexicon))
     _require_lexicon_vectors(unique_lexicon, vectors)
     validated_seeds = validate_seed_words(seeds, unique_lexicon)
     preferred_set = set(preferred_words)
-    word_scores = {
-        word: score_word_for_seed(word, validated_seeds, vectors)
-        for word in unique_lexicon
-    }
+    cosine_scores = seed_relevance_scores(unique_lexicon, validated_seeds, vectors)
+    if similarity_metric == "cosine":
+        word_scores = cosine_scores
+    elif similarity_metric == "rank_overlap":
+        word_scores = rank_overlap_relevance_scores(
+            unique_lexicon,
+            validated_seeds,
+            unique_lexicon,
+            vectors,
+            neighbor_count=neighbor_count,
+        )
+    else:
+        raise ValueError(f"unsupported similarity metric: {similarity_metric}")
 
-    def sort_key(word: str) -> tuple[int, int, float, str]:
+    def sort_key(word: str) -> tuple[int, int, float, float, str]:
         seed_penalty = 0 if word in validated_seeds else 1
         preferred_penalty = 0 if word in preferred_set else 1
-        return (seed_penalty, preferred_penalty, -word_scores[word], word)
+        return (seed_penalty, preferred_penalty, -word_scores[word], -cosine_scores[word], word)
 
     return tuple(sorted(unique_lexicon, key=sort_key))
 
