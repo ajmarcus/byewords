@@ -11,6 +11,7 @@ from byewords.generate import (
     generate_puzzle,
     generate_puzzle_candidates,
     generate_puzzle_cached,
+    load_default_inputs,
 )
 from byewords.grid import distinct_entries, make_grid
 from byewords.theme import lexicon_hash, load_word_vectors
@@ -39,6 +40,23 @@ def _write_vector_table(
 
 
 class TestGenerate(unittest.TestCase):
+    def test_load_default_inputs_backfills_missing_words_with_fallback_clues(self) -> None:
+        with (
+            patch("byewords.generate.load_word_list", return_value=("abase", "snail")),
+            patch("byewords.generate.load_clue_bank", return_value={"snail": ("Handwritten clue",)}),
+        ):
+            lexicon_words, clue_bank = load_default_inputs()
+            _, curated_only = load_default_inputs(include_fallback_clues=False)
+
+        self.assertEqual(lexicon_words, ("abase", "snail"))
+        self.assertEqual(tuple(clue_bank), ("abase", "snail"))
+        self.assertEqual(clue_bank["snail"], ("Handwritten clue",))
+        self.assertEqual(curated_only, {"snail": ("Handwritten clue",)})
+        self.assertEqual(
+            clue_bank["abase"][0],
+            "Entry that starts with A and ends with E and has a repeated letter",
+        )
+
     def test_benchmark_generation_reports_seeded_search_work(self) -> None:
         benchmark = benchmark_generation(
             seeds=("snail",),

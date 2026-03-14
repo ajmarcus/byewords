@@ -149,6 +149,13 @@ class TestGroqClues(unittest.TestCase):
         mock_sleep.assert_called_once_with(7.0)
         self.assertEqual(payload["choices"][0]["message"]["content"], '{"clues": ["A", "B"]}')
 
+    def test_groq_client_reports_timeout_as_runtime_error(self) -> None:
+        with (
+            patch("byewords.groq_clues.urlopen", side_effect=TimeoutError("timed out")),
+            self.assertRaisesRegex(RuntimeError, "Groq API request timed out after 60 seconds"),
+        ):
+            GroqClient("test-key").create_chat_completion({"messages": []})
+
     def test_status_reporter_logs_every_fifty_completed_words(self) -> None:
         progress = StringIO()
         reporter = StatusReporter(progress, total=51)
@@ -336,6 +343,28 @@ class TestGroqClues(unittest.TestCase):
             )
 
         self.assertEqual(tuple(package.answer for package in packages), ("abase", "asked"))
+
+    def test_generate_clue_packages_parallel_reports_timeout_failures(self) -> None:
+        timeout_client = Mock()
+        timeout_client.create_chat_completion.side_effect = RuntimeError(
+            "Groq API request timed out after 60 seconds."
+        )
+        with TemporaryDirectory() as directory:
+            clue_bank_path = str(Path(directory, "clue_bank.json"))
+            Path(clue_bank_path).write_text("{}\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "Failed to generate clues for 1 answers:\nasked: Groq API request timed out after 60 seconds.",
+            ):
+                generate_clue_packages_parallel(
+                    client=timeout_client,
+                    answers=("asked",),
+                    clue_bank={},
+                    clue_bank_path=clue_bank_path,
+                    count=DEFAULT_CLUE_COUNT,
+                    parallelism=1,
+                )
 
     def test_parse_clue_package_returns_clue_list(self) -> None:
         clues = parse_clue_package(

@@ -241,7 +241,28 @@ def build_batch_puzzle_cache(
         for record in store.values()
         if record.get("version") == version
     }
+    available_seeds = {
+        record["seed"]
+        for record in store.values()
+    }
     pending_seeds = tuple(word for word in lexicon_words if word not in cached_seeds)
+    if (
+        path is None
+        and store
+        and pending_seeds
+        and all(word in available_seeds for word in lexicon_words)
+    ):
+        store = _curate_seed_records(store, version, per_seed_limit=candidates_per_seed)
+        store = _apply_top_clue_stage(
+            store,
+            preferred_version=version,
+            clue_bank=clue_bank,
+            clue_bank_path=clue_bank_path or default_clue_bank_path(),
+            limit=top_clue_limit,
+            clue_regenerator=clue_regenerator,
+        )
+        persist_puzzle_store(store, store_path)
+        return store_path, len(store), 0
     pending_seed_set = set(pending_seeds)
     if pending_seed_set:
         store = {

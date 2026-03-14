@@ -345,6 +345,36 @@ class TestPuzzleStore(unittest.TestCase):
         self.assertEqual(total_records, initial_total_records)
         self.assertEqual(generated_records, 0)
 
+    def test_build_batch_puzzle_cache_reuses_default_store_when_packaged_version_drifts(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            store_path = Path(temp_dir) / "puzzles.json"
+            puzzle = build_test_puzzle()
+            persist_puzzle_store(
+                {
+                    "existing": _stored_record(
+                        "00000000-0000-7000-8000-000000000001",
+                        "snail",
+                        "older-version",
+                        puzzle,
+                        fill_score=0.8,
+                        theme_score=0.9,
+                        clue_score=0.7,
+                        answer_only_score=1.7,
+                        theme_subset=["snail"],
+                    )
+                },
+                store_path,
+            )
+
+            with patch("byewords.puzzle_store.default_puzzle_store_path", return_value=store_path):
+                _, total_records, generated_records = build_batch_puzzle_cache(
+                    ("snail",),
+                    {"snail": ("Fresh packaged clue",)},
+                )
+
+        self.assertEqual(total_records, 1)
+        self.assertEqual(generated_records, 0)
+
     def test_build_batch_puzzle_cache_upgrades_legacy_records_missing_answer_scores(self) -> None:
         with TemporaryDirectory() as temp_dir:
             store_path = Path(temp_dir) / "puzzles.json"

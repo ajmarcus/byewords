@@ -158,6 +158,10 @@ class GroqClient:
                     self.sleep_fn(retry_after_seconds)
                     continue
                 raise RuntimeError(_format_http_error(exc)) from exc
+            except TimeoutError as exc:
+                raise RuntimeError(
+                    f"Groq API request timed out after {self.timeout_seconds:g} seconds."
+                ) from exc
             except URLError as exc:
                 raise RuntimeError(f"Could not reach the Groq API: {exc.reason}") from exc
             break

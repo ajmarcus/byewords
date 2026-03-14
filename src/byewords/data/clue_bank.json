@@ -52,8 +52,8 @@
     "Roughly speaking, give or take"
   ],
   "abuse": [
-    "Harsh language that would make a parent wince",
-    "Maltreatment that even a psychiatrist might note in a case file"
+    "Mistreat cruelly",
+    "Improper or harmful use"
   ],
   "abuts": [
     "Borders on a neighboring parcel",
@@ -980,8 +980,8 @@
     "Less clothed than a superhero after a laundry mishap"
   ],
   "bares": [
-    "Strips away modesty like a magician's final trick",
-    "Uncovers the truth with the subtlety of a nosy neighbor"
+    "Reveals openly",
+    "Exposes, as a secret"
   ],
   "barfs": [
     "Ejects a midnight pizza's remnants",
@@ -2391,6 +2391,10 @@
     "Minuscule amounts that would make a miser sigh with satisfaction",
     "Greek letters so tiny they barely register on a balance sheet"
   ],
+  "naked": [
+    "Without any covering",
+    "Plainly exposed to view"
+  ],
   "music": [
     "Auditory art that makes elevators cringe",
     "Rhythmic soundtrack for a coffee shop that never opens"
@@ -2403,6 +2407,10 @@
     "Thorny love tokens",
     "Petals that double as polite insults"
   ],
+  "slurs": [
+    "Connect smoothly, as notes in a phrase",
+    "Blends together, as syllables"
+  ],
   "snail": [
     "Garden resident with a built-in house",
     "Slow mover who decorates sidewalks with glitter"
@@ -2410,6 +2418,14 @@
   "techs": [
     "Gadget gurus",
     "Digital dynamos"
+  ],
+  "trans": [
+    "Prefix meaning 'across' or 'beyond'",
+    "Short for transmissions, informally"
+  ],
+  "tubes": [
+    "Beach floaties and underground rails, collectively",
+    "Test ___ and old televisions, slangily"
   ],
   "yeses": [
     "Polite affirmations at a boardroom vote",

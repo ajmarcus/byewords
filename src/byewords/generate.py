@@ -8,7 +8,7 @@ from typing import Literal
 
 from byewords.cache import load_cached_puzzle, save_cached_puzzle
 from byewords.clue_bank import preferred_clue_words
-from byewords.clues import make_across_clues, make_down_clues
+from byewords.clues import _fallback_clue_variants, make_across_clues, make_down_clues
 from byewords.grid import GRID_SIZE, distinct_entries, grid_columns, make_grid
 from byewords.lexicon import load_clue_bank, load_word_list
 from byewords.prefixes import build_prefix_index
@@ -91,14 +91,24 @@ def _data_path(filename: str) -> str:
     return str(resources.files("byewords").joinpath("data", filename))
 
 
-def load_default_inputs() -> tuple[tuple[str, ...], dict[str, tuple[str, ...]]]:
+def load_default_inputs(
+    *,
+    include_fallback_clues: bool = True,
+) -> tuple[tuple[str, ...], dict[str, tuple[str, ...]]]:
     lexicon_words = load_word_list(_data_path("words_5.txt"))
     lexicon_set = set(lexicon_words)
-    clue_bank = {
-        word: clues
-        for word, clues in load_clue_bank(_data_path("clue_bank.json")).items()
-        if word in lexicon_set
-    }
+    curated_clue_bank = load_clue_bank(_data_path("clue_bank.json"))
+    if include_fallback_clues:
+        clue_bank = {
+            word: curated_clue_bank.get(word, _fallback_clue_variants(word))
+            for word in lexicon_words
+        }
+    else:
+        clue_bank = {
+            word: clues
+            for word, clues in curated_clue_bank.items()
+            if word in lexicon_set
+        }
     return lexicon_words, clue_bank
 
 

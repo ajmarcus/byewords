@@ -131,7 +131,7 @@ def _write_puz_output(payload: bytes, output_path: str | None) -> None:
 
 
 def main() -> int:
-    lexicon_words, clue_bank = load_default_inputs()
+    lexicon_words, clue_bank = load_default_inputs(include_fallback_clues=False)
     args = parse_args()
     if not args.seeds:
         if args.format != "text":
