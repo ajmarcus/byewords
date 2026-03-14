@@ -26,6 +26,8 @@ API_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEFAULT_CLUE_COUNT = 2
 DEFAULT_PARALLELISM = 5
 DEFAULT_TIMEOUT_SECONDS = 60.0
+DEFAULT_TIMEOUT_RETRIES = 2
+DEFAULT_TIMEOUT_RETRY_DELAY_SECONDS = 1.0
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -146,6 +148,7 @@ class GroqClient:
             method="POST",
         )
 
+        timeout_retries = 0
         while True:
             try:
                 with urlopen(request, timeout=self.timeout_seconds) as response:
@@ -159,8 +162,14 @@ class GroqClient:
                     continue
                 raise RuntimeError(_format_http_error(exc)) from exc
             except TimeoutError as exc:
+                if timeout_retries < DEFAULT_TIMEOUT_RETRIES:
+                    timeout_retries += 1
+                    self.sleep_fn(DEFAULT_TIMEOUT_RETRY_DELAY_SECONDS * timeout_retries)
+                    continue
                 raise RuntimeError(
-                    f"Groq API request timed out after {self.timeout_seconds:g} seconds."
+                    "Groq API request timed out "
+                    f"after {self.timeout_seconds:g} seconds "
+                    f"across {timeout_retries + 1} attempts."
                 ) from exc
             except URLError as exc:
                 raise RuntimeError(f"Could not reach the Groq API: {exc.reason}") from exc
