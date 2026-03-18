@@ -8,7 +8,11 @@ from byewords.clues import make_across_clues, make_down_clues
 from byewords.generate import generate_puzzle_cached, load_default_inputs
 from byewords.groq_clues import default_clue_bank_path, regenerate_clues as run_clue_regeneration
 from byewords.puz import puzzle_to_puz_bytes
-from byewords.puzzle_store import build_batch_puzzle_cache
+from byewords.puzzle_store import (
+    build_batch_puzzle_cache,
+    default_puzzle_store_path,
+    load_puzzle_store,
+)
 from byewords.render import render_puzzle_text
 from byewords.types import ProgressUpdate, Puzzle, RuntimeReport
 
@@ -143,6 +147,12 @@ def main() -> int:
         if args.regenerate_clues:
             print("error: batch mode does not support --regenerate-clues")
             return 1
+        store_path = default_puzzle_store_path()
+        store = load_puzzle_store(store_path)
+        cached_seeds = {record["seed"] for record in store.values()}
+        if store and all(word in cached_seeds for word in lexicon_words):
+            print(f"Cached {len(store)} puzzles in {store_path} (0 generated in this run).")
+            return 0
         store_path, total_records, generated_records = build_batch_puzzle_cache(lexicon_words, clue_bank)
         print(
             f"Cached {total_records} puzzles in {store_path} "

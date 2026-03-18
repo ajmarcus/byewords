@@ -23,6 +23,7 @@ class TestCli(unittest.TestCase):
             redirect_stdout(buf),
             patch("sys.argv", ["byewords"]),
             patch("byewords.cli.load_default_inputs", return_value=((), {})),
+            patch("byewords.cli.load_puzzle_store", return_value={}),
             patch("byewords.cli.build_batch_puzzle_cache", return_value=(Path("/tmp/puzzles.json"), 2, 2)) as build_batch,
         ):
             main()
@@ -30,6 +31,31 @@ class TestCli(unittest.TestCase):
         output = buf.getvalue()
         build_batch.assert_called_once_with((), {})
         self.assertIn("Cached 2 puzzles in /tmp/puzzles.json (2 generated in this run).", output)
+
+    def test_cli_without_arguments_reuses_complete_existing_cache_without_rewriting(self) -> None:
+        buf = StringIO()
+        store = {
+            "snail-id": {
+                "seed": "snail",
+            },
+            "tempo-id": {
+                "seed": "tempo",
+            },
+        }
+
+        with (
+            redirect_stdout(buf),
+            patch("sys.argv", ["byewords"]),
+            patch("byewords.cli.load_default_inputs", return_value=(("snail", "tempo"), {})),
+            patch("byewords.cli.default_puzzle_store_path", return_value=Path("/tmp/puzzles.json")),
+            patch("byewords.cli.load_puzzle_store", return_value=store),
+            patch("byewords.cli.build_batch_puzzle_cache") as build_batch,
+        ):
+            exit_code = main()
+
+        self.assertEqual(exit_code, 0)
+        build_batch.assert_not_called()
+        self.assertIn("Cached 2 puzzles in /tmp/puzzles.json (0 generated in this run).", buf.getvalue())
 
     def test_cli_writes_text_output_to_file(self) -> None:
         with TemporaryDirectory() as temp_dir:

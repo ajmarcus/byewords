@@ -4,6 +4,7 @@ import time
 import unittest
 from email.message import Message
 from io import StringIO
+from io import BytesIO
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from typing import cast
@@ -15,9 +16,11 @@ from byewords.groq_clues import (
     DEFAULT_PARALLELISM,
     DEFAULT_USER_AGENT,
     GracefulExit,
+    JSON_OBJECT_RESPONSE_FORMAT,
     MODEL_NAME,
     GroqClient,
     StatusReporter,
+    STRUCTURED_OUTPUT_RESPONSE_FORMAT,
     answer_needs_new_clue,
     build_clue_payload,
     cached_clues_for_answer,
@@ -27,6 +30,7 @@ from byewords.groq_clues import (
     main,
     parse_clue_package,
     parse_args,
+    persist_clue_bank,
     regenerate_clues,
     require_api_key,
     select_answers_to_clue,
@@ -64,6 +68,58 @@ class SlowFakeGroqClient(FakeGroqClient):
         return super().create_chat_completion(payload)
 
 
+class SchemaFallbackGroqClient(FakeGroqClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+
+    def create_chat_completion(self, payload: dict[str, object]) -> dict[str, object]:
+        self.calls += 1
+        with self._lock:
+            self.payloads.append(payload)
+        if self.calls == 1:
+            raise RuntimeError(
+                "Failed to generate JSON. Please adjust your prompt. See 'failed_generation' for more details."
+            )
+        answer = _answer_from_payload(payload)
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {"clues": [f"{answer.title()} option A", f"{answer.title()} option B"]}
+                        )
+                    }
+                }
+            ]
+        }
+
+
+class InvalidJsonThenFallbackClient(FakeGroqClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+
+    def create_chat_completion(self, payload: dict[str, object]) -> dict[str, object]:
+        self.calls += 1
+        with self._lock:
+            self.payloads.append(payload)
+        if self.calls == 1:
+            return {"choices": [{"message": {"content": "not json"}}]}
+        answer = _answer_from_payload(payload)
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {"clues": [f"{answer.title()} option A", f"{answer.title()} option B"]}
+                        )
+                    }
+                }
+            ]
+        }
+
+
 class StopAfterOneReporter(StatusReporter):
     def __init__(self, stream: StringIO, total: int, stop_event: threading.Event) -> None:
         super().__init__(stream, total)
@@ -73,6 +129,11 @@ class StopAfterOneReporter(StatusReporter):
         super().completed_word()
         if self.completed == 1:
             self.stop_event.set()
+
+
+def response_format_type(payload: dict[str, object]) -> str:
+    response_format = cast(dict[str, object], payload["response_format"])
+    return cast(str, response_format["type"])
 
 
 class TestGroqClues(unittest.TestCase):
@@ -176,6 +237,37 @@ class TestGroqClues(unittest.TestCase):
         ):
             GroqClient("test-key").create_chat_completion({"messages": []})
 
+    def test_groq_client_includes_failed_generation_details_in_http_errors(self) -> None:
+        failed_generation = {"message": "Expected an object with a clues array of two strings."}
+        error_body = json.dumps(
+            {
+                "error": {
+                    "message": (
+                        "Failed to validate JSON. Please adjust your prompt. "
+                        "See 'failed_generation' for more details."
+                    ),
+                    "failed_generation": failed_generation,
+                }
+            }
+        ).encode("utf-8")
+        http_error = HTTPError(
+            url="https://example.com",
+            code=400,
+            msg="Bad Request",
+            hdrs=Message(),
+            fp=BytesIO(error_body),
+        )
+
+        with (
+            patch("byewords.groq_clues.urlopen", side_effect=http_error),
+            self.assertRaisesRegex(
+                RuntimeError,
+                "Failed to validate JSON\\. Please adjust your prompt\\. "
+                "failed_generation: Expected an object with a clues array of two strings\\.",
+            ),
+        ):
+            GroqClient("test-key").create_chat_completion({"messages": []})
+
     def test_status_reporter_logs_every_fifty_completed_words(self) -> None:
         progress = StringIO()
         reporter = StatusReporter(progress, total=51)
@@ -222,15 +314,18 @@ class TestGroqClues(unittest.TestCase):
         self.assertEqual(context.exception.completed, 1)
         self.assertEqual(context.exception.total, 3)
 
-    def test_answer_needs_new_clue_skips_non_generic_entries(self) -> None:
+    def test_answer_needs_new_clue_skips_any_existing_entry(self) -> None:
         self.assertFalse(
             answer_needs_new_clue("snail", {"snail": ("Slow walker carrying its whole rent situation",)})
         )
-        self.assertTrue(answer_needs_new_clue("asked", {"asked": ('Past tense of "ask"',)}))
+        self.assertFalse(answer_needs_new_clue("asked", {"asked": ('Past tense of "ask"',)}))
         self.assertTrue(answer_needs_new_clue("abase", {}))
 
-    def test_cached_clues_for_answer_ignores_generic_entries(self) -> None:
-        self.assertIsNone(cached_clues_for_answer("asked", {"asked": ('Past tense of "ask"',)}))
+    def test_cached_clues_for_answer_returns_any_stored_clues(self) -> None:
+        self.assertEqual(
+            cached_clues_for_answer("asked", {"asked": ('Past tense of "ask"',)}),
+            ('Past tense of "ask"',),
+        )
         self.assertEqual(
             cached_clues_for_answer("snail", {"snail": ("Slow walker carrying its whole rent situation",)}),
             ("Slow walker carrying its whole rent situation",),
@@ -247,8 +342,8 @@ class TestGroqClues(unittest.TestCase):
             limit=0,
         )
 
-        self.assertEqual(selection.queued_answers, ("asked", "abase"))
-        self.assertEqual(selection.skipped_answers, ("snail",))
+        self.assertEqual(selection.queued_answers, ("abase",))
+        self.assertEqual(selection.skipped_answers, ("snail", "asked"))
 
     def test_select_answers_to_clue_force_mode_queues_full_lexicon(self) -> None:
         selection = select_answers_to_clue(
@@ -271,6 +366,17 @@ class TestGroqClues(unittest.TestCase):
         )
 
         self.assertEqual(selection.queued_answers, ("snail", "abase"))
+        self.assertEqual(selection.skipped_answers, ())
+
+    def test_select_answers_to_clue_keeps_requested_answers_with_generic_clues(self) -> None:
+        selection = select_answers_to_clue(
+            requested_answers=("asked", "abase"),
+            lexicon_words=("asked", "abase"),
+            clue_bank={"asked": ('Past tense of "ask"',)},
+            limit=0,
+        )
+
+        self.assertEqual(selection.queued_answers, ("asked", "abase"))
         self.assertEqual(selection.skipped_answers, ())
 
     def test_build_clue_payload_includes_quality_examples_and_two_clue_contract(self) -> None:
@@ -330,22 +436,76 @@ class TestGroqClues(unittest.TestCase):
         self.assertEqual(schema["properties"]["clues"]["maxItems"], 2)
         self.assertEqual(schema["properties"]["clues"]["items"]["type"], "string")
 
+    def test_build_clue_payload_can_use_json_object_fallback(self) -> None:
+        payload = build_clue_payload(
+            answer="snail",
+            count=DEFAULT_CLUE_COUNT,
+            response_format_type=JSON_OBJECT_RESPONSE_FORMAT,
+        )
+
+        self.assertEqual(payload["response_format"]["type"], JSON_OBJECT_RESPONSE_FORMAT)
+        self.assertNotIn("json_schema", payload["response_format"])
+
     def test_generate_clue_package_makes_one_structured_request(self) -> None:
         client = FakeGroqClient()
 
-        package = generate_clue_package(
-            client=client,
-            answer="snail",
-            clue_bank={},
-            clue_bank_path="/tmp/test_clue_bank.json",
-            lock=threading.Lock(),
-            count=DEFAULT_CLUE_COUNT,
-        )
+        with TemporaryDirectory() as directory:
+            clue_bank_path = str(Path(directory, "clue_bank.json"))
+            Path(clue_bank_path).write_text("{}\n", encoding="utf-8")
+            package = generate_clue_package(
+                client=client,
+                answer="snail",
+                clue_bank={},
+                clue_bank_path=clue_bank_path,
+                lock=threading.Lock(),
+                count=DEFAULT_CLUE_COUNT,
+            )
 
         self.assertEqual(len(client.payloads), 1)
         self.assertEqual(package.answer, "snail")
         self.assertFalse(package.cached)
         self.assertEqual(package.clues, ("Snail option A", "Snail option B"))
+        self.assertEqual(response_format_type(client.payloads[0]), STRUCTURED_OUTPUT_RESPONSE_FORMAT)
+
+    def test_generate_clue_package_retries_with_json_object_after_schema_failure(self) -> None:
+        client = SchemaFallbackGroqClient()
+
+        with TemporaryDirectory() as directory:
+            clue_bank_path = str(Path(directory, "clue_bank.json"))
+            Path(clue_bank_path).write_text("{}\n", encoding="utf-8")
+
+            package = generate_clue_package(
+                client=client,
+                answer="snail",
+                clue_bank={},
+                clue_bank_path=clue_bank_path,
+                lock=threading.Lock(),
+                count=DEFAULT_CLUE_COUNT,
+            )
+
+        self.assertEqual(package.clues, ("Snail option A", "Snail option B"))
+        self.assertEqual(response_format_type(client.payloads[0]), STRUCTURED_OUTPUT_RESPONSE_FORMAT)
+        self.assertEqual(response_format_type(client.payloads[1]), JSON_OBJECT_RESPONSE_FORMAT)
+
+    def test_generate_clue_package_retries_with_json_object_after_invalid_schema_payload(self) -> None:
+        client = InvalidJsonThenFallbackClient()
+
+        with TemporaryDirectory() as directory:
+            clue_bank_path = str(Path(directory, "clue_bank.json"))
+            Path(clue_bank_path).write_text("{}\n", encoding="utf-8")
+
+            package = generate_clue_package(
+                client=client,
+                answer="snail",
+                clue_bank={},
+                clue_bank_path=clue_bank_path,
+                lock=threading.Lock(),
+                count=DEFAULT_CLUE_COUNT,
+            )
+
+        self.assertEqual(package.clues, ("Snail option A", "Snail option B"))
+        self.assertEqual(response_format_type(client.payloads[0]), STRUCTURED_OUTPUT_RESPONSE_FORMAT)
+        self.assertEqual(response_format_type(client.payloads[1]), JSON_OBJECT_RESPONSE_FORMAT)
 
     def test_generate_clue_packages_parallel_preserves_input_order(self) -> None:
         client = SlowFakeGroqClient()
@@ -406,6 +566,10 @@ class TestGroqClues(unittest.TestCase):
             ),
         )
 
+    def test_parse_clue_package_reports_invalid_json_as_runtime_error(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "Structured clue response was not valid JSON."):
+            parse_clue_package("not json")
+
     def test_format_clue_package_lists_only_clues(self) -> None:
         with TemporaryDirectory() as directory:
             clue_bank_path = str(Path(directory, "clue_bank.json"))
@@ -456,15 +620,18 @@ class TestGroqClues(unittest.TestCase):
     def test_generate_clue_package_force_regenerates_even_with_cached_clues(self) -> None:
         client = FakeGroqClient()
 
-        package = generate_clue_package(
-            client=client,
-            answer="snail",
-            clue_bank={"snail": ("Slow walker carrying its whole rent situation",)},
-            clue_bank_path="/tmp/test_clue_bank.json",
-            lock=threading.Lock(),
-            count=DEFAULT_CLUE_COUNT,
-            force=True,
-        )
+        with TemporaryDirectory() as directory:
+            clue_bank_path = str(Path(directory, "clue_bank.json"))
+            Path(clue_bank_path).write_text("{}\n", encoding="utf-8")
+            package = generate_clue_package(
+                client=client,
+                answer="snail",
+                clue_bank={"snail": ("Slow walker carrying its whole rent situation",)},
+                clue_bank_path=clue_bank_path,
+                lock=threading.Lock(),
+                count=DEFAULT_CLUE_COUNT,
+                force=True,
+            )
 
         self.assertEqual(len(client.payloads), 1)
         self.assertFalse(package.cached)
@@ -499,6 +666,43 @@ class TestGroqClues(unittest.TestCase):
         self.assertFalse(package.cached)
         self.assertEqual(clue_bank["snail"], ("Snail option A", "Snail option B"))
         self.assertEqual(persisted["snail"], ["Snail option A", "Snail option B"])
+
+    def test_persist_clue_bank_merges_updates_with_existing_file_contents(self) -> None:
+        with TemporaryDirectory() as directory:
+            clue_bank_path = str(Path(directory, "clue_bank.json"))
+            Path(clue_bank_path).write_text(
+                json.dumps(
+                    {
+                        "adieu": ["Curtain call for a departing cast"],
+                        "snail": ["Garden resident with a built-in home"],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            persist_clue_bank(
+                clue_bank_path,
+                {
+                    "snail": (
+                        "Garden resident with a built-in home",
+                        "Snail option A",
+                        "Snail option B",
+                    ),
+                },
+            )
+
+            persisted = json.loads(Path(clue_bank_path).read_text(encoding="utf-8"))
+
+        self.assertEqual(persisted["adieu"], ["Curtain call for a departing cast"])
+        self.assertEqual(
+            persisted["snail"],
+            [
+                "Garden resident with a built-in home",
+                "Snail option A",
+                "Snail option B",
+            ],
+        )
 
     def test_generate_clue_package_force_appends_new_clues_without_deleting_existing_ones(self) -> None:
         client = FakeGroqClient()
@@ -535,9 +739,59 @@ class TestGroqClues(unittest.TestCase):
                 "Snail option B",
             ),
         )
+        self.assertEqual(
+            clue_bank["snail"],
+            (
+                "Slow walker carrying its whole rent situation",
+                "Creature living the ultimate one-bag lifestyle",
+                "Snail option A",
+                "Snail option B",
+            ),
+        )
         self.assertEqual(list(package.clues), persisted["snail"])
 
-    def test_main_reports_missing_api_key_to_stderr(self) -> None:
+    def test_generate_clue_package_merges_with_on_disk_entries_when_in_memory_bank_is_partial(self) -> None:
+        client = FakeGroqClient()
+
+        with TemporaryDirectory() as directory:
+            clue_bank_path = str(Path(directory, "clue_bank.json"))
+            Path(clue_bank_path).write_text(
+                json.dumps(
+                    {
+                        "adieu": ["Curtain call for a departing cast"],
+                        "snail": ["Garden resident with a built-in home"],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            clue_bank: dict[str, tuple[str, ...]] = {}
+
+            package = generate_clue_package(
+                client=client,
+                answer="snail",
+                clue_bank=clue_bank,
+                clue_bank_path=clue_bank_path,
+                lock=threading.Lock(),
+                count=DEFAULT_CLUE_COUNT,
+                force=True,
+            )
+
+            persisted = json.loads(Path(clue_bank_path).read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            package.clues,
+            (
+                "Garden resident with a built-in home",
+                "Snail option A",
+                "Snail option B",
+            ),
+        )
+        self.assertEqual(clue_bank["snail"], package.clues)
+        self.assertEqual(persisted["adieu"], ["Curtain call for a departing cast"])
+        self.assertEqual(list(package.clues), persisted["snail"])
+
+    def test_main_bulk_mode_with_only_cached_clues_does_not_require_api_key(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
 
@@ -547,9 +801,9 @@ class TestGroqClues(unittest.TestCase):
         ), patch("byewords.groq_clues.default_clue_bank_path", return_value="/tmp/test_clue_bank.json"):
             exit_code = main([], env={}, stdout=stdout, stderr=stderr)
 
-        self.assertEqual(exit_code, 1)
-        self.assertEqual(stdout.getvalue(), "")
-        self.assertIn("GROQ_API_KEY is not set", stderr.getvalue())
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stdout.getvalue(), "No answers need clue generation.\n")
+        self.assertIn("Skipping 1 answers that already have clues in the clue bank.", stderr.getvalue())
 
     def test_main_uses_bulk_mode_and_skips_existing_handwritten_clues(self) -> None:
         stdout = StringIO()
@@ -579,8 +833,8 @@ class TestGroqClues(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         parsed = json.loads(stdout.getvalue())
-        self.assertEqual([item["answer"] for item in parsed], ["asked", "abase"])
-        self.assertIn("Skipping 1 answers", stderr.getvalue())
+        self.assertEqual([item["answer"] for item in parsed], ["abase"])
+        self.assertIn("Skipping 2 answers that already have clues in the clue bank.", stderr.getvalue())
 
     def test_main_returns_cached_requested_answer(self) -> None:
         stdout = StringIO()
@@ -644,6 +898,41 @@ class TestGroqClues(unittest.TestCase):
         self.assertEqual(parsed[0]["cached"], True)
         self.assertEqual(stderr.getvalue(), "")
 
+    def test_main_returns_cached_requested_answer_without_api_key_for_generic_clue(self) -> None:
+        stdout = StringIO()
+        stderr = StringIO()
+
+        with (
+            patch(
+                "byewords.groq_clues.load_default_answer_inputs",
+                return_value=(
+                    ("asked",),
+                    {"asked": ('Past tense of "ask"',)},
+                ),
+            ),
+            patch("byewords.groq_clues.default_clue_bank_path", return_value="/tmp/test_clue_bank.json"),
+        ):
+            exit_code = main(
+                ["--json", "asked"],
+                env={},
+                stdout=stdout,
+                stderr=stderr,
+            )
+
+        self.assertEqual(exit_code, 0)
+        parsed = json.loads(stdout.getvalue())
+        self.assertEqual(
+            parsed,
+            [
+                {
+                    "answer": "asked",
+                    "cached": True,
+                    "clues": ['Past tense of "ask"'],
+                }
+            ],
+        )
+        self.assertEqual(stderr.getvalue(), "")
+
     def test_regenerate_clues_returns_cached_packages_without_api_key_when_force_is_false(self) -> None:
         packages = regenerate_clues(
             answers=("snail",),
@@ -657,28 +946,46 @@ class TestGroqClues(unittest.TestCase):
         self.assertEqual(len(packages), 1)
         self.assertTrue(packages[0].cached)
 
+    def test_regenerate_clues_returns_generic_cached_packages_without_api_key_when_force_is_false(self) -> None:
+        packages = regenerate_clues(
+            answers=("asked",),
+            clue_bank={"asked": ('Past tense of "ask"',)},
+            clue_bank_path="/tmp/test_clue_bank.json",
+            env={},
+            errors=StringIO(),
+            force=False,
+        )
+
+        self.assertEqual(len(packages), 1)
+        self.assertTrue(packages[0].cached)
+        self.assertEqual(packages[0].clues, ('Past tense of "ask"',))
+
     def test_main_force_regenerates_cached_requested_answer(self) -> None:
         stdout = StringIO()
         stderr = StringIO()
 
-        with (
-            patch(
-                "byewords.groq_clues.load_default_answer_inputs",
-                return_value=(
-                    ("snail",),
-                    {"snail": ("Slow walker carrying its whole rent situation",)},
+        with TemporaryDirectory() as directory:
+            clue_bank_path = str(Path(directory, "clue_bank.json"))
+            Path(clue_bank_path).write_text("{}\n", encoding="utf-8")
+
+            with (
+                patch(
+                    "byewords.groq_clues.load_default_answer_inputs",
+                    return_value=(
+                        ("snail",),
+                        {"snail": ("Slow walker carrying its whole rent situation",)},
+                    ),
                 ),
-            ),
-            patch("byewords.groq_clues.default_clue_bank_path", return_value="/tmp/test_clue_bank.json"),
-            patch("byewords.groq_clues.GroqClient", return_value=FakeGroqClient()),
-            patch("byewords.groq_clues.persist_clue_bank"),
-        ):
-            exit_code = main(
-                ["--json", "--force", "snail"],
-                env={"GROQ_API_KEY": "test-key"},
-                stdout=stdout,
-                stderr=stderr,
-            )
+                patch("byewords.groq_clues.default_clue_bank_path", return_value=clue_bank_path),
+                patch("byewords.groq_clues.GroqClient", return_value=FakeGroqClient()),
+                patch("byewords.groq_clues.persist_clue_bank"),
+            ):
+                exit_code = main(
+                    ["--json", "--force", "snail"],
+                    env={"GROQ_API_KEY": "test-key"},
+                    stdout=stdout,
+                    stderr=stderr,
+                )
 
         self.assertEqual(exit_code, 0)
         parsed = json.loads(stdout.getvalue())

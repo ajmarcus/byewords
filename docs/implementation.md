@@ -324,9 +324,10 @@ Responsibilities:
 
 - sort the bundled lexicon
 - normalize and prune the clue bank
-- drop clue entries whose answers are no longer in the lexicon
+- prune bundled vectors and cached puzzles against the canonical lexicon
+- drop data entries whose answers are no longer in the lexicon
 
-This is the source of truth for keeping `words_5.txt` and `clue_bank.json` in sync.
+This is the source of truth for keeping the bundled data files aligned to `words_5.txt`.
 
 ### `cli.py` and `render.py`
 
@@ -358,10 +359,10 @@ When bundled data changes:
 
 1. edit `src/byewords/data/words_5.txt`
 2. run `uv run python tools/sort_bundled_data.py`
-3. let the script sort the word list and prune orphan clue entries
+3. let the script sort the word list and prune or refresh the dependent bundled data files
 4. run the test suite
 
-That keeps the word list and clue bank synchronized.
+That keeps the bundled word list, clue bank, vectors, and puzzle cache synchronized.
 
 ## Testing strategy
 

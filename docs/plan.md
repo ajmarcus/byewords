@@ -61,6 +61,8 @@ The current scoring remains intentionally simple.
 
 Clues come from the bundled clue bank when available. If a clue is missing, the generator falls back to deterministic pattern-based clues such as plural, past-tense, repeated-letter, and first/last-letter descriptions.
 
+The clue generation workflow must preserve existing clue-bank entries. In `byewords-generate-clues`, default runs should leave existing clues untouched, and `--force` should append newly generated clues rather than overwriting the stored ones.
+
 ## Chosen fill strategy
 
 Use a specialized row-by-row search for a 5x5 full grid.

@@ -95,6 +95,12 @@ class TestThemeIndexBuilder(unittest.TestCase):
         self.assertEqual(args.candidates_per_seed, 3)
         self.assertEqual(args.top_clue_limit, 20)
 
+    def test_parse_args_supports_refresh_clues_command(self) -> None:
+        args = parse_args(["refresh-clues", "--output", "custom-puzzles.json"])
+
+        self.assertEqual(args.command, "refresh-clues")
+        self.assertEqual(args.output, Path("custom-puzzles.json"))
+
     def test_main_cache_command_builds_offline_store(self) -> None:
         with TemporaryDirectory() as temp_dir:
             output_path = Path(temp_dir) / "puzzles.json"
@@ -124,6 +130,25 @@ class TestThemeIndexBuilder(unittest.TestCase):
             top_clue_limit=100,
         )
         self.assertIn("Cached 2 puzzles in", stdout.getvalue())
+
+    def test_main_refresh_clues_command_rewrites_store(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "puzzles.json"
+            stdout = StringIO()
+
+            with (
+                redirect_stdout(stdout),
+                patch("byewords.theme_index_builder._load_bundled_inputs", return_value=(("beach",), {"beach": ("Clue",)})),
+                patch(
+                    "byewords.theme_index_builder.refresh_all_puzzle_clues",
+                    return_value=(output_path, 12, 37),
+                ) as refresh_clues,
+            ):
+                exit_code = main(["refresh-clues", "--output", str(output_path)])
+
+        self.assertEqual(exit_code, 0)
+        refresh_clues.assert_called_once_with({"beach": ("Clue",)}, path=output_path)
+        self.assertIn("Refreshed clues for 12 puzzles", stdout.getvalue())
 
     def test_main_retrieval_review_json_prints_structured_report(self) -> None:
         stdout = StringIO()

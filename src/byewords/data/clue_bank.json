@@ -5,10 +5,8 @@
     "Out of nowhere"
   ],
   "abase": [
-    "Make someone feel lower than their station",
-    "Humiliate by treating as a servant",
-    "Humiliate a pompous speaker with a whispered pun",
-    "Demean a proud cat by swapping its throne for a saucer"
+    "Humiliate by pulling the rug from under",
+    "Put someone in the doghouse with a snide remark"
   ],
   "abash": [
     "Make someone blush with a faux pas",
@@ -199,10 +197,8 @@
     "Quick on the draw when the puzzle timer ticks"
   ],
   "adieu": [
-    "Final curtain call at a Parisian stage",
-    "Elegant farewell uttered when the baguette is broken",
-    "Final French farewell",
-    "Parting words that rhyme with you"
+    "Parting word used by French speakers",
+    "Curtain call for a departing cast"
   ],
   "adios": [
     "Well, catch you later!",
@@ -1043,6 +1039,10 @@
     "Chemist\u2019s way of turning mystery ore into a tidy number",
     "Laboratory grilling of a rock",
     "Chemist's hunt for the secret in a sample"
+  ],
+  "asset": [
+    "Balance-sheet booster",
+    "Hidden treasure in a corporate ledger"
   ],
   "aster": [
     "Late\u2011summer blossom that turns a bouquet into a miniature galaxy",
@@ -2262,6 +2262,10 @@
     "To turn a sunrise into a soft\u2011focus selfie",
     "To make a courtroom testimony look like a foggy dream"
   ],
+  "bleat": [
+    "Sound like a sheep in a pasture",
+    "Express annoyance by mimicking a lamb"
+  ],
   "bleed": [
     "Seep crimson after a cut",
     "Paint with red when pricked",
@@ -2651,10 +2655,8 @@
     "Free extra that makes a deal sweeter"
   ],
   "booed": [
-    "Expressed disapproval with a chorus of hisses",
-    "Chanted a stadium's collective scorn to drown out the solo",
-    "Met with disapproval from a stadium crowd",
-    "Was driven out of the theater by a chorus of discontent"
+    "Howled disapproval at the stage",
+    "Hissed at the poor performance"
   ],
   "books": [
     "Printed literary collections",
@@ -2988,7 +2990,7 @@
   ],
   "bride": [
     "Woman in a veil awaiting her partner's vows",
-    "One who holds the bouquet while the groom waits at the altar",
+    "Bouquet holder walking toward the altar",
     "Woman who may be handed a flower bouquet",
     "Person escorted by a groom down an aisle"
   ],
@@ -3410,9 +3412,9 @@
   ],
   "buyer": [
     "Person who walks into a store with a credit card in hand",
-    "One who hopes the clearance rack holds a treasure",
+    "Shopper hunting for a clearance-rack jackpot",
     "Person who signs the receipt at the checkout, hoping the total was a joke",
-    "One who makes the final handshake in a deal, while eyeing the free sample"
+    "Final handshaker in a deal, while eyeing the free sample"
   ],
   "bylaw": [
     "Neighborhood ordinance that bans midnight lawn mowing",
@@ -3610,9 +3612,17 @@
     "Punished with a stick",
     "Delivered a birch to a misbehaving student"
   ],
+  "caner": [
+    "Preserve\u2011packing pro",
+    "Shelf\u2011stocking specialist for tin\u2011boxed goods"
+  ],
   "canes": [
     "Elegant accessories for a promenade",
     "Tall harvests that sway in tropical breezes"
+  ],
+  "canny": [
+    "Shrewd about savings",
+    "Astute in spotting a good deal"
   ],
   "canoe": [
     "Narrow vessel for river trips",
@@ -3723,6 +3733,10 @@
   "carve": [
     "Slice a holiday turkey with precision",
     "Whittle a pumpkin into a spooky lantern"
+  ],
+  "cased": [
+    "Hard\u2011shelled for transport",
+    "Ready\u2011to\u2011ship in a container"
   ],
   "cases": [
     "Pandemic tallies",
@@ -3844,6 +3858,10 @@
     "Gold\u2011plated link that keeps a pirate\u2019s loot from scattering across the deck",
     "Series of interlocking rings that can lock a dragon\u2019s hoard behind a heavy door"
   ],
+  "chair": [
+    "Seat of authority at a boardroom",
+    "Rotating prop in a party pastime"
+  ],
   "chalk": [
     "Classroom dust for scribbles",
     "White powder used for sidewalk hopscotch"
@@ -3879,6 +3897,10 @@
   "chart": [
     "Graphical record of trends",
     "Navigation aid for plotting a course"
+  ],
+  "chary": [
+    "Hesitant to jump into the pool of daring ideas",
+    "Leery of any invitation that sounds like a dare"
   ],
   "chase": [
     "Run after a squirrel with the vigor of a park ranger",
@@ -4112,6 +4134,10 @@
     "Roughly when the first pyramids rose",
     "About the period when dinosaurs still had Wi\u2011Fi"
   ],
+  "cirri": [
+    "Tiny sea\u2011anemone moustaches",
+    "Feathery cloud fragments that look like a child's doodle"
+  ],
   "cited": [
     "Summoned to appear before a judge",
     "Named in an academic bibliography"
@@ -4123,6 +4149,10 @@
   "civet": [
     "Musk\u2011scented mammal prized for coffee beans",
     "Night\u2011prowling furball that inspired a perfume line"
+  ],
+  "civic": [
+    "Like a municipal building\u2019s public service focus",
+    "Characteristic of a car model named after a community ideal"
   ],
   "civil": [
     "Polite enough to let a stranger finish speaking first",
@@ -4248,6 +4278,10 @@
     "Lumpy garden patches that make a farmer sigh",
     "Dull folk who can't lift a finger"
   ],
+  "clogs": [
+    "Wooden footwear that turns every step into a percussion performance",
+    "Obstructions that turn a smooth pipeline into a traffic jam"
+  ],
   "clomp": [
     "Trek across the mud, thudding with each footfall",
     "Move like a marching band in rain-soaked shoes"
@@ -4259,6 +4293,10 @@
   "clonk": [
     "A sudden metallic thud that startles a quiet workshop",
     "The echo you hear when a rivet meets steel"
+  ],
+  "clops": [
+    "Trot down the hallway with a steady hoofbeat",
+    "Hear a rhythm that makes the floorboards shiver like a horse in slippers"
   ],
   "close": [
     "Just a stone's throw from the station",
@@ -4387,6 +4425,10 @@
   "coils": [
     "Spiral springs that could double as pretzel substitutes",
     "Winding metal ribbons that love to hug a transformer"
+  ],
+  "coins": [
+    "Small metal discs jingling in a pocket",
+    "Currency pieces that clink when dropped"
   ],
   "coked": [
     "Sent the night spiraling after a line of powdered delight",
@@ -4677,6 +4719,10 @@
   "crack": [
     "Narrow opening that lets a light beam sneak through a boarded window",
     "Unexpected pop when grandma's cookie snaps under a bite"
+  ],
+  "craft": [
+    "Artisan's skill",
+    "Sailing vessel of modest size"
   ],
   "crags": [
     "Rugged outcrops that turn mountain selfies into vertigo challenges",
@@ -4976,7 +5022,7 @@
   ],
   "curer": [
     "Healer in a fantasy novel",
-    "One who mends a broken heart"
+    "Remedy maker with a fix for what ails you"
   ],
   "cures": [
     "Miraculous treatments that turn a feverish night into a clean bill of health",
@@ -5093,6 +5139,10 @@
   "dames": [
     "High\u2011society ladies",
     "Genteel gossip queens"
+  ],
+  "damns": [
+    "Condemns souls with a holy curse",
+    "Sentences to eternal heat"
   ],
   "damps": [
     "Moistens just enough to wilt a wilted garden",
@@ -5278,6 +5328,10 @@
     "Cosmic clockmaker theory that skips miracles",
     "18th\u2011century belief that God set the stage and left the show"
   ],
+  "deist": [
+    "Clockmaker worshipper who never complains about broken gears",
+    "Philosopher who credits a distant architect but skips the grand opening ceremony"
+  ],
   "deity": [
     "Celestial figure venerated in towering stone shrines",
     "Mythic ruler whose name appears in ancient oaths"
@@ -5342,6 +5396,10 @@
     "Vertical distance from water's top to its floor",
     "Layer of feeling that makes jokes feel less shallow"
   ],
+  "derby": [
+    "May\u2011time British horse race",
+    "Bowler\u2019s rival cap for dapper commuters"
+  ],
   "desks": [
     "Workstations that double as nap zones in sitcoms",
     "Classroom staples that survive endless pencil scratches"
@@ -5353,6 +5411,10 @@
   "detox": [
     "Weekend cleanse that swaps cocktails for kale smoothies",
     "Hollywood rehab for a star\u2019s overindulgence"
+  ],
+  "deuce": [
+    "Tie score that triggers an extra\u2011point showdown",
+    "Low card that can still win a hand"
   ],
   "devil": [
     "Horned trickster who turns a handshake into a soul\u2011exchange",
@@ -5425,6 +5487,14 @@
   "dimes": [
     "Ten\u2011cent treasures that make parking meters grin",
     "Coin\u2011sized bribes for a smooth turn at the stoplight"
+  ],
+  "dimly": [
+    "Only faintly",
+    "In a shadowy way"
+  ],
+  "dinar": [
+    "Oil\u2011rich country's pocket\u2011money that tourists often exchange for souvenirs",
+    "Desert bazaar's favorite bill that jingles louder than camel chatter"
   ],
   "dined": [
     "Polished off a three-course feast at the new rooftop bistro",
@@ -5502,6 +5572,10 @@
     "Scatterbrained as a balloon drifting over a parade",
     "Airily unfocused, like a kitten chasing laser dots"
   ],
+  "ditto": [
+    "Copycat's favorite echo",
+    "Repeater's shorthand for identical"
+  ],
   "ditty": [
     "Catchy chorus that a marching band forgot to write",
     "Whimsical hum you might hear from a mischievous squirrel"
@@ -5569,6 +5643,10 @@
   "doges": [
     "Renaissance republic's chief executives",
     "Venetian rulers who once signed letters with a lion's paw"
+  ],
+  "doggy": [
+    "Four-legged mascot of a bone-shaped cereal",
+    "Playful companion often found chasing mail carriers"
   ],
   "dogie": [
     "Lonely newborn on a ranch with no mama",
@@ -5798,6 +5876,10 @@
     "Sketches quick portraits with a single pencil stroke",
     "Pulls a game into a tie after the final whistle"
   ],
+  "drays": [
+    "Heavy carts for moving barrels on stone streets",
+    "Horse\u2011pulled freight wagons of yesteryear"
+  ],
   "dread": [
     "Foreboding feeling that makes you skip the roller coaster",
     "Paralyzing anticipation of the dentist's drill"
@@ -5918,6 +6000,10 @@
     "Laundromat appliance that spins and blows warm air",
     "Appliance that turns soggy shirts into fluffs"
   ],
+  "dryly": [
+    "In a manner that would make a desert comedian grin",
+    "With a wit as arid as a sandstorm's punchline"
+  ],
   "ducal": [
     "Like the manor of a high\u2011ranking noble who insists on powdered wigs",
     "Pertaining to a title that outranks a baron but bows to a king"
@@ -5962,6 +6048,10 @@
     "Stage blunders",
     "Cooking catastrophes"
   ],
+  "dukes": [
+    "British nobles ranking above marquesses",
+    "Peerage ranks that can be prefixed to a name for formal address"
+  ],
   "dulls": [
     "Makes a lecture feel endless",
     "Turns fireworks into a nap"
@@ -6005,6 +6095,10 @@
   "dunno": [
     "Shrug in slang when asked for details",
     "Play the clueless card with a casual sigh"
+  ],
+  "duped": [
+    "Convinced by a too\u2011good\u2011to\u2011be\u2011true coupon",
+    "Swindled after clicking the glittering link"
   ],
   "duper": [
     "Sneaky charlatan",
@@ -6078,6 +6172,10 @@
     "National emblem soaring over mountains and monuments",
     "Majestic raptor featured on a coin and a presidential seal"
   ],
+  "eared": [
+    "Sporting twin listening flaps like a rabbit on a hot tin roof",
+    "Having the auditory accessories of a cornfield critter"
+  ],
   "earls": [
     "British titleholders who outrank viscounts",
     "Nobility whose rank sits between dukes and barons"
@@ -6103,10 +6201,8 @@
     "Portable perch for painters with a penchant for posing"
   ],
   "eases": [
-    "Soothes a tense situation like a gentle lullaby",
-    "Smooths out wrinkles in a schedule with a cup of coffee",
-    "Lightens the load for a weary traveler",
-    "Softens the blow of a surprise bill"
+    "Alleviates a headache",
+    "Lightens the load for a weary traveler"
   ],
   "eaten": [
     "Munched by the midnight snack that vanished in seconds",
@@ -6169,10 +6265,8 @@
     "Extract a buried punchline from a silent mime"
   ],
   "eerie": [
-    "Spooky as a hallway echoing with forgotten lullabies",
-    "Creepy enough to make a vampire wear sunscreen",
-    "Spooky enough to make a cat shiver in a graveyard, yet still not enough to scare the landlord.",
-    "Unsettling like a silent library after the lights go out, where the books gossip about the missing coffee."
+    "Spine\u2011tingling vibe in an abandoned carnival",
+    "Uncanny hush that follows a sudden blackout"
   ],
   "egged": [
     "Pelted with breakfast shells during a political protest",
@@ -6265,6 +6359,10 @@
   "emcee": [
     "Charismatic announcer who gets the audience ready for applause",
     "Spelled-out initials for the person who runs the party mic"
+  ],
+  "emend": [
+    "Revise a manuscript with a ruthless red marker",
+    "Polish a paragraph until the typos vanish"
   ],
   "emery": [
     "Gritty mineral for polishing metal tools",
@@ -6550,6 +6648,10 @@
     "Whimsically chasing every new trend",
     "Capriciously enamored with the latest craze"
   ],
+  "faded": [
+    "Like denim left in the sun too long",
+    "Color that whispers after a marathon of washes"
+  ],
   "fades": [
     "Lose color gradually like sunrise slipping behind clouds",
     "Turn dim as a stage light after the curtain falls"
@@ -6569,6 +6671,10 @@
   "fairy": [
     "Winged sprite who might grant a wish for a lost sandal",
     "Delicate woodland dweller known for sprinkling dust on dozing dreamers"
+  ],
+  "faith": [
+    "Belief that a missing sock will someday return",
+    "Confidence in a GPS that insists the road ends at a rainbow"
   ],
   "faked": [
     "Pulled off a counterfeit autograph at the convention",
@@ -6590,6 +6696,10 @@
     "Cascading spectacles that turn tourists into misty photographers",
     "Nature's drips that give Niagara its bragging rights"
   ],
+  "false": [
+    "Deliberately untrue",
+    "Lying about its honesty"
+  ],
   "famed": [
     "Covered in statues and souvenir t\u2011shirts",
     "The kind of reputation that earns a star on a Hollywood walk"
@@ -6609,6 +6719,10 @@
   "farce": [
     "Comedy of errors on stage",
     "Ridiculous play masking politics"
+  ],
+  "fared": [
+    "Managed to survive the hurricane's chaos",
+    "Did better than expected on the midnight karaoke challenge"
   ],
   "fares": [
     "Ticket costs that make commuters sigh",
@@ -6676,7 +6790,7 @@
   ],
   "fayer": [
     "Extra-elfish reveler who brings glitter to the dance floor",
-    "One who out\u2011sprinkles the garden gnomes with pixie charm"
+    "Pixie-charmed reveler out\u2011sprinkling the garden gnomes"
   ],
   "fazed": [
     "Got rattled when the fire alarm sang the same tune twice.",
@@ -6770,6 +6884,10 @@
     "College music marathons",
     "Seasonal food gatherings"
   ],
+  "fetal": [
+    "Still in the womb",
+    "Not yet born"
+  ],
   "fetch": [
     "Retrieve a tossed stick, as a pup would on a sunny day",
     "Bring back the thrown frisbee, like a canine chasing internet fame"
@@ -6798,6 +6916,10 @@
     "Thermometer's favorite excuse",
     "Midnight heat that turns blankets into ovens"
   ],
+  "fewer": [
+    "Not as many as the cookies left after midnight",
+    "Smaller count than the applause after a dad joke"
+  ],
   "fiats": [
     "Compact Italian autos which zip through narrow streets",
     "Brand whose emblem is a circle with two letters, often spotted beside espresso stands"
@@ -6809,6 +6931,10 @@
   "fiche": [
     "Library slip that records a volume's hidden details",
     "Photographer's single\u2011frame rectangle for a quick exposure"
+  ],
+  "ficus": [
+    "Popular indoor tree often found in corporate lobbies",
+    "Tropical evergreen thriving on filtered sunlight"
   ],
   "fiefs": [
     "Medieval land grants to vassals",
@@ -6927,7 +7053,7 @@
     "Scorched to the touch"
   ],
   "firer": [
-    "One who lights the pyre at a funeral",
+    "Pyre lighter at a funeral rite",
     "Person who presses the starter's pistol at a race"
   ],
   "fires": [
@@ -6953,6 +7079,10 @@
   "fists": [
     "Boxers' weapons",
     "Gymgoers' heavy\u2011bag tools"
+  ],
+  "fitly": [
+    "Exactly as intended",
+    "Right on target"
   ],
   "fiver": [
     "Pocket-sized note often given for a cab ride",
@@ -7286,6 +7416,10 @@
     "Shallow river crossings that a low rider might avoid",
     "Automakers whose logo is a blue oval and that also name a place to wade"
   ],
+  "fores": [
+    "Golf warnings shouted at oncoming players",
+    "Leading bits that editors love to lop"
+  ],
   "forge": [
     "Smash, heat, and bend a metal bar into a new shape",
     "Copy a signature to trick a bank"
@@ -7306,9 +7440,17 @@
     "Loud passage in a symphony",
     "Signature skill, applause magnet"
   ],
+  "forth": [
+    "Onward, as a rallying cry",
+    "Into battle, like a champion's charge"
+  ],
   "forts": [
     "Pillow\u2011lined strongholds that turn living rooms into battlefields",
     "River\u2011bank outposts where cannons once kept watch over passing ships"
+  ],
+  "forty": [
+    "Band of burglars from a Middle Eastern folktale",
+    "Length of the traditional fasting period before Easter"
   ],
   "forum": [
     "Public meeting place in ancient Rome",
@@ -7357,6 +7499,10 @@
   "frags": [
     "Scoreboard entries for virtual eliminations",
     "Shards scattered after a grenade blows up in a shooter"
+  ],
+  "frail": [
+    "Like a wilted flower after a sudden frost",
+    "Delicately breakable when handled without care"
   ],
   "frame": [
     "Border that keeps a portrait from feeling naked",
@@ -7824,6 +7970,10 @@
     "Corpse\u2011eating specter of Arabian folklore",
     "Graveyard gourmand of midnight"
   ],
+  "giant": [
+    "Mythic colossus that turns city skylines into toy blocks",
+    "Oversized opponent who would dominate a game of marbles"
+  ],
   "gibed": [
     "Taunted with biting wit",
     "Ridiculed in a snide exchange"
@@ -7867,6 +8017,10 @@
   "girls": [
     "Boys' counterparts in a classic bedtime story",
     "Playground regulars who often dominate the swing set"
+  ],
+  "girly": [
+    "Pink\u2011tinted and prone to sparkle",
+    "Effervescently pink and unapologetically decorative"
   ],
   "giros": [
     "Mediterranean street\u2011food wraps of meat, pita and sauce",
@@ -8116,6 +8270,10 @@
     "Honking waterfowl that often raids park picnickers' lunches",
     "Feathered participant in the circle game that ends with a sudden sprint"
   ],
+  "gored": [
+    "Stabbed by a charging bull during a chaotic rodeo",
+    "Impaled by an angry elk on a mountain trail"
+  ],
   "gores": [
     "Triangular flag sections that flutter when the wind blows",
     "Bloody splatters you might see in a slasher"
@@ -8336,6 +8494,10 @@
     "Tile filler that hides in the cracks",
     "Joint sealant that loves a squeegee"
   ],
+  "grove": [
+    "Cluster of trees often chosen for picnics or quiet reading",
+    "Shade-filled stand of timber that might hide a wandering rabbit"
+  ],
   "growl": [
     "Grumpy greeting before a leash tug",
     "Underscored threat in a cartoon showdown"
@@ -8380,6 +8542,10 @@
     "Sentinel posted at a museum entrance",
     "Security role that often carries a baton"
   ],
+  "guava": [
+    "Tropical candy\u2011like fruit",
+    "Papaya's smaller, fuzz\u2011covered cousin"
+  ],
   "guess": [
     "Hunch offered when the data is missing",
     "Shot in the dark that might still hit the target"
@@ -8423,6 +8589,10 @@
   "gulls": [
     "Seaside snack thieves",
     "Airport runway raptors"
+  ],
+  "gully": [
+    "Rain\u2011filled trench that turns a hillside into an impromptu water\u2011slide",
+    "Muddy channel that makes hikers\u2019 boots squeak like a chorus of squeaky toys"
   ],
   "gulps": [
     "Swallows in large mouthfuls",
@@ -8540,6 +8710,10 @@
     "Sanctioned by the sheikh, but not by the steakhouse",
     "Allowed by religious code, even if the grill is smoking bacon"
   ],
+  "haled": [
+    "Pulled a canoe with sheer determination",
+    "Yanked a wagon while humming a tune"
+  ],
   "haler": [
     "Equine leash that doubles as a retro swimsuit top",
     "Cowboy\u2019s minimalist neckband for a runaway filly"
@@ -8567,6 +8741,10 @@
   "halve": [
     "Make a pair out of a single",
     "Turn one into two"
+  ],
+  "hammy": [
+    "Excessively melodramatic",
+    "Stagey to a fault"
   ],
   "hands": [
     "Applauders' tools for giving a standing ovation",
@@ -8679,6 +8857,10 @@
   "havoc": [
     "Pandemonium at a toddler's birthday",
     "Ruckus sparked by a cat in a laser\u2011pointer chase"
+  ],
+  "hawed": [
+    "Cleared a throat as loudly as a town crier",
+    "Delivered a spiel with a sudden throat rasp"
   ],
   "hawks": [
     "Birds of prey that love a good high\u2011altitude free\u2011fall ride",
@@ -8846,7 +9028,7 @@
   ],
   "hider": [
     "Sneaky participant in a game of tag",
-    "One who makes a closet feel crowded"
+    "Closet crammer during a game of hide-and-seek"
   ],
   "hides": [
     "Evades the camera's gaze",
@@ -8891,6 +9073,14 @@
   "hinge": [
     "Swinging pivot on a cabinet that loves drama",
     "Mechanical joint that lets a gate change its mind"
+  ],
+  "hings": [
+    "Random knickknacks that survived a moving day",
+    "Curious curios that escaped the junk drawer"
+  ],
+  "hints": [
+    "Subtle nudges that make puzzle solvers grin",
+    "Cryptic breadcrumbs left by a mischievous setter"
   ],
   "hippo": [
     "Riverine heavyweight with a permanent smile",
@@ -8959,6 +9149,10 @@
   "hoked": [
     "Lured onto a line with a barbed lure",
     "Snagged and reeled in by a metal curve"
+  ],
+  "hokes": [
+    "Punchlines stripped of a common initial",
+    "Witty remarks that arrived late to the alphabet party"
   ],
   "hokey": [
     "Cheesy to the point of theatrical melodrama",
@@ -9309,8 +9503,8 @@
     "Sat at the desk as the computer took a coffee break."
   ],
   "idler": [
-    "One who treats a rocking chair as a career",
-    "Professional procrastinator of the park bench variety"
+    "Rocking-chair regular with nowhere urgent to be",
+    "Professional procrastinator of the park-bench variety"
   ],
   "idles": [
     "Loafs about while the kettle never whistles",
@@ -9360,6 +9554,10 @@
     "Drive onward with sudden urgency",
     "Urge a reluctant friend to jump into the pool"
   ],
+  "imper": [
+    "British measurement system, for short",
+    "Regal title abbreviation you might see on a crown"
+  ],
   "imply": [
     "Suggest without stating directly",
     "Nudge the audience while keeping your lips sealed"
@@ -9375,6 +9573,10 @@
   "inbox": [
     "Digital waiting room for unread messages",
     "Electronic graveyard for hopeful replies"
+  ],
+  "inced": [
+    "Lit up the crowd",
+    "Set the stage on fire"
   ],
   "incur": [
     "Run up a hospital bill",
@@ -9403,6 +9605,10 @@
   "infix": [
     "Word\u2011middle that sneaks between a start and an end",
     "Middle piece that a puzzle\u2011builder tucks into a term"
+  ],
+  "infra": [
+    "Legal shorthand for \u201cthe following\u201d",
+    "Citation tag that says \u201csee below\u201d"
   ],
   "ingot": [
     "Gold bar that could double as a doorstop for a dragon",
@@ -9457,10 +9663,8 @@
     "Charged and attracted in a crystal lattice"
   ],
   "iotas": [
-    "Minuscule amounts that would make a miser sigh with satisfaction",
-    "Greek letters so tiny they barely register on a balance sheet",
-    "Minuscule amounts that barely shift the balance in a financial report",
-    "Greek letters so small they could be mistaken for punctuation marks"
+    "Minuscule measures that barely shift a scale",
+    "Bits of data that could fit on a grain of sand"
   ],
   "irate": [
     "Fuming after the traffic jam",
@@ -9533,6 +9737,10 @@
   "jambs": [
     "Sturdy doorframe sides that hug a threshold",
     "Silent sentinels that never get a break from swinging doors"
+  ],
+  "jammy": [
+    "Lucky as a lottery winner who never misses a draw",
+    "Rich in flavor, like a toast spread that refuses to stay put"
   ],
   "japan": [
     "Island archipelago known for cherry blossoms and high\u2011speed rail",
@@ -9665,6 +9873,10 @@
   "joins": [
     "Marries two puzzle pieces in a snap",
     "Teams up with a partner for a dance"
+  ],
+  "joint": [
+    "Spot where elbows go to practice the wave",
+    "Connection point for a door and its frame"
   ],
   "joist": [
     "Horizontal timber that keeps a floor from sagging like a tired accordion",
@@ -9878,6 +10090,10 @@
     "Rain\u2011proof vending spot for postcards and gum",
     "Mini\u2011caf\u00e9 disguised as a newspaper stand"
   ],
+  "kited": [
+    "Soared on a stringed sail as the wind supplied lift",
+    "Scammed the bank by floating a bounced draft"
+  ],
   "kites": [
     "Colorful flyers that ride the wind",
     "Parkyard ornaments that vanish when the gust stops"
@@ -9909,6 +10125,10 @@
   "knead": [
     "Massage dough until it sighs with smoothness",
     "Give a loaf a therapeutic press\u2011and\u2011fold session"
+  ],
+  "kneed": [
+    "Booted with a shin at the soccer match",
+    "Punched with a patella during a bar fight"
   ],
   "kneel": [
     "Bow down in worship",
@@ -9985,6 +10205,10 @@
   "kooky": [
     "Eccentric and whimsically off\u2011beat",
     "Delightfully odd, refusing ordinary conventions"
+  ],
+  "korma": [
+    "Mild Indian stew that pretends to be a hug in a bowl",
+    "Creamy curry that makes a coconut\u2011cream lover sigh with approval"
   ],
   "kraal": [
     "Circular pen for antelopes on a southern plain",
@@ -10354,6 +10578,10 @@
     "Gradually, like a turtle waiting for traffic to clear",
     "Deliberately, as if the orchestra forgot to hit the fast-forward button"
   ],
+  "leper": [
+    "Outcast whose social life was historically quarantined",
+    "Biblical wanderer shunned for a dreaded skin disease"
+  ],
   "letup": [
     "A temporary break in a storm's fury",
     "A lull after a barrage of complaints"
@@ -10361,6 +10589,10 @@
   "levee": [
     "Riverbank rampart that keeps water in line",
     "Evening soir\u00e9e on the riverbank that doubles as flood defense"
+  ],
+  "level": [
+    "Even playing field for board\u2011game rivals",
+    "Tool that stops a picture frame from leaning like a drunken sailor"
   ],
   "lever": [
     "Simple machine that lets a modest push raise a heavyweight",
@@ -10533,6 +10765,10 @@
   "lithe": [
     "Graceful in movement, reminiscent of a dancer's stretch",
     "Supple enough to slip through a narrow gap"
+  ],
+  "lived": [
+    "Breathed after the vampire's diet plan failed",
+    "Persisted through a year of endless Zoom calls"
   ],
   "liven": [
     "Pep up a gathering",
@@ -10842,6 +11078,10 @@
     "Texture resembling a road after a pothole parade",
     "Like a mashed potato that refused to smooth out"
   ],
+  "lunar": [
+    "Like a cheese platter floating above Earth's night sky",
+    "Possessing the glow of a night\u2011time satellite that never rises"
+  ],
   "lunch": [
     "Midday break that fuels conference-room gossip",
     "Noon fuel that makes inbox overload feel tolerable"
@@ -11022,6 +11262,9 @@
     "Spicy ballroom routine that makes hips calculate their own tempo",
     "Cuban\u2011origin shuffle that could out\u2011twist a tango on a crowded floor"
   ],
+  "mamma": [
+    "Home base for bedtime stories and secret cookie stashes"
+  ],
   "maned": [
     "Lion\u2011like and likely to need a hairbrush after a windy day",
     "Equine\u2011styled, as if a pony entered a hair\u2011gel contest"
@@ -11070,6 +11313,10 @@
     "Stately residence with a staff of sighs",
     "Country house famed for endless footmen"
   ],
+  "manse": [
+    "Clergy's home that often appears on old\u2011fashioned postcards",
+    "Vicar's residence where the garden gnome meets the sermon"
+  ],
   "manta": [
     "Oceanic glider with a wingspan wider than most sailboats",
     "Sun\u2011bathing predator that filters plankton with a giant, flat mouth"
@@ -11077,6 +11324,10 @@
   "maple": [
     "Tree that fuels pancakes with amber drizzle",
     "Source of syrup that turns a lumberjack's breakfast into a sticky masterpiece"
+  ],
+  "march": [
+    "Stiff\u2011footed procession that loves a drumbeat",
+    "Protest walk that ends with chants and signs"
   ],
   "mares": [
     "Stallion's female counterparts",
@@ -11186,6 +11437,10 @@
     "Ribbon\u2011cutting celebrity of the municipal circus",
     "Town\u2019s top button\u2011collector who loves photo ops"
   ],
+  "mayst": [
+    "Be permitted to, in Shakespearean slang",
+    "Possibly obtain permission, as a 16th\u2011century monarch might ask"
+  ],
   "mazes": [
     "Confusing garden hedges",
     "Twisting carnival attractions"
@@ -11233,6 +11488,10 @@
   "medic": [
     "Battlefield band\u2011aid specialist",
     "Red\u2011cross fixer on the front"
+  ],
+  "meets": [
+    "Runs into unexpectedly at a coffee shop",
+    "Crosses paths in a sitcom misunderstanding"
   ],
   "melds": [
     "Fuses ideas the way a smoothie blends fruit",
@@ -11293,6 +11552,10 @@
   "mesas": [
     "Broad, table\u2011like landforms that punctuate the desert skyline",
     "Flat\u2011topped buttes that could double as giant picnic tables for cacti"
+  ],
+  "meson": [
+    "Strong\u2011force messenger with a short stay",
+    "Quark\u2019s brief\u2011term courier"
   ],
   "messy": [
     "Like a teenager's bedroom after a weekend of video games",
@@ -11370,6 +11633,10 @@
     "Recorded covertly",
     "Spied on with a hidden listening device"
   ],
+  "mikes": [
+    "Stage tools that capture a singer's shout",
+    "Audio devices that often get dropped during concerts"
+  ],
   "milch": [
     "White as a dairy's overworked udder",
     "Having the hue of a half-filled cheese vat"
@@ -11426,6 +11693,10 @@
     "Explosive pits littering a war zone",
     "Hidden hazards that make a foot soldier\u2019s tread uneasy"
   ],
+  "mingy": [
+    "Stingy enough to charge the bank for a grin",
+    "Penny\u2011pinching to the point of hiding spare change"
+  ],
   "minim": [
     "Brief musical figure lasting half a whole note",
     "Tiny amount of ink on a copyist's page"
@@ -11449,6 +11720,10 @@
   "minty": [
     "Like a fresh toothpaste swirl",
     "Flavor that turns gum into a chilly breeze"
+  ],
+  "minus": [
+    "Excluding the extra sprinkles on a sundae",
+    "Lacking the final punchline, the joke falls flat"
   ],
   "mired": [
     "Bogged down by endless paperwork",
@@ -11822,6 +12097,10 @@
     "Tiny green legumes that turn into a sweet paste for mooncakes",
     "Sprouted beans that often get lost in translation between stir\u2011fry and salad"
   ],
+  "mural": [
+    "Gigantic picture that turns a downtown fa\u00e7ade into a billboard for imagination",
+    "Public art project that makes passer\u2011by say wow without a museum ticket"
+  ],
   "murks": [
     "Turns daylight into dusk for a gloomy effect",
     "Makes the pond look like midnight after a storm"
@@ -11847,6 +12126,10 @@
     "Rhythmic soundtrack for a coffee shop that never opens",
     "Sound that makes dancers forget their steps",
     "Invisible soundtrack for a sunrise jog"
+  ],
+  "musky": [
+    "Scent that could convince a skunk to take a day off",
+    "Fragrance that turns a perfume boutique into a midnight forest"
   ],
   "mussy": [
     "Chaotic like a laundry basket after a tornado",
@@ -11962,6 +12245,10 @@
     "Bust\u2011loving officers",
     "Deal\u2011sniffing informers"
   ],
+  "narky": [
+    "Testy as a cat after a bath",
+    "Irritable when the coffee runs out"
+  ],
   "nasal": [
     "Mouth\u2011blocked and whiny",
     "Honker\u2011style with a cold"
@@ -11981,6 +12268,10 @@
   "natty": [
     "Dressed to the nines like a 1950s swing band leader",
     "Snazzy enough to make a bow tie feel underdressed"
+  ],
+  "naval": [
+    "Of the oceanic variety, like a captain's favorite hat",
+    "Pertaining to sailors who think land is overrated"
   ],
   "navel": [
     "Midriff's opening often concealed by a shirt",
@@ -12021,6 +12312,10 @@
   "nerds": [
     "Book\u2011loving code crunchers",
     "Trivia\u2011obsessed gadget enthusiasts"
+  ],
+  "nerdy": [
+    "Geek\u2011obsessed and socially clumsy",
+    "Book\u2011loving, pocket\u2011protecting at the comic\u2011con"
   ],
   "nerve": [
     "Spinal conduit that sparks tingling sensations",
@@ -12085,6 +12380,10 @@
   "niffy": [
     "Reek-filled, like a gym bag after a marathon",
     "Odoriferous enough to clear a lecture hall"
+  ],
+  "nifty": [
+    "Cleverly handy, as if gadgets envied it",
+    "Slick and surprisingly efficient for a pocket-sized wonder"
   ],
   "night": [
     "Time when the moon takes a shift",
@@ -12157,6 +12456,10 @@
   "noels": [
     "Festive hymns that often accompany a snowflake\u2011laden choir",
     "Holiday melodies that make reindeers tap their hooves"
+  ],
+  "nohow": [
+    "Absolutely not",
+    "Never ever"
   ],
   "noise": [
     "Unwanted din that rattles study rooms in a library",
@@ -12290,6 +12593,10 @@
     "Desert watering hole that appears like a mirage's friend",
     "Travelers' respite amid endless dunes"
   ],
+  "oaten": [
+    "Cereal\u2011based, as in the breakfast bar that powers a jockey\u2019s morning",
+    "Having the flavor of a rustic porridge once common on farmhouses"
+  ],
   "oaths": [
     "Sworn promises",
     "Legal pledges taken on a Bible"
@@ -12309,6 +12616,10 @@
   "oboes": [
     "Double\u2011reed woodwinds that can out\u2011squeak a kazoo in a marching band",
     "High\u2011pitched orchestral instruments that love to play the same note in perfect harmony"
+  ],
+  "occur": [
+    "Show up on the schedule without an invitation",
+    "Materialize during a thunderstorm when you least expect it"
   ],
   "ocean": [
     "Blue wilderness of endless tides",
@@ -12357,6 +12668,10 @@
   "offer": [
     "Proposal slipped into a contract negotiation",
     "Invitation to buy that appears in a sales flyer"
+  ],
+  "often": [
+    "Regularly, like a coffee shop's line before sunrise",
+    "Repeatedly, as the cat circles the cushion before pouncing"
   ],
   "ogled": [
     "Eyed with lecherous intent",
@@ -12438,6 +12753,10 @@
     "Punchy spark that turns a bland slogan into a crowd\u2011pleaser",
     "Hidden zest that makes a dull workout routine feel like a dance"
   ],
+  "oozed": [
+    "Seeped from the cracked container like a slow leak",
+    "Poured out like melted chocolate onto the floor"
+  ],
   "oozes": [
     "Leaks slowly from a cracked pipe",
     "Exudes a sluggish, steady flow"
@@ -12457,6 +12776,10 @@
   "opine": [
     "Declare your thoughts on the matter",
     "Sound off about the latest scandal"
+  ],
+  "oping": [
+    "Remove H from hopeful feeling",
+    "Take off the first letter of a wishful state"
   ],
   "opium": [
     "Dreamy narcotic from the poppy that fueled colonial rivalries",
@@ -12546,6 +12869,10 @@
     "Away from, in casual speech",
     "Beyond here, slangily"
   ],
+  "ouzos": [
+    "Anise\u2011scented Greek liquors served with meze",
+    "Licorice\u2011tinged spirits that make the Mediterranean party"
+  ],
   "ovals": [
     "Breakfast-plate silhouettes that double as racetrack designs",
     "Egg-shaped loops that keep marathoners from running in straight lines"
@@ -12592,7 +12919,7 @@
   ],
   "owner": [
     "Person with legal title to a property",
-    "One who collects rent from tenants"
+    "Landlord collecting rent from tenants"
   ],
   "oxbow": [
     "U-shaped river bend that looks like a lazy question mark",
@@ -12744,6 +13071,10 @@
     "Denim twin tunnels for spare change",
     "Leg-splitting wardrobe essential for a jog"
   ],
+  "papal": [
+    "Issued by the Vatican",
+    "Relating to the Holy See"
+  ],
   "papas": [
     "Father figures ordering extra guacamole",
     "Soccer\u2011cheering dads at a weekend game"
@@ -12863,6 +13194,10 @@
   "paves": [
     "Lays down a smooth surface for traffic",
     "Prepares a path for progress"
+  ],
+  "pawed": [
+    "Scratched at a door in a hurry",
+    "Fumbled through a mud puddle like a kitten"
   ],
   "pawls": [
     "One-way ratchet teeth that keep gears from slipping back",
@@ -13032,6 +13367,10 @@
     "Delicate flap of a blossom",
     "Layer that unfurls in a garden's show"
   ],
+  "peter": [
+    "Gradually fade away, like a candle at midnight",
+    "Wind down to nothing, as a sitcom's final episode often does"
+  ],
   "petty": [
     "Trivial, like a battle over who gets the last slice of pizza",
     "Mean\u2011spirited in the way a neighbor steals your mail for sport"
@@ -13063,6 +13402,10 @@
   "phone": [
     "Device that lets you chat with faraway friends without shouting through a window",
     "Ring that turns a simple greeting into a multitasking excuse"
+  ],
+  "phony": [
+    "Like a souvenir autograph from a celebrity who never met you",
+    "Pretending to be vintage but actually mass\u2011produced in a cheap warehouse"
   ],
   "photo": [
     "Smile\u2011inducing rectangle",
@@ -13187,6 +13530,9 @@
   "piped": [
     "Rushed through a hidden hallway",
     "Delivered via steel veins"
+  ],
+  "piper": [
+    "Shepherd of sound in a classic nursery rhyme"
   ],
   "pipes": [
     "Plumbers' favorite conduits",
@@ -13432,6 +13778,10 @@
     "Extreme north\u2011south temperament",
     "Like a penguin\u2019s preferred thermostat"
   ],
+  "poled": [
+    "Propelled a shallow boat with a long stick",
+    "Balanced a circus performer atop a slender rod"
+  ],
   "poles": [
     "Magnetic extremes where Santa's workshop meets the aurora",
     "Sturdy supports that keep a circus tent upright"
@@ -13568,6 +13918,10 @@
     "Plush floor seats that double as decorative footrests",
     "Round upholstered cushions often found in a living\u2011room corner"
   ],
+  "pound": [
+    "Kennel for stray canines awaiting adoption",
+    "British weight measure equal to about 0.45 kilograms"
+  ],
   "pours": [
     "Spills coffee like a clumsy barista on a roller coaster.",
     "Rains so hard it turns a sidewalk into a slip\u2011n\u2011slide."
@@ -13599,6 +13953,10 @@
   "prate": [
     "Babble on about nothing in a lecture hall",
     "Yammer endlessly while the audience checks their watches"
+  ],
+  "prats": [
+    "Bumbling buffoons who trip over their own tongues",
+    "Mischievous misfits that turn a quiet room into a comedy"
   ],
   "prawn": [
     "Cocktail garnish that scuttles along sandy shores",
@@ -13675,6 +14033,10 @@
   "privy": [
     "Outdoors bathroom hidden behind a garden shed",
     "In the know about the office rumor before it spreads"
+  ],
+  "prize": [
+    "Trophy awarded for first place in a contest",
+    "Cash reward given for solving the mystery"
   ],
   "probe": [
     "Surgical tool that samples tissue for analysis",
@@ -13796,6 +14158,10 @@
     "First\u2011class, as in a tea that never disappoints",
     "Spotlessly proper, like a palace built without shortcuts"
   ],
+  "puled": [
+    "Whined about the coffee being lukewarm",
+    "Grumbled like a toddler denied candy"
+  ],
   "pulls": [
     "Yanks the rope in a tug\u2011of\u2011war match",
     "Hauls a stuck drawer open with a grunt and a sigh"
@@ -13883,6 +14249,10 @@
   "putty": [
     "Window-frame filler that softens under a butter knife",
     "Malleable sealant for glass that doubles as a kid's modeling medium"
+  ],
+  "pwned": [
+    "Crushed a challenger in a virtual showdown, slangily",
+    "Annihilated a competitor in a digital duel, meme\u2011ready"
   ],
   "pygmy": [
     "Pocket-sized hominid who'd struggle with a standard coffee cup",
@@ -14176,6 +14546,10 @@
     "Lightning\u2011fast, but without the thunder",
     "Speedy enough to outpace a coffee break"
   ],
+  "rared": [
+    "Made scarce",
+    "Left few in supply"
+  ],
   "rarer": [
     "More unusual than a limited\u2011edition stamp",
     "Less common than a blue\u2011moon occurrence"
@@ -14272,6 +14646,10 @@
     "Chessboard kingdom where the queen roams unchecked",
     "Video\u2011game map section you must conquer to win the quest"
   ],
+  "reals": [
+    "Brazilian banknotes",
+    "Numbers that aren\u2019t imaginary"
+  ],
   "reams": [
     "Paper bundles that keep office printers from panicking",
     "Stacks of sheets that turn copy rooms into paper jungles"
@@ -14320,6 +14698,10 @@
     "Side of a leaf that greets the eye first in an open book",
     "Place where the page's front meets the reader's gaze"
   ],
+  "recur": [
+    "Cycle like a broken record",
+    "Pop up again, as if the universe has a sense of humor"
+  ],
   "redid": [
     "Fixed the first flop by starting over",
     "Wrote a new version after the original tanked"
@@ -14348,13 +14730,25 @@
     "The medieval village official who collected taxes and kept the peace on market day",
     "Title for the keeper of the town\u2019s records and overseer of the local alehouse"
   ],
+  "refer": [
+    "Send a reader to the citation",
+    "Cue the footnote to do the talking"
+  ],
   "refit": [
     "Restore a vessel's equipment after a long deployment",
     "Update an old building's interior for modern use"
   ],
+  "regal": [
+    "Fit for a throne\u2011sitting cat",
+    "Majestic swagger of a crown\u2011wearing pigeon"
+  ],
   "regex": [
     "Compact syntax for pattern hunting in code",
     "Tool that lets developers locate strings without manual scanning"
+  ],
+  "rehab": [
+    "Sobering stopover for broken habits and broken ankles",
+    "Recovery resort where the couch becomes a therapist"
   ],
   "reify": [
     "Give a daydream a physical form and a mailing address",
@@ -14416,6 +14810,10 @@
     "Corporate shuffle after a merger",
     "Office makeover that slims the chain of command"
   ],
+  "repay": [
+    "Make good on a loan",
+    "Square the tab after dinner"
+  ],
   "repel": [
     "Drive away like a magnet in reverse",
     "Shove off any unwanted suitor"
@@ -14431,6 +14829,10 @@
   "rerun": [
     "Encore broadcast of a sitcom",
     "Duplicate airing that fills the schedule gap"
+  ],
+  "resat": [
+    "Took a second try at the quiz after flunking the first",
+    "Occupied the exam chair again when the first attempt bombed"
   ],
   "reset": [
     "Start over after a power outage",
@@ -14688,6 +15090,10 @@
     "Comedian's lunchtime critique session",
     "Sunday dinner centerpiece that sizzles in the oven"
   ],
+  "robed": [
+    "Attired like a judge on a solemn day",
+    "Swathed in ceremonial garb for a graduation"
+  ],
   "robes": [
     "Graduates' gowns",
     "Magician's cloaks"
@@ -14739,6 +15145,10 @@
   "romeo": [
     "Shakespeare's star\u2011crossed lover",
     "Balcony suitor who asks, \u201cWherefore art thou?\u201d"
+  ],
+  "romps": [
+    "Frolics exuberantly like a calf on a meadow",
+    "Bounds about with the glee of a toddler on a trampoline"
   ],
   "rondo": [
     "Circular movement where a catchy refrain keeps popping up like a musical whack\u2011a\u2011mole",
@@ -15014,6 +15424,10 @@
     "Indian ascetic who shuns worldly ties",
     "Holy wanderer in saffron garb"
   ],
+  "sadly": [
+    "Much to our disappointment",
+    "In a tearful tone"
+  ],
   "safer": [
     "Less likely to cause injury",
     "More protected from danger"
@@ -15114,6 +15528,10 @@
     "More level-headed after a calming cup of tea",
     "Less apt to lose composure over a missing sock"
   ],
+  "sangs": [
+    "Warbles loudly during a karaoke showdown",
+    "Belts a love ballad while brushing teeth"
+  ],
   "sappy": [
     "Tear-jerking, like a greeting\u2011card line that makes even the toughest guy sniffle",
     "Mushy to the point of dripping, like a romance novel written for toddlers"
@@ -15177,6 +15595,10 @@
   "saved": [
     "Stashed a digital document before the power outage",
     "Rescued the cat from the tree, then bragged about it"
+  ],
+  "saver": [
+    "Coupon clipper who never skips the clearance aisle",
+    "Thermostat label promising lower bills"
   ],
   "saves": [
     "Keeps money from disappearing",
@@ -15313,6 +15735,10 @@
   "scope": [
     "Range of vision a photographer hopes to capture in a single shot",
     "Job description for a detective who refuses to narrow down suspects"
+  ],
+  "score": [
+    "Tally of runs in a baseball showdown",
+    "Composer\u2019s blueprint for an orchestra"
   ],
   "scorn": [
     "Sneering look that says I could care less",
@@ -16098,6 +16524,10 @@
     "Breezy fringe that turns a gust into a runway twirl",
     "Polka\u2011dot barrier keeping calves modest while dancing"
   ],
+  "skits": [
+    "Brief comic scenes performed in a school auditorium",
+    "Miniature theatrical bits that often get the audience giggling"
+  ],
   "skive": [
     "Slip off duties like a cat",
     "Take a break by pretending to be busy"
@@ -16409,10 +16839,8 @@
     "Surprise difficulties that arise on a long-distance drive"
   ],
   "snail": [
-    "Garden resident with a built-in house",
-    "Slow mover who decorates sidewalks with glitter",
-    "Garden hermit carrying a spiral home",
-    "Rain\u2011soaked racer leaving a glittering slime trail"
+    "Garden resident with a built\u2011in home",
+    "Pace\u2011setting creature in a lettuce\u2011leaf race"
   ],
   "snake": [
     "Slithering garden guest",
@@ -16606,6 +17034,14 @@
     "Tunes that get stuck in your head after a commercial break",
     "Sheets of music that performers flip through on stage"
   ],
+  "sonic": [
+    "Relating to vibrations that travel through air",
+    "Describing a speed that exceeds the speed of sound"
+  ],
+  "sonny": [
+    "Kid sharing a nickname with a famed jazz saxophonist",
+    "Youngster whose moniker matches a 1970s TV husband"
+  ],
   "sooth": [
     "Calm a jittery horse before a race",
     "Lull a crying infant into quiet"
@@ -16625,6 +17061,10 @@
   "sores": [
     "Irritating bumps that make you wince after a beach volleyball match",
     "Unpleasant patches that turn a simple hug into a yelp"
+  ],
+  "sorry": [
+    "Regretful after stepping on a kitten's tail",
+    "Apologetic after borrowing a neighbor's Wi\u2011Fi without permission"
   ],
   "sorta": [
     "Kind of, with a casual slur that drops the middle consonant",
@@ -17034,6 +17474,10 @@
     "Hollywood's elite who never need a map",
     "Twinkling points that guide sailors and wishes alike"
   ],
+  "start": [
+    "Kickoff of a marathon that leaves runners questioning their alarm clocks",
+    "Launch of a rocket that makes the audience hold their breath for a split second"
+  ],
   "stash": [
     "Hidden cache that a squirrel might guard",
     "Secret supply kept under the floorboards"
@@ -17334,6 +17778,10 @@
     "Disappoints like a broken vacuum",
     "Drains enthusiasm with a straw"
   ],
+  "sudsy": [
+    "Bubbly enough to coat a bathtub",
+    "Foamy as a freshly washed car"
+  ],
   "suede": [
     "Napped leather that feels like a cloud after a rainstorm",
     "Brush-finished hide that makes a detective's magnifying glass blush"
@@ -17357,6 +17805,10 @@
   "suits": [
     "Corporate armor",
     "Boardroom dress code"
+  ],
+  "sulfa": [
+    "Broad\u2011spectrum antibiotic that predates penicillin",
+    "Retro germ fighter that left bacteria feeling out\u2011classed"
   ],
   "sulks": [
     "Pouts in the corner after the cat steals the spotlight",
@@ -17461,6 +17913,10 @@
   "swash": [
     "Sea spray that drenches a ship's deck",
     "Pirate's flamboyant swagger"
+  ],
+  "swath": [
+    "Broad strip left by a mower",
+    "Area cleared in a single pass of a combine"
   ],
   "swats": [
     "Flicks away buzzing intruders",
@@ -17647,7 +18103,7 @@
     "Reserved and unavailable for other suitors"
   ],
   "taker": [
-    "One who snatches the final cookie before anyone else.",
+    "Last-cookie snatcher before anyone else can reach it.",
     "Person who claims the spotlight in a group project."
   ],
   "takes": [
@@ -17681,6 +18137,9 @@
   "tamed": [
     "Docile after a lion's lesson in the circus school",
     "Tranquil like a wild horse that finally obeys a gentle nudge"
+  ],
+  "tamer": [
+    "Quieting trainer of unruly beasts"
   ],
   "tames": [
     "Calms a wild stallion before the show",
@@ -17959,6 +18418,10 @@
     "Coastal skim\u2011skaters with needle\u2011sharp wings",
     "Migratory fish\u2011snatchers of brackish estuaries"
   ],
+  "terry": [
+    "Absorbent fabric often found on bathrobes",
+    "Laundered loops that love a good soak"
+  ],
   "terse": [
     "Laconic, as if the editor ran out of ink",
     "Curt, when the manager ends the meeting in two sentences"
@@ -17998,6 +18461,10 @@
   "theft": [
     "Sneaky acquisition that makes insurance agents nervous",
     "Midnight mischief that leaves empty pockets humming"
+  ],
+  "their": [
+    "Those' loot, when the apostrophe disappears",
+    "The ones' property, expressed without a single apostrophe"
   ],
   "theme": [
     "Motif that ties a sitcom's episodes together",
@@ -18067,9 +18534,17 @@
     "These items you point to when indicating several objects",
     "That batch you refer to while gesturing toward a group"
   ],
+  "thous": [
+    "Bank balance that often ends in this abbreviation",
+    "Speedometer reading that could indicate a highway limit"
+  ],
   "three": [
     "Lucky number for a dice roll",
     "Middle value of a standard die's faces"
+  ],
+  "threw": [
+    "Tossed a birthday cake onto the ceiling for laughs",
+    "Flung a rubber chicken across the office during the meeting"
   ],
   "throb": [
     "Pulse with pain like a pounding headache",
@@ -18211,6 +18686,10 @@
     "Hue adjustments for drab d\u00e9cor",
     "Color tweaks for sunrise selfies"
   ],
+  "tipsy": [
+    "Lightly sloshed after a celebratory round of drinks.",
+    "Wobbling enough to mistake a hallway for a dance floor."
+  ],
   "tired": [
     "Ready for a nap after a 12\u2011hour Zoom marathon",
     "Like a sloth after sprinting to catch the last bus"
@@ -18226,6 +18705,10 @@
   "titch": [
     "Barely\u2011there drizzle that could be dismissed as a mist",
     "Pint\u2011size portion that makes a chef whisper \u201cjust a whisper\u201d"
+  ],
+  "tithe": [
+    "Parish penny that props up the steeple",
+    "Ancient levy collected for a holy rebate"
   ],
   "title": [
     "Name emblazoned across a film\u2019s opening credits",
@@ -18354,6 +18837,10 @@
   "torte": [
     "Posh, multi\u2011layered celebration cake",
     "Pretentious pastry demanding a French accent"
+  ],
+  "torts": [
+    "Legal claims for damages",
+    "Wrongful acts giving rise to liability"
   ],
   "torus": [
     "Donut-shaped surface",
@@ -18537,9 +19024,13 @@
     "Illusionist's favorite move performed with a deck",
     "Sneaky play that can turn a losing hand into a winner"
   ],
+  "tried": [
+    "Gave it a whirl after the dare",
+    "Took a swing at the puzzle"
+  ],
   "trier": [
     "Hopeful contestant",
-    "One who gives a shot at a puzzle"
+    "Puzzle-solver giving it an honest shot"
   ],
   "tries": [
     "Attempts that often end in a facepalm",
@@ -18560,6 +19051,10 @@
   "trios": [
     "Three\u2011member bands that could use a drum\u2011fill to avoid awkward silence",
     "Sets of three that keep a musical\u2011chair game from ending too soon"
+  ],
+  "tripe": [
+    "Cheap offal that could make a cow's gut giggle",
+    "Budget-friendly ingredient often simmered in a pot of broth"
   ],
   "trips": [
     "Excursions that sometimes end in a tumble",
@@ -18747,6 +19242,10 @@
     "Cozy knit cap that stops ears from becoming icicle ornaments",
     "Winter headwear favored by maple\u2011leaf enthusiasts for its snug crown"
   ],
+  "turbo": [
+    "High\u2011speed boost for a racing car",
+    "Compressed\u2011air engine that whines under the hood"
+  ],
   "turfs": [
     "Patchwork lawns that rival checkerboards",
     "Divided greens where soccer balls bounce"
@@ -18818,6 +19317,10 @@
   "twice": [
     "Two times over, as the magician insists",
     "In duplicate, just as the recipe repeats the sugar step"
+  ],
+  "twigs": [
+    "Tiny branches that spark a campfire for beginners",
+    "Squirrel building material that doubles as nature's matchstick"
   ],
   "twill": [
     "Diagonal weave that gives denim its rugged drape",
@@ -18903,6 +19406,10 @@
     "Nightmare for a sundial",
     "Solar eclipse's inner blackout"
   ],
+  "unary": [
+    "Single\u2011argument, as in a function that doesn\u2019t need a partner",
+    "Lone\u2011wolf style operation, needing only one input"
+  ],
   "unbar": [
     "Swing open, as a gate after the night watch departs",
     "Let in, like a tavern when the shutters rise at dawn"
@@ -18938,6 +19445,10 @@
   "undue": [
     "Excessively generous",
     "Overly strict"
+  ],
+  "unfed": [
+    "Deprived of breakfast, the dog whined.",
+    "Like a hamster after a weekend of neglect."
   ],
   "unfit": [
     "Ill-suited for a marathon after binge-watching sitcoms",
@@ -19011,6 +19522,10 @@
     "Capsize a meeting with a sudden suggestion",
     "Reverse a routine with a dramatic flourish"
   ],
+  "upped": [
+    "Raised after a vote",
+    "Boosted when the market surged"
+  ],
   "upper": [
     "Luxury coffee tier that adds a pretentious splash of foam",
     "Top shoe panel that shields the foot\u2019s interior"
@@ -19051,6 +19566,10 @@
     "Employing a screwdriver to assemble a shelf",
     "Leveraging a streaming service for endless movie marathons"
   ],
+  "usual": [
+    "Run-of-the-mill routine that never surprises",
+    "Predictable as sunrise, yet still makes the headlines"
+  ],
   "usurp": [
     "Seize a throne that isn\u2019t yours",
     "Grab power by bypassing the rightful ruler"
@@ -19082,6 +19601,10 @@
   "vales": [
     "Low-lying regions where echoing breezes linger",
     "Quiet dips on a map that hide wandering goats"
+  ],
+  "valet": [
+    "Uniformed car parker for fancy events",
+    "Key holder who moonlights as a tuxedoed concierge"
   ],
   "valid": [
     "Court\u2011approved and unshakable",
@@ -19126,6 +19649,10 @@
   "vases": [
     "Ornamental containers that double as secret stash spots",
     "Bouquet cradles that survive the inevitable wilt"
+  ],
+  "vasts": [
+    "Sweeping horizons that make you feel small",
+    "Boundless stretches hidden in the margins of a chart"
   ],
   "vault": [
     "Bank's secure chamber",
@@ -19191,6 +19718,10 @@
     "Brink where a tightrope walker contemplates a misstep",
     "Cusp that separates a calm stroll from a sudden plunge"
   ],
+  "versa": [
+    "Backside of a saying that swaps a moral lapse for its counterpart",
+    "Flip\u2011side of an expression that pairs a crime with its mirror image"
+  ],
   "verse": [
     "Poetic line that often rhymes in a hymn",
     "Scriptural passage quoted in a sermon"
@@ -19210,6 +19741,10 @@
   "vetch": [
     "Scrubby legume that often tags along in mixed sowings",
     "Climbing plant that makes nitrogen-fixing friends jealous"
+  ],
+  "vexed": [
+    "Irritating when the neighbor's dog barks at sunrise",
+    "Frustrating after the Wi\u2011Fi drops right before a deadline"
   ],
   "vexes": [
     "Steals peace of mind with relentless teasing.",
@@ -19539,6 +20074,10 @@
     "Diminishes like daylight during a power outage",
     "Shrinks as the paycheck disappears after Friday night"
   ],
+  "wanly": [
+    "Still, like a wilted houseplant after a power outage",
+    "Almost, as if a vampire forgot its sunscreen"
+  ],
   "wanna": [
     "Feel like heading out, informally",
     "Crave a quick snack, colloquially"
@@ -19843,6 +20382,10 @@
     "To what person does a police report\u2019s question refer?",
     "Which owner\u2019s name is hinted at in a missing\u2011pet flyer?"
   ],
+  "whoso": [
+    "Someone who crashes the meeting and insists the agenda already included them.",
+    "Anyone that answers the door when you shout \"Pizza!\""
+  ],
   "wicks": [
     "Flame feeders in a birthday cake",
     "Threaded torches for a spooky s\u00e9ance"
@@ -19866,6 +20409,10 @@
   "wield": [
     "Exercise authority like a sorcerer with a staff",
     "Brandish a hammer as if constructing a mythic thunderbolt"
+  ],
+  "wight": [
+    "Undead resident of a fog\u2011shrouded coast",
+    "Mythic corpse that appears on island tour brochures"
   ],
   "wikis": [
     "Open-source reference sites that accept edits from anyone",
@@ -20082,6 +20629,10 @@
   "worse": [
     "More dismal than a rainy Monday morning",
     "Inferior to the sequel, and a villain's gripe about his scheme"
+  ],
+  "worst": [
+    "Bottom\u2011ranked choice for a talent show audition",
+    "Bottom\u2011tier pizza topping when you\u2019re feeling adventurous"
   ],
   "worth": [
     "Value that determines a collector's asking price",
@@ -20300,6 +20851,10 @@
   "young": [
     "Fresh\u2011faced and still figuring out taxes",
     "Early\u2011stage enthusiast who still thinks bedtime is negotiable"
+  ],
+  "yours": [
+    "Mine, indeed",
+    "The one belonging to you"
   ],
   "youth": [
     "Springtime of life",

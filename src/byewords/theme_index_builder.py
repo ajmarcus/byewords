@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import Sequence
 
 from byewords.lexicon import load_clue_bank, load_word_list
-from byewords.puzzle_store import DEFAULT_CANDIDATES_PER_SEED, build_batch_puzzle_cache, default_puzzle_store_path
+from byewords.puzzle_store import (
+    DEFAULT_CANDIDATES_PER_SEED,
+    build_batch_puzzle_cache,
+    default_puzzle_store_path,
+    refresh_all_puzzle_clues,
+)
 from byewords.theme import (
     DEFAULT_THEME_WORD_LIMIT,
     THEME_INTRUSION_REVIEW_CASES,
@@ -31,7 +36,7 @@ DEFAULT_EMBEDDING_ATTRIBUTION = (
     "This data contains semantic vectors derived from BAAI/bge-small-en-v1.5, "
     "released under the MIT license."
 )
-_COMMANDS = frozenset(("vectors", "cache", "retrieval-review", "intrusion-review"))
+_COMMANDS = frozenset(("vectors", "cache", "refresh-clues", "retrieval-review", "intrusion-review"))
 
 
 def _data_path(filename: str) -> Path:
@@ -192,6 +197,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="How many answer-only winners to carry into the clue stage.",
     )
 
+    refresh_clues_parser = subparsers.add_parser(
+        "refresh-clues",
+        help="Refresh clues for every stored puzzle using the latest clue bank entries.",
+    )
+    refresh_clues_parser.add_argument(
+        "--output",
+        type=Path,
+        default=default_puzzle_store_path(),
+        help="Path to the puzzles.json cache to rewrite.",
+    )
+
     retrieval_parser = subparsers.add_parser(
         "retrieval-review",
         help="Run deterministic retrieval-review reports against the bundled review corpus.",
@@ -324,6 +340,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             f"Cached {total_records} puzzles in {store_path} "
             f"({generated_records} generated in this run)."
+        )
+        return 0
+
+    if args.command == "refresh-clues":
+        store_path, total_records, refreshed_answers = refresh_all_puzzle_clues(
+            clue_bank,
+            path=args.output,
+        )
+        print(
+            f"Refreshed clues for {total_records} puzzles in {store_path} "
+            f"using {refreshed_answers} answers."
         )
         return 0
 
