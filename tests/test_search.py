@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from byewords.grid import grid_columns
 from byewords.prefixes import build_prefix_index
@@ -159,6 +160,21 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(stats.candidate_rows_ranked, 1)
         self.assertEqual(stats.mask_intersections, 5)
 
+    def test_valid_next_rows_orders_viable_rows_by_semantic_score_before_branching(self) -> None:
+        prefix_index = build_prefix_index(TEST_LEXICON)
+
+        next_rows = valid_next_rows(
+            (),
+            TEST_GRID_ROWS,
+            prefix_index,
+            row_scores={
+                "eases": 0.5,
+                "adieu": 0.3,
+            },
+        )
+
+        self.assertEqual(next_rows, ("eases", "adieu"))
+
     def test_search_grids_reports_bounded_search_work_on_benchmark_corpus(self) -> None:
         prefix_index = build_prefix_index(TEST_LEXICON)
         candidate_words = TEST_GRID_ROWS + _benchmark_decoys()
@@ -176,6 +192,23 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(grids[0].rows, TEST_GRID_ROWS)
         self.assertLessEqual(stats.states_visited, 7)
         self.assertLessEqual(stats.candidate_rows_ranked, 6)
+
+    def test_search_grids_marks_budget_exhaustion_when_deadline_is_reached(self) -> None:
+        prefix_index = build_prefix_index(TEST_LEXICON)
+        stats = SearchStats()
+
+        with patch("byewords.search.time.monotonic", return_value=1.0):
+            grids = search_grids(
+                candidate_words=TEST_GRID_ROWS,
+                prefix_index=prefix_index,
+                beam_width=10,
+                max_candidates=5,
+                stats=stats,
+                deadline_monotonic=0.5,
+            )
+
+        self.assertEqual(grids, ())
+        self.assertTrue(stats.budget_exhausted)
 
 if __name__ == "__main__":
     unittest.main()

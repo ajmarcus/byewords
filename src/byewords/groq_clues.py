@@ -17,7 +17,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from uuid import UUID
 
-from byewords.clue_bank import is_generic_clue
 from byewords.lexicon import load_clue_bank, load_word_list, normalize_word
 from byewords.puzzle_store import puzzle_answers_for_id
 
@@ -26,25 +25,26 @@ API_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEFAULT_CLUE_COUNT = 2
 DEFAULT_PARALLELISM = 5
 DEFAULT_TIMEOUT_SECONDS = 60.0
+DEFAULT_TIMEOUT_RETRIES = 2
+DEFAULT_TIMEOUT_RETRY_DELAY_SECONDS = 1.0
+STRUCTURED_OUTPUT_RESPONSE_FORMAT = "json_schema"
+JSON_OBJECT_RESPONSE_FORMAT = "json_object"
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
 QUALITY_EXAMPLES = (
-    "Example 1\n"
     "Answer: TRADE\n"
-    "Clue: What a tariff threat can rattle overnight\n"
-    "Why it works: topical, concise, and precise without requiring obscure trivia.\n"
+    "Clue 1: Market-moving exchange at the center of tariff talk\n"
+    "Clue 2: Business between nations that can spark a customs fight\n"
     "\n"
-    "Example 2\n"
     "Answer: EERIE\n"
-    "Clue: Like a hallway after the lights blink out\n"
-    "Why it works: vivid sensory image, memorable surface, exact definition.\n"
+    "Clue 1: Like a nursery rhyme heard through static\n"
+    "Clue 2: Unsettling in the way an empty playground feels at dusk\n"
     "\n"
-    "Example 3\n"
     "Answer: CABLE\n"
-    "Clue: San Francisco car pulled by an underground loop\n"
-    "Why it works: concrete, specific, and rich with place without sounding dusty."
+    "Clue 1: Coiled connector hiding in a junk drawer\n"
+    "Clue 2: Wire that turns low battery panic into relief"
 )
 CLUE_RULES = (
     "Follow these rules for every clue:\n"
@@ -58,6 +58,15 @@ CLUE_RULES = (
     "- You MUST use a mix of diverse clue styles.\n"
     "- You MUST capitalize the first word of every clue."
 )
+STRUCTURED_OUTPUT_RETRYABLE_ERRORS = (
+    "failed to generate json",
+    "failed to validate json",
+    "failed_generation",
+    "returned an empty completion",
+    "structured clue response",
+    "failed to generate structured output",
+)
+FAILED_GENERATION_PLACEHOLDER = "See 'failed_generation' for more details."
 
 
 @dataclass(frozen=True)
@@ -149,6 +158,7 @@ class GroqClient:
             method="POST",
         )
 
+        timeout_retries = 0
         while True:
             try:
                 with urlopen(request, timeout=self.timeout_seconds) as response:
@@ -161,6 +171,16 @@ class GroqClient:
                     self.sleep_fn(retry_after_seconds)
                     continue
                 raise RuntimeError(_format_http_error(exc)) from exc
+            except TimeoutError as exc:
+                if timeout_retries < DEFAULT_TIMEOUT_RETRIES:
+                    timeout_retries += 1
+                    self.sleep_fn(DEFAULT_TIMEOUT_RETRY_DELAY_SECONDS * timeout_retries)
+                    continue
+                raise RuntimeError(
+                    "Groq API request timed out "
+                    f"after {self.timeout_seconds:g} seconds "
+                    f"across {timeout_retries + 1} attempts."
+                ) from exc
             except URLError as exc:
                 raise RuntimeError(f"Could not reach the Groq API: {exc.reason}") from exc
             break
@@ -219,7 +239,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Regenerate clues through the API even when non-generic clue-bank entries already exist.",
+        help="Regenerate clues through the API and append them even when clue-bank entries already exist.",
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
     if args.count != DEFAULT_CLUE_COUNT:
@@ -247,8 +267,9 @@ def require_api_key(env: Mapping[str, str] | None = None) -> str:
 def build_clue_payload(
     answer: str,
     count: int,
+    response_format_type: str = STRUCTURED_OUTPUT_RESPONSE_FORMAT,
 ) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "model": MODEL_NAME,
         "messages": [
             {
@@ -271,13 +292,15 @@ def build_clue_payload(
                 "content": (
                     f"Answer: {answer.strip()}\n"
                     f"Return exactly {count} standalone clues. "
-                    f"{CLUE_RULES}\n"
                     "Return only a JSON object with one key, 'clues'."
                 ),
             },
         ],
-        "response_format": {
-            "type": "json_schema",
+        "max_completion_tokens": 1200,
+    }
+    if response_format_type == STRUCTURED_OUTPUT_RESPONSE_FORMAT:
+        payload["response_format"] = {
+            "type": STRUCTURED_OUTPUT_RESPONSE_FORMAT,
             "json_schema": {
                 "name": "crossword_clue_package",
                 "strict": True,
@@ -295,9 +318,12 @@ def build_clue_payload(
                     "additionalProperties": False,
                 },
             },
-        },
-        "max_completion_tokens": 1200,
-    }
+        }
+    elif response_format_type == JSON_OBJECT_RESPONSE_FORMAT:
+        payload["response_format"] = {"type": JSON_OBJECT_RESPONSE_FORMAT}
+    else:
+        raise ValueError(f"Unsupported response format type: {response_format_type}")
+    return payload
 
 
 def extract_message_content(response: Mapping[str, Any]) -> str:
@@ -310,6 +336,12 @@ def extract_message_content(response: Mapping[str, Any]) -> str:
     message = first_choice.get("message")
     if not isinstance(message, Mapping):
         raise RuntimeError("Groq API response is missing the completion message.")
+    failed_generation = message.get("failed_generation")
+    if failed_generation is not None:
+        details = _format_failed_generation_details(failed_generation)
+        if details:
+            raise RuntimeError(f"Groq failed to generate structured output: {details}")
+        raise RuntimeError("Groq failed to generate structured output.")
     refusal = message.get("refusal")
     if isinstance(refusal, str) and refusal.strip():
         raise RuntimeError(f"Groq refused the request: {refusal.strip()}")
@@ -320,7 +352,10 @@ def extract_message_content(response: Mapping[str, Any]) -> str:
 
 
 def parse_clue_package(payload: str) -> tuple[str, ...]:
-    raw = json.loads(payload)
+    try:
+        raw = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Structured clue response was not valid JSON.") from exc
     if isinstance(raw, Mapping):
         raw = raw.get("clues")
     if not isinstance(raw, list) or len(raw) != DEFAULT_CLUE_COUNT:
@@ -338,30 +373,44 @@ def parse_clue_package(payload: str) -> tuple[str, ...]:
     return tuple(clues)
 
 
+def _merged_clues(
+    existing_clues: Sequence[str],
+    new_clues: Sequence[str],
+) -> tuple[str, ...]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for clue in tuple(existing_clues) + tuple(new_clues):
+        normalized = clue.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        merged.append(normalized)
+    return tuple(merged)
+
+
 def generate_clue_package(
     client: CompletionClient,
     answer: str,
     clue_bank: dict[str, tuple[str, ...]],
-    clue_bank_path: str,
+    clue_bank_path: str | None,
     lock: threading.Lock,
     count: int = DEFAULT_CLUE_COUNT,
     force: bool = False,
 ) -> CluePackage:
-    cached_clues = cached_clues_for_answer(answer, clue_bank)
+    answer_text = answer.strip()
+    existing_clues = tuple(clue_bank.get(answer_text, ()))
+    cached_clues = cached_clues_for_answer(answer_text, clue_bank)
     if cached_clues and not force:
-        return CluePackage(answer=answer.strip(), cached=True, clues=cached_clues)
+        return CluePackage(answer=answer_text, cached=True, clues=cached_clues)
 
-    clue_payload = build_clue_payload(
-        answer=answer,
-        count=count,
-    )
-    clue_response = client.create_chat_completion(clue_payload)
-    clue_content = extract_message_content(clue_response)
-    clues = parse_clue_package(clue_content)
+    clues = _merged_clues(existing_clues, _request_new_clues(client, answer_text, count))
     with lock:
-        clue_bank[answer.strip()] = clues
-        persist_clue_bank(clue_bank_path, clue_bank)
-    return CluePackage(answer=answer.strip(), cached=False, clues=clues)
+        if clue_bank_path is not None:
+            clues = _merged_clues(_persisted_clues_for_answer(clue_bank_path, answer_text), clues)
+        clue_bank[answer_text] = clues
+        if clue_bank_path is not None:
+            persist_clue_bank(clue_bank_path, {answer_text: clues})
+    return CluePackage(answer=answer_text, cached=False, clues=clues)
 
 
 def load_default_answer_inputs() -> tuple[tuple[str, ...], dict[str, tuple[str, ...]]]:
@@ -385,7 +434,7 @@ def cached_clues_for_answer(
     clues = tuple(
         clue.strip()
         for clue in clue_bank.get(answer, ())
-        if clue.strip() and not is_generic_clue(clue)
+        if clue.strip()
     )
     if not clues:
         return None
@@ -393,11 +442,22 @@ def cached_clues_for_answer(
 
 
 def persist_clue_bank(path: str, clue_bank: Mapping[str, tuple[str, ...]]) -> None:
+    clue_bank_path = Path(path)
+    persisted = load_clue_bank(path) if clue_bank_path.exists() else {}
+    merged = dict(persisted)
+    for answer, clues in clue_bank.items():
+        normalized_answer = normalize_word(answer)
+        if normalized_answer is None:
+            continue
+        cleaned_clues = tuple(clue.strip() for clue in clues if clue.strip())
+        if cleaned_clues:
+            merged[normalized_answer] = cleaned_clues
     serializable = {
         answer: list(clues)
-        for answer, clues in sorted(clue_bank.items())
+        for answer, clues in sorted(merged.items())
+        if clues
     }
-    Path(path).write_text(json.dumps(serializable, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _write_json_atomic(clue_bank_path, serializable)
 
 
 def select_answers_to_clue(
@@ -412,16 +472,12 @@ def select_answers_to_clue(
         if limit > 0:
             source_answers = source_answers[:limit]
         return AnswerSelection(queued_answers=source_answers, skipped_answers=())
-    if force:
-        source_answers = lexicon_words[:limit] if limit > 0 else lexicon_words
-        return AnswerSelection(queued_answers=source_answers, skipped_answers=())
 
     source_answers = lexicon_words
-
     queued = []
     skipped = []
     for answer in source_answers:
-        if answer_needs_new_clue(answer, clue_bank):
+        if force or answer_needs_new_clue(answer, clue_bank):
             queued.append(answer)
         else:
             skipped.append(answer)
@@ -435,7 +491,7 @@ def generate_clue_packages_parallel(
     client: CompletionClient,
     answers: Sequence[str],
     clue_bank: dict[str, tuple[str, ...]],
-    clue_bank_path: str,
+    clue_bank_path: str | None,
     count: int = DEFAULT_CLUE_COUNT,
     parallelism: int = DEFAULT_PARALLELISM,
     reporter: StatusReporter | None = None,
@@ -517,7 +573,7 @@ def format_clue_package(package: CluePackage) -> str:
 def regenerate_clues(
     answers: Sequence[str],
     clue_bank: dict[str, tuple[str, ...]],
-    clue_bank_path: str,
+    clue_bank_path: str | None,
     *,
     env: Mapping[str, str] | None = None,
     errors: TextIO | None = None,
@@ -599,18 +655,18 @@ def main(
     if not selection.queued_answers:
         if selection.skipped_answers:
             print(
-                f"Skipping {len(selection.skipped_answers)} answers that already have non-generic clues.",
+                f"Skipping {len(selection.skipped_answers)} answers that already have clues in the clue bank.",
                 file=errors,
             )
         if args.json:
             output.write("[]\n")
         else:
-            output.write("No answers need new non-generic clues.\n")
+            output.write("No answers need clue generation.\n")
         return 0
 
     if selection.skipped_answers:
         print(
-            f"Skipping {len(selection.skipped_answers)} answers that already have non-generic clues.",
+            f"Skipping {len(selection.skipped_answers)} answers that already have clues in the clue bank.",
             file=errors,
         )
 
@@ -671,10 +727,16 @@ def _format_http_error(error: HTTPError) -> str:
         if isinstance(raw_error, dict):
             message = raw_error.get("message")
             if isinstance(message, str) and message.strip():
-                return message.strip()
+                return _with_failed_generation_details(
+                    message.strip(),
+                    raw_error.get("failed_generation"),
+                )
         message = parsed.get("message")
         if isinstance(message, str) and message.strip():
-            return message.strip()
+            return _with_failed_generation_details(
+                message.strip(),
+                parsed.get("failed_generation"),
+            )
 
     if body.strip():
         return f"Groq API request failed with HTTP {error.code}: {body.strip()}"
@@ -721,6 +783,82 @@ def _split_targets(targets: Sequence[str]) -> tuple[str | None, tuple[str, ...]]
     except ValueError:
         return None, tuple(targets)
     return str(parsed_uuid), tuple(targets[1:])
+
+
+def _persisted_clues_for_answer(path: str, answer: str) -> tuple[str, ...]:
+    return load_clue_bank(path).get(answer, ())
+
+
+def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.with_name(f"{path.name}.tmp")
+    temporary_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    temporary_path.replace(path)
+
+
+def _request_new_clues(
+    client: CompletionClient,
+    answer: str,
+    count: int,
+) -> tuple[str, ...]:
+    schema_error: RuntimeError | None = None
+    for response_format_type in (
+        STRUCTURED_OUTPUT_RESPONSE_FORMAT,
+        JSON_OBJECT_RESPONSE_FORMAT,
+    ):
+        try:
+            clue_payload = build_clue_payload(
+                answer=answer,
+                count=count,
+                response_format_type=response_format_type,
+            )
+            clue_response = client.create_chat_completion(clue_payload)
+            clue_content = extract_message_content(clue_response)
+            return parse_clue_package(clue_content)
+        except RuntimeError as exc:
+            if (
+                response_format_type == STRUCTURED_OUTPUT_RESPONSE_FORMAT
+                and _is_retryable_structured_output_error(exc)
+            ):
+                schema_error = exc
+                continue
+            raise
+    if schema_error is not None:
+        raise schema_error
+    raise RuntimeError("Groq clue generation failed without returning clue content.")
+
+
+def _is_retryable_structured_output_error(error: RuntimeError) -> bool:
+    message = str(error).strip().lower()
+    return any(fragment in message for fragment in STRUCTURED_OUTPUT_RETRYABLE_ERRORS)
+
+
+def _format_failed_generation_details(failed_generation: Any) -> str:
+    if isinstance(failed_generation, str):
+        return failed_generation.strip()
+    if isinstance(failed_generation, Mapping):
+        for key in ("message", "error", "details"):
+            value = failed_generation.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        try:
+            return json.dumps(failed_generation, sort_keys=True)
+        except TypeError:
+            return str(dict(failed_generation))
+    return ""
+
+
+def _with_failed_generation_details(message: str, failed_generation: Any) -> str:
+    details = _format_failed_generation_details(failed_generation)
+    if not details:
+        return message
+    base_message = message.replace(FAILED_GENERATION_PLACEHOLDER, "").strip()
+    if not base_message:
+        return f"failed_generation: {details}"
+    return f"{base_message} failed_generation: {details}"
 
 
 if __name__ == "__main__":

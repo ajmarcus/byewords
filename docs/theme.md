@@ -31,41 +31,72 @@ This plan is based on the experiments performed so far.
 
 ## Current implementation progress
 
-Stage 1 is partially complete. Stage 2 is substantially complete. Stage 6 now has a real but still incomplete offline cache pipeline.
+Stage 1 is now complete. Stage 2 is now fully closed. Stage 3 is now fully closed. Stage 4 is now fully closed. Stage 5 has deterministic runtime budget enforcement and is now fully closed. Stage 6 is now fully closed. Stage 7 is now fully closed.
 
 Implemented now:
 
 - `benchmark_generation()` mirrors the current generation path and records per-window search attempts
 - `SearchStatsSnapshot` captures deterministic counters without mutating the runtime search behavior
 - regression tests cover seeded, unseeded, and demo-grid benchmark cases
+- the representative easy, medium, and hard seed corpus now lives in code via `THEME_BENCHMARK_SEEDS`
+- the lightweight manual-review corpus for answer/theme plausibility now lives in code via `THEME_MANUAL_REVIEW_CASES`
+- the representative retrieval-quality review corpus now lives in code via `THEME_RETRIEVAL_REVIEW_CASES`
+- the intrusion-style review corpus now lives in code via `THEME_INTRUSION_REVIEW_CASES`
 - Stage 2 vector loading now exists with a bundled `word_vectors.json` table and deterministic whole-lexicon ranking APIs
+- cosine and rank-overlap retrieval reports can now be compared deterministically against the review corpus without changing runtime ranking
+- intrusion-review helpers can now deterministically verify that the theme scorer rejects unrelated answers from a fixed-size themed subset
 - completed-grid ranking can now add vector-backed theme scores when the bundled table matches the active lexicon
+- completed-grid ranking now hard-rejects weak fills and weak semantic subsets while surfacing theme-bearing subset metadata in `CandidateGrid`
+- viable-row ordering can now apply lightweight MMR-style novelty penalties against provisional theme-bearing rows without changing legality pruning
+- benchmark search attempts can now capture heuristic-baseline counter snapshots for deterministic before/after search comparisons
+- seeded semantic search now enforces a deterministic runtime budget and falls back to heuristic row ordering when it expires
+- benchmark reports now surface budget exhaustion, heuristic fallback, and selected theme-subset telemetry
+- seeded generation now emits a per-request runtime report through progress updates, and the CLI now surfaces that report after puzzle generation
 - the CLI now supports an offline-first cache build that writes lexicon-wide puzzle records to `src/byewords/data/puzzles.json`
 - the offline cache path now performs real per-seed puzzle generation and stores answer-only metadata for each retained record
 - the offline cache now retains a bounded top-N answer-only candidate set per seed before final clue-stage curation
 - offline answer-only curation now ranks records without clue-score influence and can deterministically select a global top-100 slice from the curated seed winners
+- the offline cache now uses process-based worker execution for default lexicon-wide generation while preserving an in-process fallback for tests and patched generators
 - clue regeneration can now be forced from both the Groq clue tool and the main puzzle CLI, but clue quality is still intentionally out of the ranking path until the top-100 offline stage
+- the offline cache now refreshes clues only for the deterministic top-100 answer-only slice, validates those refreshed clue sets, and stores clue-stage ranking metadata beside each selected record
+- the top-100 clue stage now uses `clue_bank.json` first and only attempts Groq regeneration for selected answers that still lack non-generic clues
+- final offline ranking can now include clue-quality signal only after top-100 clue refresh, while preserving answer-only selection for the initial slice
+- clue-aware reranking can now be reviewed deterministically against expected answer-only and clue-stage winners for a small editorial corpus
+- `theme_index_builder.py` now supports vector building, lexicon-wide cache generation, and deterministic retrieval and intrusion review reports for offline evaluation
 
-What remains before Stage 1 is fully closed:
+Stage 1 is now fully closed:
 
-- define the representative easy, medium, and hard seed corpus explicitly in code or fixtures
-- add a lightweight manual-review corpus for checking whether the current heuristic fill produces plausible theme-bearing answers
+- the benchmark harness has explicit easy, medium, and hard corpus fixtures
+- the manual-review seed corpus is checked against bundled lexicon and clue-bank coverage
 
-What remains before Stage 2 can be treated as fully closed:
+Stage 2 is now fully closed:
 
-- compare cosine against rank-overlap offline instead of only shipping cosine-based ranking
-- add a representative retrieval-quality review set so vector ranking quality is measured rather than assumed
+- cosine and rank-overlap can now be compared deterministically through offline retrieval-review helpers
+- the retrieval-quality review corpus is checked against bundled lexicon coverage so ranking quality is measured rather than assumed
 
-What remains before the offline pipeline is doing the intended job:
+Stage 3 is now fully closed:
 
-- replace the current thread-based batch execution with the planned process-based worker model
-- add theme-bearing subset selection and weakest-link coherence to completed-grid evaluation
-- wire clue regeneration and final curation to the deterministic global top-100 answer-only slice
+- seeded and generic runtime search now order already-legal viable rows by semantic score first and branching score second when bundled vectors match the active lexicon
+- lightweight MMR-style novelty penalties now down-rank semantically redundant provisional theme rows without changing legality pruning
+- benchmark attempts now include deterministic heuristic-baseline counter snapshots for before/after search comparisons
+
+Stage 4 is now fully closed:
+
+- completed-grid scoring now applies explicit fill-quality gates and weakest-link theme thresholds during runtime ranking
+- theme-bearing subset selection is now surfaced on ranked candidates and reused by the offline store as answer-only metadata
+- vector-backed theme scoring and diversity-aware subset selection now participate in completed-grid ranking without changing legality pruning
+
+Stage 6 is now fully closed:
+
+- the offline cache path remains process-based for full-lexicon generation while preserving the in-process fallback needed by tests and patched generators
+- deterministic intrusion-review helpers now exercise the current theme scorer directly instead of relying on manual inspection alone
+- the intrusion-review corpus is checked against bundled lexicon coverage so offline scorer regressions are measured rather than assumed
 
 Working conclusion:
 
 - the existing search counters appear sufficient for the semantic rollout
-- the next implementation chunk should focus on semantic answer-only ranking and curation rather than more infrastructure
+- clue-aware reranking is now measurable enough to decide whether the reviewed clue corpus should expand
+- the latest implementation pass closed Stage 5 in code by surfacing per-request runtime reports and expanded the offline builder into a single entry point for vectors, cache generation, and semantic review reports
 
 ## Findings from experiments
 
@@ -429,8 +460,8 @@ Status update:
 
 - done: benchmark harness for seeded generation
 - done: deterministic search counters are now captured as immutable benchmark snapshots
-- remaining: seed corpus selection
-- remaining: manual review fixtures for answer/theme plausibility
+- done: seed corpus selection now lives in explicit code fixtures
+- done: manual review fixtures for answer/theme plausibility now live in code fixtures
 
 Unknown resolved:
 
@@ -463,8 +494,8 @@ Status update:
 
 - done: offline vector build tool and bundled vector table
 - done: deterministic `word_vectors.json` loading and full-lexicon cosine ranking
-- remaining: cosine versus rank-overlap comparison
-- remaining: retrieval-quality review fixtures
+- done: cosine versus rank-overlap comparison helpers for offline review
+- done: retrieval-quality review fixtures and deterministic comparison reports
 
 ### Stage 3. Seed-aware search ordering
 
@@ -485,8 +516,10 @@ Decision gate:
 
 Status update:
 
-- not started in the runtime path
-- current seeded generation still orders search with heuristic candidate-pool ranking rather than semantic row scores
+- fully closed
+- seeded and generic runtime search now order already-legal viable rows by semantic score first and branching score second when bundled vectors match the active lexicon
+- lightweight MMR-style novelty penalties now down-rank semantically redundant provisional theme rows during viable-row ordering
+- deterministic benchmark attempts now include heuristic-baseline counter snapshots for before/after search comparisons
 
 ### Stage 4. Quality gates and answer-only scoring
 
@@ -509,9 +542,11 @@ Decision gate:
 
 Status update:
 
-- partially complete
+- fully closed
 - completed-grid scoring can now add vector-backed `theme_score` during runtime ranking when the bundled table matches the active lexicon
-- explicit fill-quality gates, weakest-link thresholds, and surfaced theme-bearing subset metadata are still incomplete in the runtime path
+- explicit fill-quality gates and weakest-link thresholds now reject weak completed grids during runtime ranking
+- theme-bearing subset metadata is now surfaced on ranked runtime candidates and reused by the offline puzzle store
+- semantic row ordering is now wired into the runtime search hot path without changing legality pruning
 
 ### Stage 5. Runtime path
 
@@ -532,10 +567,12 @@ Decision gate:
 
 Status update:
 
-- partially complete for the non-semantic path
+- fully closed
 - seeded runtime generation, fallback search windows, and cache reuse exist today
-- semantic vector loading and completed-grid reranking are now wired into seeded selection when the bundled table matches the active lexicon
-- semantic row ordering and explicit runtime budget enforcement are not wired into the hot path yet
+- semantic vector loading, viable-row ordering, and completed-grid reranking are now wired into seeded selection when the bundled table matches the active lexicon
+- seeded semantic search now enforces a deterministic runtime budget and falls back to heuristic row ordering when it expires
+- benchmark reports now surface budget exhaustion, fallback usage, and selected theme-subset coherence telemetry
+- seeded generation now emits a per-request runtime report through progress updates, and the CLI surfaces a stable post-build runtime summary for interactive and non-interactive runs
 
 ### Stage 6. Offline lexicon-wide generation
 
@@ -557,12 +594,12 @@ Decision gate:
 
 Status update:
 
-- partially complete
+- fully closed
 - the CLI can now build `puzzles.json` across the full bundled lexicon
 - the offline cache now stores real per-seed winners together with answer-only metadata
 - the offline cache can now retain multiple answer-only candidates per seed before later top-100 clue selection
 - answer-only ranking now ignores clue score during offline curation, and a deterministic global top-100 answer-only selector now exists
-- process-based execution and intrusion evaluation are still missing
+- process-based execution and deterministic intrusion evaluation now exist for the default offline batch path
 
 ### Stage 7. Top-100 clue stage
 
@@ -580,6 +617,15 @@ Unknown resolved:
 Decision gate:
 
 - if clue reranking is unstable, keep clues as presentation polish rather than a ranking feature
+
+Status update:
+
+- fully closed
+- the offline cache now refreshes clues only for the deterministic global top-100 answer-only slice
+- refreshed clue sets are now validated for non-generic multi-word clue text before clue-stage ranking metadata is persisted
+- clue-stage reranking now happens only within the selected top-100 slice, so clue quality cannot pull weaker answer-only records into the curated set
+- Groq regeneration is now attempted only for selected answers that still lack non-generic clue-bank coverage, preserving offline-first batch builds when API credentials are absent
+- clue-stage review helpers can now compare answer-only winners against clue-stage winners for a small reviewed corpus without changing offline ranking inputs
 
 ## Module changes
 
@@ -628,7 +674,7 @@ def score_theme_subset(
 
 ### `src/byewords/search.py`
 
-Keep the current legality checks and prefix pruning, but allow viable rows to be ordered by a seed-aware runtime score that can reward probable theme-bearing answers without constraining the legal search space.
+Keep the current legality checks and prefix pruning, but allow viable rows to be ordered by a seed-aware runtime score that can reward probable theme-bearing answers without constraining the legal search space. The search stats should also surface semantic rerank counts, novelty-penalty counts, and benchmarkable before/after snapshots.
 
 ### `src/byewords/generate.py`
 
@@ -637,8 +683,8 @@ Change the seeded path so that it:
 - validates seeds against the lexicon
 - loads the bundled vector table
 - ranks the full lexicon on demand
-- passes semantic row scores into search ordering
-- tracks a provisional theme-bearing subset during search
+- passes semantic row scores and novelty-aware row ordering into search
+- captures heuristic-baseline counter snapshots for semantic benchmark attempts
 - enforces a time budget
 - falls back cleanly if the budget is exceeded
 
@@ -653,12 +699,10 @@ The current implementation already:
 - store answer-only metadata alongside the rendered puzzle payload
 - support lookups by stored puzzle id for later clue-regeneration work
 - rank offline winners by answer-only score before any clue-based signal and expose a deterministic top-100 answer-only selector
-
-It still should:
-
-- move batch execution from threads to processes
 - retain multiple answer-only candidates per seed before final top-100 curation
+- keep the default batch builder on the process-worker path while preserving an in-process fallback for test doubles
 - preserve a stable puzzle id and canonical UUID per stored record
+- store clue-stage validation and rerank metadata for the selected top-100 slice without changing answer-only curation inputs
 
 ### `src/byewords/cli.py`
 
@@ -679,7 +723,7 @@ The clue-regeneration CLI should now support:
 
 Add an offline tool such as `src/byewords/theme_index_builder.py`.
 
-It should support vector building first, then lexicon-wide parallel puzzle generation, then the top-100 clue stage, plus coherence and intrusion evaluation reports. It should never run in normal puzzle generation.
+It now supports vector building, lexicon-wide parallel puzzle generation with the top-100 clue stage, and deterministic retrieval and intrusion evaluation reports. It still should never run in normal puzzle generation.
 
 ## Testing plan
 
@@ -689,6 +733,7 @@ Required coverage:
 
 - deterministic loading of `word_vectors.json`
 - deterministic full-lexicon ranking for a seed
+- deterministic cosine versus rank-overlap comparison against retrieval-review fixtures
 - stable identification of theme-bearing answers for a completed grid
 - viable-row ordering that respects semantic rank
 - hard rejection of puzzles that fail fill quality or uniqueness requirements

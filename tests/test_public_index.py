@@ -1,14 +1,45 @@
 import json
 from pathlib import Path
 import re
+from typing import TypedDict
 import unittest
 
 
 INDEX_HTML = Path(__file__).resolve().parents[1] / "public" / "index.html"
 FAVICON_ICO = Path(__file__).resolve().parents[1] / "public" / "favicon.ico"
+PUZZLES_JSON = Path(__file__).resolve().parents[1] / "src" / "byewords" / "data" / "puzzles.json"
+EMBEDDED_PUZZLE_PATTERN = re.compile(
+    r'\{\s*sourceSeed: "([^"]+)",\s*rows: \[(.*?)\],\s*acrossClues: \[(.*?)\],\s*downClues: \[(.*?)\]\s*\}',
+    re.S,
+)
 
 
 class TestPublicIndex(unittest.TestCase):
+    class EmbeddedPuzzle(TypedDict):
+        sourceSeed: str
+        rows: list[str]
+        acrossClues: list[str]
+        downClues: list[str]
+
+    @staticmethod
+    def _decode_js_string_list(block: str) -> list[str]:
+        return [json.loads(item) for item in re.findall(r'"(?:[^"\\]|\\.)*"', block)]
+
+    def _load_embedded_puzzles(self) -> list[EmbeddedPuzzle]:
+        html = INDEX_HTML.read_text(encoding="utf-8")
+
+        puzzles: list[TestPublicIndex.EmbeddedPuzzle] = []
+        for match in EMBEDDED_PUZZLE_PATTERN.finditer(html):
+            puzzles.append(
+                {
+                    "sourceSeed": match.group(1),
+                    "rows": self._decode_js_string_list(match.group(2)),
+                    "acrossClues": self._decode_js_string_list(match.group(3)),
+                    "downClues": self._decode_js_string_list(match.group(4)),
+                }
+            )
+        return puzzles
+
     def test_document_links_to_favicon(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
@@ -20,45 +51,61 @@ class TestPublicIndex(unittest.TestCase):
         self.assertGreater(len(icon), 100)
         self.assertEqual(icon[:4], b"\x00\x00\x01\x00")
 
-    def test_embedded_puzzle_bank_uses_ten_distinct_boards(self) -> None:
-        html = INDEX_HTML.read_text(encoding="utf-8")
+    def test_embedded_puzzle_bank_uses_two_distinct_boards(self) -> None:
+        boards = [tuple(puzzle["rows"]) for puzzle in self._load_embedded_puzzles()]
 
-        boards = re.findall(r'rows: \["([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})"\]', html)
-        self.assertEqual(len(boards), 10)
-        self.assertEqual(len(set(boards)), 10)
+        self.assertEqual(len(boards), 2)
+        self.assertEqual(len(set(boards)), 2)
+        html = INDEX_HTML.read_text(encoding="utf-8")
         self.assertIn("words.map(function (word) {", html)
         self.assertIn('}).join(" / ");', html)
 
-    def test_embedded_puzzle_bank_has_ten_full_grids(self) -> None:
+    def test_embedded_puzzle_bank_has_two_full_grids(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
-        self.assertEqual(len(re.findall(r'rows: \["[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}"\]', html)), 10)
+        self.assertEqual(len(re.findall(r'rows: \["[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}"\]', html)), 2)
         self.assertIn("const puzzles = [", html)
         self.assertIn("function randomPuzzleIndex() {", html)
 
     def test_embedded_puzzle_bank_never_repeats_clue_text(self) -> None:
-        html = INDEX_HTML.read_text(encoding="utf-8")
-
-        clue_blocks = re.findall(r'(?:acrossClues|downClues): \[(.*?)\]', html, re.S)
         clues = []
-        for block in clue_blocks:
-            encoded_clues = re.findall(r'"(?:[^"\\]|\\.)*"', block)
-            clues.extend(json.loads(clue) for clue in encoded_clues)
+        for puzzle in self._load_embedded_puzzles():
+            clues.extend(puzzle["acrossClues"])
+            clues.extend(puzzle["downClues"])
 
-        self.assertEqual(len(clues), 100)
+        self.assertEqual(len(clues), 20)
         self.assertEqual(len(clues), len(set(clues)))
 
     def test_embedded_puzzle_bank_uses_unique_entries_per_board(self) -> None:
-        html = INDEX_HTML.read_text(encoding="utf-8")
-
-        boards = re.findall(r'rows: \["([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})", "([A-Z]{5})"\]', html)
-        self.assertEqual(len(boards), 10)
+        boards = [tuple(puzzle["rows"]) for puzzle in self._load_embedded_puzzles()]
+        self.assertEqual(len(boards), 2)
 
         for rows in boards:
             columns = tuple("".join(row[index] for row in rows) for index in range(5))
             entries = rows + columns
             self.assertEqual(len(entries), 10)
             self.assertEqual(len(set(entries)), 10)
+
+    def test_embedded_puzzle_bank_matches_seed_backed_source_favorites(self) -> None:
+        source = json.loads(PUZZLES_JSON.read_text(encoding="utf-8"))
+        embedded = self._load_embedded_puzzles()
+
+        expected = []
+        for seed in ("epoxy", "ester"):
+            entries = [entry for entry in source.values() if entry["seed"] == seed]
+            self.assertEqual(len(entries), 1)
+            entry = entries[0]
+            self.assertEqual(entry["answer_scores"]["seed_row_count"], 1)
+            expected.append(
+                {
+                    "sourceSeed": seed,
+                    "rows": [word.upper() for word in entry["grid"]],
+                    "acrossClues": [clue["text"] for clue in entry["across"]],
+                    "downClues": [clue["text"] for clue in entry["down"]],
+                }
+            )
+
+        self.assertEqual(embedded, expected)
 
     def test_random_selection_logic_uses_no_persistent_cursor(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")

@@ -3,10 +3,10 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from byewords.cli import main, parse_args
-from byewords.types import ProgressUpdate
+from byewords.types import ProgressUpdate, RuntimeReport
 from tests.test_puz import build_test_puzzle
 
 
@@ -23,6 +23,7 @@ class TestCli(unittest.TestCase):
             redirect_stdout(buf),
             patch("sys.argv", ["byewords"]),
             patch("byewords.cli.load_default_inputs", return_value=((), {})),
+            patch("byewords.cli.load_puzzle_store", return_value={}),
             patch("byewords.cli.build_batch_puzzle_cache", return_value=(Path("/tmp/puzzles.json"), 2, 2)) as build_batch,
         ):
             main()
@@ -30,6 +31,31 @@ class TestCli(unittest.TestCase):
         output = buf.getvalue()
         build_batch.assert_called_once_with((), {})
         self.assertIn("Cached 2 puzzles in /tmp/puzzles.json (2 generated in this run).", output)
+
+    def test_cli_without_arguments_reuses_complete_existing_cache_without_rewriting(self) -> None:
+        buf = StringIO()
+        store = {
+            "snail-id": {
+                "seed": "snail",
+            },
+            "tempo-id": {
+                "seed": "tempo",
+            },
+        }
+
+        with (
+            redirect_stdout(buf),
+            patch("sys.argv", ["byewords"]),
+            patch("byewords.cli.load_default_inputs", return_value=(("snail", "tempo"), {})),
+            patch("byewords.cli.default_puzzle_store_path", return_value=Path("/tmp/puzzles.json")),
+            patch("byewords.cli.load_puzzle_store", return_value=store),
+            patch("byewords.cli.build_batch_puzzle_cache") as build_batch,
+        ):
+            exit_code = main()
+
+        self.assertEqual(exit_code, 0)
+        build_batch.assert_not_called()
+        self.assertIn("Cached 2 puzzles in /tmp/puzzles.json (0 generated in this run).", buf.getvalue())
 
     def test_cli_writes_text_output_to_file(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -110,7 +136,7 @@ class TestCli(unittest.TestCase):
             exit_code = main()
 
         self.assertEqual(exit_code, 0)
-        generate_cached.assert_called_once_with(("snail",), (), {})
+        generate_cached.assert_called_once_with(("snail",), (), {}, progress_callback=ANY)
         self.assertEqual(stdout.getvalue(), "cached puzzle\n")
 
     def test_cli_regenerates_clues_for_seeded_runs(self) -> None:
@@ -155,8 +181,35 @@ class TestCli(unittest.TestCase):
             )
             progress_callback(
                 ProgressUpdate(
+                    stage="runtime_report",
+                    message="Runtime report: semantic on",
+                    runtime_report=RuntimeReport(
+                        requested_seeds=("snail",),
+                        normalized_seeds=("snail",),
+                        available_seeds=("snail",),
+                        candidate_count=10,
+                        candidate_window_sizes=(10,),
+                        semantic_ordering=True,
+                        used_demo_grid=False,
+                        budget_exhausted=False,
+                        used_budget_fallback=False,
+                        selected_theme_words=("snail",),
+                        selected_theme_subset=("eases", "antra", "donna"),
+                        selected_theme_weakest_link=0.25,
+                    ),
+                )
+            )
+            progress_callback(
+                ProgressUpdate(
+                    stage="candidate_solution",
+                    message="Found a complete candidate grid; continuing search",
+                    partial_rows=("snail", "oases", "atone", "ileum", "lends"),
+                )
+            )
+            progress_callback(
+                ProgressUpdate(
                     stage="solution",
-                    message="Locked the final grid",
+                    message="Built a puzzle",
                     partial_rows=("snail", "oases", "atone", "ileum", "lends"),
                 )
             )
@@ -174,9 +227,51 @@ class TestCli(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(stdout.getvalue(), "animated puzzle\n")
-        self.assertIn("Locked the final grid", stderr.getvalue())
+        self.assertIn("Found a complete candidate grid; continuing search", stderr.getvalue())
         self.assertIn("S N A I L", stderr.getvalue())
+        self.assertIn("runtime: semantic=on fallback=no theme_subset=EASES, ANTRA, DONNA weakest_link=0.250", stderr.getvalue())
         self.assertIn("\x1b[?25l", stderr.getvalue())
+
+    def test_cli_persists_candidate_solution_notice_to_stdout_during_interactive_runs(self) -> None:
+        stdout = FakeTty()
+        stderr = FakeTty()
+
+        def fake_generate(
+            seeds: tuple[str, ...],
+            lexicon_words: tuple[str, ...],
+            clue_bank: dict[str, tuple[str, ...]],
+            *,
+            progress_callback,
+        ) -> object:
+            progress_callback(
+                ProgressUpdate(
+                    stage="candidate_solution",
+                    message="Found a complete candidate grid; continuing search",
+                    partial_rows=("piano", "input", "skirt", "tense", "edger"),
+                )
+            )
+            progress_callback(
+                ProgressUpdate(
+                    stage="solution",
+                    message="Built a puzzle",
+                    partial_rows=("piano", "input", "skirt", "tense", "edger"),
+                )
+            )
+            return object()
+
+        with (
+            patch("sys.stdout", stdout),
+            patch("sys.stderr", stderr),
+            patch("sys.argv", ["byewords", "--seed", "piano"]),
+            patch("byewords.cli.load_default_inputs", return_value=((), {})),
+            patch("byewords.cli.generate_puzzle_cached", side_effect=fake_generate),
+            patch("byewords.cli.render_puzzle_text", return_value="interactive puzzle"),
+        ):
+            exit_code = main()
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Found a complete candidate grid; continuing search", stdout.getvalue())
+        self.assertIn("interactive puzzle", stdout.getvalue())
 
     def test_parse_args_supports_positional_seeds(self) -> None:
         args = parse_args(["snail", "eases"])

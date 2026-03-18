@@ -37,7 +37,8 @@ def _fallback_clue(answer: str) -> str:
 
 def _clue_candidates(answer: str, clue_bank: dict[str, tuple[str, ...]]) -> tuple[str, ...]:
     bank_clues = clue_bank.get(answer.lower(), ())
-    return tuple(dict.fromkeys(bank_clues + _fallback_clue_variants(answer)))
+    latest_first = bank_clues[-1:] + bank_clues[:-1]
+    return tuple(dict.fromkeys(latest_first + _fallback_clue_variants(answer)))
 
 
 def _best_clue(
