@@ -11,6 +11,8 @@
       --white: #ffffff;
       --ink: #111111;
       --blue: #0b63f6;
+      --topbar-bg: #6b21d9;
+      --topbar-fg: #7ef9ff;
       --yellow: #f5e84b;
       --yellow-soft: #fff7b8;
       --blue-soft: #eaf1ff;
@@ -61,8 +63,8 @@
     }
 
     .topbar {
-      background: var(--blue);
-      color: var(--white);
+      background: var(--topbar-bg);
+      color: var(--topbar-fg);
       padding: 8px 12px;
       border-bottom: 2px solid var(--ink);
       display: flex;
@@ -80,6 +82,7 @@
     }
 
     .eyebrow {
+      color: var(--yellow);
       font-size: 11px;
       font-weight: 800;
       letter-spacing: 0.16em;
@@ -770,41 +773,239 @@
     (function () {
       const puzzles = [
         {
+          sourceSeed: "beach",
+          rows: ["BEACH", "RETIE", "ERODE", "WINED", "SEERS"],
+          acrossClues: [
+            "Oceanfront stretch west of the Sunset where bonfires never beat the fog",
+            "Fasten a loosened hoodie cord after a windy walk near Lands End",
+            "Wear away like the bluffs south of the Cliff House in a hard winter",
+            "Courted with pours from a Columbus Avenue bottle list before the check arrived",
+            "Fortune tellers who would fit right in beside the Haight's incense shops",
+          ],
+          downClues: [
+            "Pints poured after a Giants night game a few blocks from McCovey Cove",
+            "Like Sutro Baths when the marine layer erases the horizon at dusk",
+            "Make amends after cutting in line for a morning bun at the Ferry Building",
+            "Apple pour you might sip beside stacked produce on Ferry Plaza Saturday",
+            "Pays attention to rip-current warnings posted along the Great Highway",
+          ]
+        },
+        {
           sourceSeed: "epoxy",
           rows: ["HOVEL", "EPOXY", "LEMUR", "PRIDE", "SATES"],
           acrossClues: [
-            "Dilapidated dwelling that squeaks louder than its occupants",
-            "Two‑component adhesive, rock‑hard after mixing",
-            "Night-active primate that makes the jungle's runway look casual",
-            "Ego boost that makes mirrors blush",
-            "Fill up cravings like a bottomless buffet"
+            "Rundown cottage that would make even a mouse request a lease",
+            "Clear polymeric bond for stubborn household fixes",
+            "Madagascar nocturnal acrobat with a tuxedo-like tail",
+            "Lion's collective swagger",
+            "Leave a hungry crowd content",
           ],
           downClues: [
-            "Lends a hand when the pizza delivery is delayed",
-            "Grand stage spectacle where tenors duel over love and revenge",
-            "Barroom aftermath after too many shots",
-            "Ooze charisma as if it were soda from a shaken bottle",
-            "Stringed devices that could double as medieval karaoke stations"
+            "Bails out a buddy after a disastrous karaoke night",
+            "Dramatic singing marathon with lavish costumes",
+            "Upset stomach's souvenir",
+            "Radiate confidence like a peacock on parade",
+            "Ancient harp-like instruments that accompany mythic poets",
           ]
         },
         {
           sourceSeed: "ester",
           rows: ["OZONE", "LIVEN", "INERT", "VERVE", "ESTER"],
           acrossClues: [
-            "Layer that gives city smog a chance to disappear",
-            "Inject some zip into a dull scene",
-            "As unmoving as a museum statue",
-            "Flair that makes a salsa dancer's steps pop",
-            "Aromatic molecule that lets fruit pretend to be perfume"
+            "Smog's mischievous cousin that loves high‑altitude hide‑and‑seek",
+            "Pep up a gathering",
+            "Lacking any kinetic energy",
+            "Spirited zest often heard in a jazz solo",
+            "Fragrant laboratory product that turns bland booze into a bouquet",
           ],
           downClues: [
-            "Mediterranean fruit that yields oil for cooking",
-            "Underground pamphlet collections",
+            "Briny garnish often found in a classic cocktail",
+            "DIY publishing projects",
+            "Plain‑spoken and impossible to miss",
+            "Spinal conduit that sparks tingling sensations",
+            "Step through the portal to begin the quest",
+          ]
+        },
+        {
+          sourceSeed: "known",
+          rows: ["KNOWN", "NICHE", "OTHER", "BREAD", "SORTS"],
+          acrossClues: [
+            "Familiar to all who've ever read the fine print",
+            "Cozy corner for a rare hobbyist",
+            "Alternative choice when the first is already taken",
+            "Carb staple that rises to the occasion when you give it a good knead",
+            "Organizes by category",
+          ],
+          downClues: [
+            "Turnable controls on a vintage radio",
+            "High‑octane racing fuel",
+            "Sunset hue that shows up on desert dunes",
+            "Golden cereal staple that sways like a sea of stalks",
+            "Book‑loving code crunchers",
+          ]
+        },
+        {
+          sourceSeed: "nohow",
+          rows: ["NOHOW", "OPINE", "TERSE", "CREED", "HASTY"],
+          acrossClues: [
+            "Absolutely not",
+            "Declare your thoughts on the matter",
+            "Laconic, as if the editor ran out of ink",
+            "Motto that a cult uses to justify midnight snack raids",
+            "Like a deadline-driven student scribbling answers in the last minute",
+          ],
+          downClues: [
+            "Tiny V-shaped groove in a wooden ruler",
+            "Grand stage spectacle where tenors duel over love and revenge",
+            "New staff members who walked in after the interview marathon",
+            "First gasp of a sneeze",
+            "Spindly as a vegetable garden abandoned by the farmer",
+          ]
+        },
+        {
+          sourceSeed: "anime",
+          rows: ["NOWAY", "ANIME", "CILIA", "HOLDS", "ONSET"],
+          acrossClues: [
+            "Seriously?",
+            "Vibrant Japanese cartoons that often turn high school drama into epic battles",
+            "Microscopic brushstrokes that keep mucus moving",
+            "Keeps securely in place",
+            "Initial burst of applause",
+          ],
+          downClues: [
+            "Bar‑room staple with melted dairy",
+            "Bulb that turns tears into seasoning",
+            "Heir‑hungry papers signed at a bedside",
+            "Nitrogen‑bearing carbonyl derivative",
+            "Baker's bubbly booster for dough",
+          ]
+        },
+        {
+          sourceSeed: "apace",
+          rows: ["NOWAY", "APACE", "VISTA", "ENTER", "SEEDS"],
+          acrossClues: [
+            "Get out!",
+            "Rapidly, as if a coffee‑driven hamster were on a treadmill",
+            "Panoramic outlook over rolling hills",
+            "Press the key that launches the adventure",
+            "Future trees' beginnings in a garden",
+          ],
+          downClues: [
+            "Central aisles of cathedrals where the choir roams",
+            "Sound off about the latest scandal",
+            "Byproduct of overindulgence in buffet lines",
+            "Pretended to be someone else",
+            "Calendar periods measured in twelve-month cycles",
+          ]
+        },
+        {
+          sourceSeed: "hunky",
+          rows: ["HUNKY", "ARENA", "RIVEN", "SNEAK", "HERDS"],
+          acrossClues: [
+            "Ripped and ready for romance",
+            "Coliseum where crowds roar for gladiators of modern sport",
+            "Torn apart like a split atom",
+            "Midnight hallway tiptoeing that would make a cat jealous",
+            "Stamping‑ground gatherings of grazers",
+          ],
+          downClues: [
+            "Severe, as if kindness were turned off",
+            "Golden stream from a midnight hike",
+            "At no point in history",
+            "Massage dough until it sighs with smoothness",
+            "Hard pulls that can snap a rope",
+          ]
+        },
+        {
+          sourceSeed: "waive",
+          rows: ["WAIVE", "ELVES", "LOINS", "THETA", "SASSY"],
+          acrossClues: [
+            "Forego a fee for a friend",
+            "North Pole artisans who check the list twice",
+            "Body parts that house reproductive organs",
+            "Sixth Greek letter for an angle",
+            "Cheeky with a wink",
+          ],
+          downClues: [
+            "Raised, reddish ridges after a cartoonish spanking",
+            "Island greeting that doubles as a farewell",
+            "Climbing vines that often drape collegiate campuses",
+            "House's sighing exits when the stew simmers",
+            "Student's homework that often ends in coffee stains",
+          ]
+        },
+        {
+          sourceSeed: "naive",
+          rows: ["NAIVE", "ELVES", "SPINS", "THETA", "SASSY"],
+          acrossClues: [
+            "Wide‑eyed and trusting, like a rookie in a con",
+            "Tiny shoe‑polishers rumored to hide in attic corners",
+            "Whirls like a record on a turntable",
+            "Trigonometry and thermostat symbol",
+            "Spiritedly defiant in a teen's retort",
+          ],
+          downClues: [
+            "Cozy lofts for feathered architects",
+            "First of the Greek letters, the one who thinks it's ever the boss",
+            "Prestigious schools that make up the historic academic consortium",
+            "Sneaky openings that help the attic release its secrets",
+            "Literary assignment where thoughts strut on a paper runway",
+          ]
+        },
+        {
+          sourceSeed: "waken",
+          rows: ["WAKEN", "ANODE", "STAGE", "PILED", "SCARY"],
+          acrossClues: [
+            "Jolt a snoozing cat into consciousness",
+            "Battery’s bright‑side terminus",
+            "Phase where a rookie band finally hears its own echo",
+            "Crammed together like socks after laundry day",
+            "Bone‑chilling, as if the lights just went out",
+          ],
+          downClues: [
+            "Aggressive garden guests who love picnics",
+            "Silly stunt that might earn a circus applause",
+            "Eucalyptus‑loving marsupial that never leaves its perch",
+            "Lawn tool that trims the perimeter of a carpet of grass",
+            "Constantly pleading for a refill at the coffee bar",
+          ]
+        },
+        {
+          sourceSeed: "knave",
+          rows: ["KNAVE", "ROVES", "OVERT", "NERVE", "ALTER"],
+          acrossClues: [
+            "Dishonest court attendant",
+            "Wanders about in search of new scenery",
             "Blatant, like a neon sign shouting its message",
             "Audacity that makes a cat chase a laser",
-            "Press the key that launches the adventure"
+            "Swap the wardrobe just before the paparazzi arrive",
+          ],
+          downClues: [
+            "Stockholm's cash unit",
+            "Literary work that could win a Pulitzer",
+            "Dodge a disaster",
+            "Flair that makes a salsa dancer's steps pop",
+            "Aromatic molecule that lets fruit pretend to be perfume",
           ]
-        }
+        },
+        {
+          sourceSeed: "kayak",
+          rows: ["KAYAK", "ADORN", "RODEO", "TREAT", "SELLS"],
+          acrossClues: [
+            "Narrow hull that lets you glide on calm water",
+            "Embellish a plain cake with frosting",
+            "Dusty arena for bucking broncos and daring riders",
+            "Reward that often arrives in a paper bag at Halloween",
+            "Pitches wares to eager shoppers",
+          ],
+          downClues: [
+            "Pocket-sized speed demons",
+            "Hold in reverent affection",
+            "Shout up a ridge, then whisper back down.",
+            "Like a map's dimensions",
+            "Sailor's snags that can halt a voyage if left loose",
+          ]
+        },
       ];
 
       const numbering = {

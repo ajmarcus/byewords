@@ -791,6 +791,24 @@ class TestGroqClues(unittest.TestCase):
         self.assertEqual(persisted["adieu"], ["Curtain call for a departing cast"])
         self.assertEqual(list(package.clues), persisted["snail"])
 
+    def test_generate_clue_package_treats_missing_on_disk_clue_bank_as_empty(self) -> None:
+        client = FakeGroqClient()
+        clue_bank: dict[str, tuple[str, ...]] = {}
+
+        package = generate_clue_package(
+            client=client,
+            answer="snail",
+            clue_bank=clue_bank,
+            clue_bank_path="/tmp/does-not-exist-clue-bank.json",
+            lock=threading.Lock(),
+            count=DEFAULT_CLUE_COUNT,
+            force=True,
+        )
+
+        self.assertFalse(package.cached)
+        self.assertEqual(package.clues, ("Snail option A", "Snail option B"))
+        self.assertEqual(clue_bank["snail"], package.clues)
+
     def test_main_bulk_mode_with_only_cached_clues_does_not_require_api_key(self) -> None:
         stdout = StringIO()
         stderr = StringIO()

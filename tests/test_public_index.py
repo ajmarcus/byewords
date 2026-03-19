@@ -7,8 +7,8 @@ import unittest
 
 INDEX_HTML = Path(__file__).resolve().parents[1] / "public" / "index.html"
 FAVICON_ICO = Path(__file__).resolve().parents[1] / "public" / "favicon.ico"
-PUZZLES_JSON = Path(__file__).resolve().parents[1] / "src" / "byewords" / "data" / "puzzles.json"
-EMBEDDED_PUZZLE_PATTERN = re.compile(
+CLUE_BANK_JSON = Path(__file__).resolve().parents[1] / "src" / "byewords" / "data" / "clue_bank.json"
+PUZZLE_BANK_PATTERN = re.compile(
     r'\{\s*sourceSeed: "([^"]+)",\s*rows: \[(.*?)\],\s*acrossClues: \[(.*?)\],\s*downClues: \[(.*?)\]\s*\}',
     re.S,
 )
@@ -26,10 +26,10 @@ class TestPublicIndex(unittest.TestCase):
         return [json.loads(item) for item in re.findall(r'"(?:[^"\\]|\\.)*"', block)]
 
     def _load_embedded_puzzles(self) -> list[EmbeddedPuzzle]:
-        html = INDEX_HTML.read_text(encoding="utf-8")
+        puzzle_bank = INDEX_HTML.read_text(encoding="utf-8")
 
         puzzles: list[TestPublicIndex.EmbeddedPuzzle] = []
-        for match in EMBEDDED_PUZZLE_PATTERN.finditer(html):
+        for match in PUZZLE_BANK_PATTERN.finditer(puzzle_bank):
             puzzles.append(
                 {
                     "sourceSeed": match.group(1),
@@ -51,20 +51,25 @@ class TestPublicIndex(unittest.TestCase):
         self.assertGreater(len(icon), 100)
         self.assertEqual(icon[:4], b"\x00\x00\x01\x00")
 
-    def test_embedded_puzzle_bank_uses_two_distinct_boards(self) -> None:
+    def test_embedded_puzzle_bank_uses_thirteen_distinct_boards(self) -> None:
         boards = [tuple(puzzle["rows"]) for puzzle in self._load_embedded_puzzles()]
 
-        self.assertEqual(len(boards), 2)
-        self.assertEqual(len(set(boards)), 2)
+        self.assertEqual(len(boards), 13)
+        self.assertEqual(len(set(boards)), 13)
         html = INDEX_HTML.read_text(encoding="utf-8")
         self.assertIn("words.map(function (word) {", html)
         self.assertIn('}).join(" / ");', html)
 
-    def test_embedded_puzzle_bank_has_two_full_grids(self) -> None:
+    def test_embedded_puzzle_bank_has_thirteen_full_grids(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
-        self.assertEqual(len(re.findall(r'rows: \["[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}"\]', html)), 2)
+        self.assertEqual(
+            len(re.findall(r'rows: \["[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}"\]', html)),
+            13,
+        )
         self.assertIn("const puzzles = [", html)
+        self.assertNotIn("puzzles.js", html)
+        self.assertNotIn("window.BYEWORDS_PUZZLES", html)
         self.assertIn("function randomPuzzleIndex() {", html)
 
     def test_embedded_puzzle_bank_never_repeats_clue_text(self) -> None:
@@ -73,12 +78,12 @@ class TestPublicIndex(unittest.TestCase):
             clues.extend(puzzle["acrossClues"])
             clues.extend(puzzle["downClues"])
 
-        self.assertEqual(len(clues), 20)
+        self.assertEqual(len(clues), 130)
         self.assertEqual(len(clues), len(set(clues)))
 
     def test_embedded_puzzle_bank_uses_unique_entries_per_board(self) -> None:
         boards = [tuple(puzzle["rows"]) for puzzle in self._load_embedded_puzzles()]
-        self.assertEqual(len(boards), 2)
+        self.assertEqual(len(boards), 13)
 
         for rows in boards:
             columns = tuple("".join(row[index] for row in rows) for index in range(5))
@@ -86,26 +91,39 @@ class TestPublicIndex(unittest.TestCase):
             self.assertEqual(len(entries), 10)
             self.assertEqual(len(set(entries)), 10)
 
-    def test_embedded_puzzle_bank_matches_seed_backed_source_favorites(self) -> None:
-        source = json.loads(PUZZLES_JSON.read_text(encoding="utf-8"))
+    def test_embedded_puzzle_bank_uses_verified_seed_showcase(self) -> None:
         embedded = self._load_embedded_puzzles()
 
-        expected = []
-        for seed in ("epoxy", "ester"):
-            entries = [entry for entry in source.values() if entry["seed"] == seed]
-            self.assertEqual(len(entries), 1)
-            entry = entries[0]
-            self.assertEqual(entry["answer_scores"]["seed_row_count"], 1)
-            expected.append(
-                {
-                    "sourceSeed": seed,
-                    "rows": [word.upper() for word in entry["grid"]],
-                    "acrossClues": [clue["text"] for clue in entry["across"]],
-                    "downClues": [clue["text"] for clue in entry["down"]],
-                }
-            )
+        self.assertEqual(
+            [puzzle["sourceSeed"] for puzzle in embedded],
+            ["beach", "epoxy", "ester", "known", "nohow", "anime", "apace", "hunky", "waive", "naive", "waken", "knave", "kayak"],
+        )
+        self.assertEqual(
+            embedded[0]["rows"],
+            ["BEACH", "RETIE", "ERODE", "WINED", "SEERS"],
+        )
+        self.assertEqual(
+            embedded[1]["rows"],
+            ["HOVEL", "EPOXY", "LEMUR", "PRIDE", "SATES"],
+        )
+        self.assertEqual(
+            embedded[-1]["rows"],
+            ["KAYAK", "ADORN", "RODEO", "TREAT", "SELLS"],
+        )
 
-        self.assertEqual(embedded, expected)
+    def test_embedded_puzzle_bank_uses_curated_clue_bank_text(self) -> None:
+        embedded = self._load_embedded_puzzles()
+        clue_bank = json.loads(CLUE_BANK_JSON.read_text(encoding="utf-8"))
+
+        for puzzle in embedded:
+            rows = tuple(word.lower() for word in puzzle["rows"])
+            columns = tuple("".join(row[index] for row in rows) for index in range(5))
+
+            for answer, clue in zip(rows, puzzle["acrossClues"]):
+                self.assertIn(clue, clue_bank[answer])
+
+            for answer, clue in zip(columns, puzzle["downClues"]):
+                self.assertIn(clue, clue_bank[answer])
 
     def test_random_selection_logic_uses_no_persistent_cursor(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
@@ -167,7 +185,13 @@ class TestPublicIndex(unittest.TestCase):
         self.assertIn("grid-template-rows: auto auto auto;", html)
         self.assertIn("align-content: start;", html)
         self.assertIn(".keyboard { margin-top: 0; padding-top: 0; }", html)
+        self.assertIn("--topbar-bg: #6b21d9;", html)
+        self.assertIn("--topbar-fg: #7ef9ff;", html)
         self.assertIn(".topbar {", html)
+        self.assertIn("background: var(--topbar-bg);", html)
+        self.assertIn("color: var(--topbar-fg);", html)
+        self.assertIn(".eyebrow {", html)
+        self.assertIn("color: var(--yellow);", html)
         self.assertIn("padding: 8px 12px;", html)
 
     def test_clue_card_uses_fixed_height_and_fit_text_logic(self) -> None:

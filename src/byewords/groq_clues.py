@@ -786,7 +786,10 @@ def _split_targets(targets: Sequence[str]) -> tuple[str | None, tuple[str, ...]]
 
 
 def _persisted_clues_for_answer(path: str, answer: str) -> tuple[str, ...]:
-    return load_clue_bank(path).get(answer, ())
+    clue_bank_path = Path(path)
+    if not clue_bank_path.exists():
+        return ()
+    return load_clue_bank(str(clue_bank_path)).get(answer, ())
 
 
 def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
