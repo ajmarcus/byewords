@@ -190,6 +190,8 @@ class TestPublicIndex(unittest.TestCase):
         self.assertIn(".topbar {", html)
         self.assertIn("background: var(--topbar-bg);", html)
         self.assertIn("color: var(--topbar-fg);", html)
+        self.assertIn(".eyebrow {", html)
+        self.assertIn("color: var(--ink);", html)
         self.assertIn("padding: 8px 12px;", html)
 
     def test_clue_card_uses_fixed_height_and_fit_text_logic(self) -> None:
