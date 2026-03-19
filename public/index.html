@@ -11,6 +11,8 @@
       --white: #ffffff;
       --ink: #111111;
       --blue: #0b63f6;
+      --topbar-bg: #6b21d9;
+      --topbar-fg: #7ef9ff;
       --yellow: #f5e84b;
       --yellow-soft: #fff7b8;
       --blue-soft: #eaf1ff;
@@ -61,8 +63,8 @@
     }
 
     .topbar {
-      background: var(--blue);
-      color: var(--white);
+      background: var(--topbar-bg);
+      color: var(--topbar-fg);
       padding: 8px 12px;
       border-bottom: 2px solid var(--ink);
       display: flex;
@@ -769,6 +771,24 @@
   <script>
     (function () {
       const puzzles = [
+        {
+          sourceSeed: "beach",
+          rows: ["BEACH", "RETIE", "ERODE", "WINED", "SEERS"],
+          acrossClues: [
+            "Oceanfront stretch west of the Sunset where bonfires never beat the fog",
+            "Fasten a loosened hoodie cord after a windy walk near Lands End",
+            "Wear away like the bluffs south of the Cliff House in a hard winter",
+            "Courted with pours from a Columbus Avenue bottle list before the check arrived",
+            "Fortune tellers who would fit right in beside the Haight's incense shops",
+          ],
+          downClues: [
+            "Pints poured after a Giants night game a few blocks from McCovey Cove",
+            "Like Sutro Baths when the marine layer erases the horizon at dusk",
+            "Make amends after cutting in line for a morning bun at the Ferry Building",
+            "Apple pour you might sip beside stacked produce on Ferry Plaza Saturday",
+            "Pays attention to rip-current warnings posted along the Great Highway",
+          ]
+        },
         {
           sourceSeed: "epoxy",
           rows: ["HOVEL", "EPOXY", "LEMUR", "PRIDE", "SATES"],

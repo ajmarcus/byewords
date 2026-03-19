@@ -51,21 +51,21 @@ class TestPublicIndex(unittest.TestCase):
         self.assertGreater(len(icon), 100)
         self.assertEqual(icon[:4], b"\x00\x00\x01\x00")
 
-    def test_embedded_puzzle_bank_uses_twelve_distinct_boards(self) -> None:
+    def test_embedded_puzzle_bank_uses_thirteen_distinct_boards(self) -> None:
         boards = [tuple(puzzle["rows"]) for puzzle in self._load_embedded_puzzles()]
 
-        self.assertEqual(len(boards), 12)
-        self.assertEqual(len(set(boards)), 12)
+        self.assertEqual(len(boards), 13)
+        self.assertEqual(len(set(boards)), 13)
         html = INDEX_HTML.read_text(encoding="utf-8")
         self.assertIn("words.map(function (word) {", html)
         self.assertIn('}).join(" / ");', html)
 
-    def test_embedded_puzzle_bank_has_twelve_full_grids(self) -> None:
+    def test_embedded_puzzle_bank_has_thirteen_full_grids(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
         self.assertEqual(
             len(re.findall(r'rows: \["[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}", "[A-Z]{5}"\]', html)),
-            12,
+            13,
         )
         self.assertIn("const puzzles = [", html)
         self.assertNotIn("puzzles.js", html)
@@ -78,12 +78,12 @@ class TestPublicIndex(unittest.TestCase):
             clues.extend(puzzle["acrossClues"])
             clues.extend(puzzle["downClues"])
 
-        self.assertEqual(len(clues), 120)
+        self.assertEqual(len(clues), 130)
         self.assertEqual(len(clues), len(set(clues)))
 
     def test_embedded_puzzle_bank_uses_unique_entries_per_board(self) -> None:
         boards = [tuple(puzzle["rows"]) for puzzle in self._load_embedded_puzzles()]
-        self.assertEqual(len(boards), 12)
+        self.assertEqual(len(boards), 13)
 
         for rows in boards:
             columns = tuple("".join(row[index] for row in rows) for index in range(5))
@@ -96,10 +96,14 @@ class TestPublicIndex(unittest.TestCase):
 
         self.assertEqual(
             [puzzle["sourceSeed"] for puzzle in embedded],
-            ["epoxy", "ester", "known", "nohow", "anime", "apace", "hunky", "waive", "naive", "waken", "knave", "kayak"],
+            ["beach", "epoxy", "ester", "known", "nohow", "anime", "apace", "hunky", "waive", "naive", "waken", "knave", "kayak"],
         )
         self.assertEqual(
             embedded[0]["rows"],
+            ["BEACH", "RETIE", "ERODE", "WINED", "SEERS"],
+        )
+        self.assertEqual(
+            embedded[1]["rows"],
             ["HOVEL", "EPOXY", "LEMUR", "PRIDE", "SATES"],
         )
         self.assertEqual(
@@ -181,7 +185,11 @@ class TestPublicIndex(unittest.TestCase):
         self.assertIn("grid-template-rows: auto auto auto;", html)
         self.assertIn("align-content: start;", html)
         self.assertIn(".keyboard { margin-top: 0; padding-top: 0; }", html)
+        self.assertIn("--topbar-bg: #6b21d9;", html)
+        self.assertIn("--topbar-fg: #7ef9ff;", html)
         self.assertIn(".topbar {", html)
+        self.assertIn("background: var(--topbar-bg);", html)
+        self.assertIn("color: var(--topbar-fg);", html)
         self.assertIn("padding: 8px 12px;", html)
 
     def test_clue_card_uses_fixed_height_and_fit_text_logic(self) -> None:
