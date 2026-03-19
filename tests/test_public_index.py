@@ -7,6 +7,7 @@ import unittest
 
 INDEX_HTML = Path(__file__).resolve().parents[1] / "public" / "index.html"
 FAVICON_ICO = Path(__file__).resolve().parents[1] / "public" / "favicon.ico"
+CLUE_BANK_JSON = Path(__file__).resolve().parents[1] / "src" / "byewords" / "data" / "clue_bank.json"
 PUZZLE_BANK_PATTERN = re.compile(
     r'\{\s*sourceSeed: "([^"]+)",\s*rows: \[(.*?)\],\s*acrossClues: \[(.*?)\],\s*downClues: \[(.*?)\]\s*\}',
     re.S,
@@ -95,7 +96,7 @@ class TestPublicIndex(unittest.TestCase):
 
         self.assertEqual(
             [puzzle["sourceSeed"] for puzzle in embedded],
-            ["epoxy", "ester", "known", "nohow", "anime", "anise", "hunky", "waive", "naive", "waken", "knave", "kayak"],
+            ["epoxy", "ester", "known", "nohow", "anime", "apace", "hunky", "waive", "naive", "waken", "knave", "kayak"],
         )
         self.assertEqual(
             embedded[0]["rows"],
@@ -105,6 +106,20 @@ class TestPublicIndex(unittest.TestCase):
             embedded[-1]["rows"],
             ["KAYAK", "ADORN", "RODEO", "TREAT", "SELLS"],
         )
+
+    def test_embedded_puzzle_bank_uses_curated_clue_bank_text(self) -> None:
+        embedded = self._load_embedded_puzzles()
+        clue_bank = json.loads(CLUE_BANK_JSON.read_text(encoding="utf-8"))
+
+        for puzzle in embedded:
+            rows = tuple(word.lower() for word in puzzle["rows"])
+            columns = tuple("".join(row[index] for row in rows) for index in range(5))
+
+            for answer, clue in zip(rows, puzzle["acrossClues"]):
+                self.assertIn(clue, clue_bank[answer])
+
+            for answer, clue in zip(columns, puzzle["downClues"]):
+                self.assertIn(clue, clue_bank[answer])
 
     def test_random_selection_logic_uses_no_persistent_cursor(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
