@@ -173,7 +173,8 @@ class TestThemeDoc(unittest.TestCase):
         )
         self.assertNotIn("It still should:", text)
         self.assertIn("write lexicon-wide cached puzzle records to `src/byewords/data/puzzles.json`", text)
-        self.assertIn("with no seeds: build or refresh the offline `puzzles.json` cache", text)
+        self.assertIn("with `bzw cache`: build or refresh the offline `puzzles.json` cache", text)
+        self.assertIn("with no arguments: print help", text)
         self.assertIn(
             "clue-aware reranking is now measurable enough to decide whether the reviewed clue corpus should expand",
             text,

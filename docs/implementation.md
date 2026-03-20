@@ -11,7 +11,7 @@ The codebase now implements a complete bundled-data 5x5 mini generator with:
 - seeded row and column anchoring
 - simple grid scoring
 - clue-bank-backed clue writing with fallbacks
-- cache-backed CLI generation
+- a single `bzw` CLI that handles generation plus bundled tooling subcommands
 
 The implementation is working and well covered by unit tests.
 

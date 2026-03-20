@@ -18,7 +18,7 @@ The generator today is a fixed-format mini builder:
 - entries: 5 across and 5 down
 - fill source: bundled `words_5.txt`
 - clue source: bundled `clue_bank.json` plus deterministic fallbacks
-- interface: CLI entry point `byewords`
+- interface: single CLI entry point `bzw`
 
 This fixed shape is intentional. It keeps the fill problem small enough to solve with specialized search instead of a general blocked-grid engine.
 
@@ -61,7 +61,7 @@ The current scoring remains intentionally simple.
 
 Clues come from the bundled clue bank when available. If a clue is missing, the generator falls back to deterministic pattern-based clues such as plural, past-tense, repeated-letter, and first/last-letter descriptions.
 
-The clue generation workflow must preserve existing clue-bank entries. In `byewords-generate-clues`, default runs should leave existing clues untouched, and `--force` should append newly generated clues rather than overwriting the stored ones.
+The clue generation workflow must preserve existing clue-bank entries. In `bzw clues`, default runs should leave existing clues untouched, and `--force` should append newly generated clues rather than overwriting the stored ones.
 
 ## Chosen fill strategy
 

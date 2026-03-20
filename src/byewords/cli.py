@@ -6,15 +6,34 @@ from typing import TextIO
 
 from byewords.clues import make_across_clues, make_down_clues
 from byewords.generate import generate_puzzle_cached, load_default_inputs
-from byewords.groq_clues import default_clue_bank_path, regenerate_clues as run_clue_regeneration
-from byewords.puz import puzzle_to_puz_bytes
-from byewords.puzzle_store import (
-    build_batch_puzzle_cache,
-    default_puzzle_store_path,
-    load_puzzle_store,
+from byewords.groq_clues import (
+    CLI_DESCRIPTION as CLUES_DESCRIPTION,
+    configure_parser as configure_clues_parser,
+    default_clue_bank_path,
+    regenerate_clues as run_clue_regeneration,
+    run as run_clues_command,
 )
+from byewords.puz import puzzle_to_puz_bytes
 from byewords.render import render_puzzle_text
+from byewords.theme_index_builder import (
+    _COMMANDS as THEME_TOOL_COMMANDS,
+    add_subcommands as add_theme_tool_subcommands,
+    run as run_theme_tool_command,
+)
 from byewords.types import ProgressUpdate, Puzzle, RuntimeReport
+
+CLI_PROG = "bzw"
+GENERATE_COMMAND = "generate"
+CLI_DESCRIPTION = "Generate Byewords minis and run bundled maintenance tools."
+CLI_EPILOG = (
+    "Docs: README.md, docs/plan.md, docs/implementation.md\n\n"
+    "Examples:\n"
+    "  uv run bzw --seed snail\n"
+    "  uv run bzw cache\n"
+    "  uv run bzw clues snail\n"
+    "  uv run bzw vectors"
+)
+TOP_LEVEL_COMMANDS = frozenset({GENERATE_COMMAND, "clues", *THEME_TOOL_COMMANDS})
 
 
 class BuildAnimator:
@@ -73,11 +92,7 @@ class BuildAnimator:
         return [f"{spinner} {progress.message}"] + rows
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        prog="byewords",
-        description="Generate a 5x5 mini crossword.",
-    )
+def configure_generate_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
         "seeds",
         nargs="*",
@@ -107,63 +122,84 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Force Groq clue regeneration for the generated puzzle before rendering output.",
     )
-    args = parser.parse_args(argv)
-    if args.seed_flags and args.seeds:
+    return parser
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog=CLI_PROG,
+        description=CLI_DESCRIPTION,
+        epilog=CLI_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    generate_parser = subparsers.add_parser(
+        GENERATE_COMMAND,
+        help="Generate a 5x5 mini crossword.",
+        description="Generate a 5x5 mini crossword.",
+    )
+    configure_generate_parser(generate_parser)
+
+    clues_parser = subparsers.add_parser(
+        "clues",
+        help="Generate or refresh crossword clues with Groq.",
+        description=CLUES_DESCRIPTION,
+    )
+    configure_clues_parser(clues_parser)
+
+    add_theme_tool_subcommands(subparsers)
+    return parser
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    raw_args = list(argv) if argv is not None else sys.argv[1:]
+    if not raw_args:
+        return argparse.Namespace(command="help")
+    if raw_args[0] not in TOP_LEVEL_COMMANDS and raw_args[0] not in {"-h", "--help"}:
+        raw_args = [GENERATE_COMMAND, *raw_args]
+    parser = build_parser()
+    args = parser.parse_args(raw_args)
+    if args.command == GENERATE_COMMAND and args.seed_flags and args.seeds:
         parser.error("use either positional seeds or repeated --seed flags, not both")
-    args.seeds = tuple(args.seed_flags) + tuple(args.seeds)
+    if getattr(args, "command", None) == GENERATE_COMMAND:
+        args.seeds = tuple(args.seed_flags) + tuple(args.seeds)
     return args
 
 
 def _write_text_output(text: str, output_path: str | None, stdout: TextIO) -> None:
     if output_path is None:
-        print(text)
+        print(text, file=stdout)
         return
     Path(output_path).write_text(text + "\n", encoding="utf-8")
 
 
-def _write_puz_output(payload: bytes, output_path: str | None) -> None:
+def _write_puz_output(payload: bytes, output_path: str | None, stdout: TextIO) -> None:
     if output_path is not None:
         Path(output_path).write_bytes(payload)
         return
-    if sys.stdout.isatty():
+    if stdout.isatty():
         raise ValueError("refusing to write binary .puz data to an interactive terminal; use --output")
-    buffer = getattr(sys.stdout, "buffer", None)
+    buffer = getattr(stdout, "buffer", None)
     if buffer is None:
         raise ValueError("binary .puz output requires a binary stdout buffer or --output")
     buffer.write(payload)
     buffer.flush()
 
 
-def main() -> int:
+def run_generate_command(args: argparse.Namespace, stdout: TextIO, stderr: TextIO) -> int:
     lexicon_words, clue_bank = load_default_inputs(include_fallback_clues=False)
-    args = parse_args()
     if not args.seeds:
-        if args.format != "text":
-            print("error: batch mode only supports text output")
-            return 1
-        if args.output is not None:
-            print("error: batch mode does not support --output")
-            return 1
-        if args.regenerate_clues:
-            print("error: batch mode does not support --regenerate-clues")
-            return 1
-        store_path = default_puzzle_store_path()
-        store = load_puzzle_store(store_path)
-        cached_seeds = {record["seed"] for record in store.values()}
-        if store and all(word in cached_seeds for word in lexicon_words):
-            print(f"Cached {len(store)} puzzles in {store_path} (0 generated in this run).")
-            return 0
-        store_path, total_records, generated_records = build_batch_puzzle_cache(lexicon_words, clue_bank)
         print(
-            f"Cached {total_records} puzzles in {store_path} "
-            f"({generated_records} generated in this run)."
+            "error: generate requires at least one seed; use `bzw cache` to build the offline puzzle store",
+            file=stdout,
         )
-        return 0
-    animator = BuildAnimator(sys.stderr)
+        return 1
+    animator = BuildAnimator(stderr)
     runtime_report: RuntimeReport | None = None
     candidate_solution_reported = False
     persistent_candidate_updates = (
-        args.output is None and args.format == "text" and sys.stdout.isatty()
+        args.output is None and args.format == "text" and stdout.isatty()
     )
 
     def handle_progress(progress: ProgressUpdate) -> None:
@@ -176,7 +212,7 @@ def main() -> int:
             and progress.stage == "candidate_solution"
             and not candidate_solution_reported
         ):
-            print(progress.message, file=sys.stdout, flush=True)
+            print(progress.message, file=stdout, flush=True)
             candidate_solution_reported = True
         animator.update(progress)
 
@@ -197,7 +233,7 @@ def main() -> int:
             )
     except ValueError as exc:
         animator.finish()
-        print(f"error: {exc}")
+        print(f"error: {exc}", file=stdout)
         return 1
     animator.finish()
     if runtime_report is not None:
@@ -210,7 +246,7 @@ def main() -> int:
                 f"theme_subset={theme_subset} "
                 f"weakest_link={runtime_report.selected_theme_weakest_link:.3f}"
             ),
-            file=sys.stderr,
+            file=stderr,
         )
     if args.regenerate_clues:
         try:
@@ -219,22 +255,43 @@ def main() -> int:
                 clue_bank=clue_bank,
                 clue_bank_path=default_clue_bank_path(),
                 env=None,
-                errors=sys.stderr,
+                errors=stderr,
                 force=True,
             )
         except (RuntimeError, ValueError) as exc:
-            print(f"error: {exc}")
+            print(f"error: {exc}", file=stdout)
             return 1
         puzzle = _refresh_puzzle_clues(puzzle, clue_bank)
     if args.format == "puz":
         try:
-            _write_puz_output(puzzle_to_puz_bytes(puzzle), args.output)
+            _write_puz_output(puzzle_to_puz_bytes(puzzle), args.output, stdout)
         except ValueError as exc:
-            print(f"error: {exc}")
+            print(f"error: {exc}", file=stdout)
             return 1
         return 0
-    _write_text_output(render_puzzle_text(puzzle), args.output, sys.stdout)
+    _write_text_output(render_puzzle_text(puzzle), args.output, stdout)
     return 0
+
+
+def main(
+    argv: list[str] | None = None,
+    *,
+    env: dict[str, str] | None = None,
+    stdout: TextIO | None = None,
+    stderr: TextIO | None = None,
+) -> int:
+    output = stdout if stdout is not None else sys.stdout
+    errors = stderr if stderr is not None else sys.stderr
+    parser = build_parser()
+    args = parse_args(argv)
+    if args.command == "help":
+        parser.print_help(file=output)
+        return 0
+    if args.command == GENERATE_COMMAND:
+        return run_generate_command(args, output, errors)
+    if args.command == "clues":
+        return run_clues_command(args, env=env, stdout=output, stderr=errors)
+    return run_theme_tool_command(args, stdout=output)
 
 
 def _refresh_puzzle_clues(puzzle: Puzzle, clue_bank: dict[str, tuple[str, ...]]) -> Puzzle:

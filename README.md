@@ -3,16 +3,22 @@ byewords
 
 A 5x5 crossword generator in python. See the docs folder for `plan.md` and `implementation.md`.
 
-Run the CLI with no arguments to build or refresh the offline `puzzles.json` cache for the full bundled lexicon:
+Run the unified CLI with no arguments to see help and the available docs-oriented command summary:
 
 ```bash
-uv run byewords
+uv run bzw
 ```
 
 Run the CLI with explicit seed words to generate one puzzle at a time:
 
 ```bash
-uv run byewords --seed snail
+uv run bzw --seed snail
+```
+
+Build or refresh the offline `puzzles.json` cache explicitly:
+
+```bash
+uv run bzw cache
 ```
 
 Five reliable single-word seeds with end-to-end regression coverage:
@@ -29,7 +35,9 @@ Those five are verified against the bundled lexicon in `tests/test_data_files.py
 
 If you want to force fresh Groq clues for a generated puzzle, add `--regenerate-clues` to a seeded run.
 
-If you run `uv run byewords-generate-clues`, existing clue-bank entries stay unchanged unless you pass `--force`, which appends freshly generated clues without deleting the existing stored clues for the requested answers.
+If you run `uv run bzw clues`, existing clue-bank entries stay unchanged unless you pass `--force`, which appends freshly generated clues without deleting the existing stored clues for the requested answers.
+
+The other former standalone tools now live under the same CLI as flat subcommands, for example `uv run bzw vectors`, `uv run bzw retrieval-review`, and `uv run bzw intrusion-review`.
 
 Created puzzles are cached on disk in `.byewords-cache/` by normalized seed set and generation config, so rerunning the same request reuses the saved puzzle instead of searching again. Set `BYEWORDS_CACHE_DIR` to place the cache somewhere else.
 

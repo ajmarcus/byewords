@@ -21,7 +21,7 @@ class TestVectorsDoc(unittest.TestCase):
         self.assertIn("uv run ruff check .", text)
         self.assertIn("uv run ty check", text)
         self.assertIn("uv run python -m unittest discover -s tests", text)
-        self.assertIn("uv run byewords", text)
+        self.assertIn("uv run bzw --help", text)
 
 
 if __name__ == "__main__":

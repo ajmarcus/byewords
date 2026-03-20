@@ -706,10 +706,11 @@ The current implementation already:
 
 ### `src/byewords/cli.py`
 
-The default CLI should now support two modes:
+The published CLI should now be a single `bzw` entry point:
 
 - with explicit seeds: generate one puzzle, optionally forcing clue regeneration afterward
-- with no seeds: build or refresh the offline `puzzles.json` cache for the full bundled lexicon in CPU-sized batches
+- with `bzw cache`: build or refresh the offline `puzzles.json` cache for the full bundled lexicon in CPU-sized batches
+- with no arguments: print help and surface the available subcommands and docs references
 
 ### `src/byewords/groq_clues.py`
 
