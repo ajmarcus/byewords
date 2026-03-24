@@ -10,8 +10,8 @@
       --paper: #f6f4ef;
       --white: #ffffff;
       --ink: #111111;
-      --blue: #0b63f6;
-      --topbar-bg: #6b21d9;
+      --purple: #7c3aed;
+      --topbar-bg: var(--purple);
       --topbar-fg: #7ef9ff;
       --yellow: #f5e84b;
       --yellow-soft: #fff7b8;
@@ -82,7 +82,7 @@
     }
 
     .eyebrow {
-      color: var(--yellow);
+      color: var(--white);
       font-size: 11px;
       font-weight: 800;
       letter-spacing: 0.16em;
@@ -447,8 +447,8 @@
       box-shadow: 0 0 0 0 var(--ink);
     }
 
-    .key.blue {
-      background: var(--blue);
+    .key.purple {
+      background: var(--purple);
       color: var(--white);
     }
 
@@ -761,7 +761,7 @@
           <div class="win-title">You cooked.</div>
           <div class="win-copy" id="win-copy">Solved in 00:00. Go ahead and be a little annoying about it.</div>
           <div class="win-actions">
-            <button class="key blue" id="share-btn" type="button">Share brag</button>
+            <button class="key purple" id="share-btn" type="button">Share brag</button>
             <button class="key" id="again-btn" type="button">Play again</button>
           </div>
         </div>
@@ -1116,24 +1116,12 @@
         return ((index % puzzles.length) + puzzles.length) % puzzles.length;
       }
 
-      function pickPuzzleIndex(randomValue) {
-        return Math.min(puzzles.length - 1, Math.floor(randomValue * puzzles.length));
-      }
-
-      function randomPuzzleIndex() {
-        return pickPuzzleIndex(Math.random());
-      }
-
-      function pickNextPuzzleIndex(currentIndex, randomValue) {
-        if (puzzles.length < 2) {
-          return normalizePuzzleIndex(currentIndex);
-        }
-        const offset = Math.floor(randomValue * (puzzles.length - 1)) + 1;
-        return (normalizePuzzleIndex(currentIndex) + offset) % puzzles.length;
+      function pickNextPuzzleIndex(currentIndex) {
+        return (normalizePuzzleIndex(currentIndex) + 1) % puzzles.length;
       }
 
       function queueNextPuzzle() {
-        pendingPuzzleIndex = pickNextPuzzleIndex(activePuzzleIndex, Math.random());
+        pendingPuzzleIndex = pickNextPuzzleIndex(activePuzzleIndex);
       }
 
       function isBlackCell(row, col) {
@@ -1542,9 +1530,7 @@
       }
 
       function makeBragText() {
-        return "I solved BYEWORDS in " + formatTime(seconds) + " 🌁\n" + words.map(function (word) {
-          return word.answer;
-        }).join(" / ");
+        return "I solved BYEWORDS in " + formatTime(seconds) + "!"
       }
 
       function shareBrag() {
@@ -1662,12 +1648,6 @@
             }
           },
           {
-            name: "makeBragText includes newline",
-            run: function () {
-              return makeBragText().indexOf("\n") !== -1;
-            }
-          },
-          {
             name: "full grid has no black cells",
             run: function () {
               return isBlackCell(2, 2) === false && isBlackCell(0, 0) === false;
@@ -1723,18 +1703,24 @@
             }
           },
           {
-            name: "pickPuzzleIndex covers the full puzzle bank",
+            name: "pickNextPuzzleIndex iterates through the list of puzzles",
             run: function () {
-              return pickPuzzleIndex(0) === 0
-                && pickPuzzleIndex(0.999999) === puzzles.length - 1;
-            }
-          },
-          {
-            name: "pickNextPuzzleIndex never repeats the active puzzle",
-            run: function () {
-              if (puzzles.length < 2) return pickNextPuzzleIndex(0, 0.5) === 0;
-              return pickNextPuzzleIndex(0, 0) === 1
-                && pickNextPuzzleIndex(2, 0.999999) !== 2;
+              if (puzzles.length === 0) {
+                // No puzzles; nothing to iterate over.
+                return true;
+              }
+              if (puzzles.length === 1) {
+                // Single puzzle; "next" wraps to itself.
+                return pickNextPuzzleIndex(0) === 0;
+              }
+              if (puzzles.length === 2) {
+                // Two puzzles; 0 -> 1, 1 -> 0.
+                return pickNextPuzzleIndex(0) === 1
+                  && pickNextPuzzleIndex(1) === 0;
+              }
+              // Three or more puzzles; ensure simple iteration without wrapping.
+              return pickNextPuzzleIndex(0) === 1
+                && pickNextPuzzleIndex(1) === 2;
             }
           },
           {
@@ -1989,7 +1975,7 @@
         });
       }
 
-      activatePuzzle(randomPuzzleIndex());
+      activatePuzzle(0);
       selected = getPreferredCellForWord(words[0]);
       makeKeyboardRow("row-top", keyRows.top);
       makeKeyboardRow("row-middle", keyRows.middle);
@@ -2001,7 +1987,7 @@
       runSmokeTests();
       startTimer();
 
-      window.__sfMiniDebug = {
+      window.__debug = {
         isSolved: isSolved,
         formatTime: formatTime,
         makeBragText: makeBragText,
