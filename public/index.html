@@ -1116,14 +1116,6 @@
         return ((index % puzzles.length) + puzzles.length) % puzzles.length;
       }
 
-      function pickPuzzleIndex(randomValue) {
-        return Math.min(puzzles.length - 1, Math.floor(randomValue * puzzles.length));
-      }
-
-      function randomPuzzleIndex() {
-        return pickPuzzleIndex(Math.random());
-      }
-
       function pickNextPuzzleIndex(currentIndex) {
         return (normalizePuzzleIndex(currentIndex) + 1) % puzzles.length;
       }
@@ -1719,13 +1711,6 @@
             }
           },
           {
-            name: "pickPuzzleIndex covers the full puzzle bank",
-            run: function () {
-              return pickPuzzleIndex(0) === 0
-                && pickPuzzleIndex(0.999999) === puzzles.length - 1;
-            }
-          },
-          {
             name: "pickNextPuzzleIndex iterates through the list of puzzles",
             run: function () {
               if (puzzles.length === 0) {
@@ -1998,7 +1983,7 @@
         });
       }
 
-      activatePuzzle(randomPuzzleIndex());
+      activatePuzzle(0);
       selected = getPreferredCellForWord(words[0]);
       makeKeyboardRow("row-top", keyRows.top);
       makeKeyboardRow("row-middle", keyRows.middle);
@@ -2010,7 +1995,7 @@
       runSmokeTests();
       startTimer();
 
-      window.__sfMiniDebug = {
+      window.__debug = {
         isSolved: isSolved,
         formatTime: formatTime,
         makeBragText: makeBragText,
