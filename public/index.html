@@ -1056,7 +1056,7 @@
       let timerHandle = null;
       let activeClueIndex = 0;
       let activePuzzleIndex = 0;
-      let pendingPuzzleIndex = null;
+      let pendingPuzzleIndex = 1;
       let lastRenderedClueKey = null;
       let solvedWordKeys = new Set();
       let scoreBurstHandle = null;
@@ -1124,16 +1124,12 @@
         return pickPuzzleIndex(Math.random());
       }
 
-      function pickNextPuzzleIndex(currentIndex, randomValue) {
-        if (puzzles.length < 2) {
-          return normalizePuzzleIndex(currentIndex);
-        }
-        const offset = Math.floor(randomValue * (puzzles.length - 1)) + 1;
-        return (normalizePuzzleIndex(currentIndex) + offset) % puzzles.length;
+      function pickNextPuzzleIndex(currentIndex) {
+        return (normalizePuzzleIndex(currentIndex) + 1) % puzzles.length;
       }
 
       function queueNextPuzzle() {
-        pendingPuzzleIndex = pickNextPuzzleIndex(activePuzzleIndex, Math.random());
+        pendingPuzzleIndex = pickNextPuzzleIndex(activePuzzleIndex);
       }
 
       function isBlackCell(row, col) {
@@ -1730,11 +1726,11 @@
             }
           },
           {
-            name: "pickNextPuzzleIndex never repeats the active puzzle",
+            name: "pickNextPuzzleIndex iterates through the list of puzzles",
             run: function () {
-              if (puzzles.length < 2) return pickNextPuzzleIndex(0, 0.5) === 0;
-              return pickNextPuzzleIndex(0, 0) === 1
-                && pickNextPuzzleIndex(2, 0.999999) !== 2;
+              if (puzzles.length < 2) return pickNextPuzzleIndex(0) === 1;
+              return pickNextPuzzleIndex(0) === 1
+                && pickNextPuzzleIndex(1) === 2;
             }
           },
           {
