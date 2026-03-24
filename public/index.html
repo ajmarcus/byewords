@@ -1728,7 +1728,20 @@
           {
             name: "pickNextPuzzleIndex iterates through the list of puzzles",
             run: function () {
-              if (puzzles.length < 2) return pickNextPuzzleIndex(0) === 1;
+              if (puzzles.length === 0) {
+                // No puzzles; nothing to iterate over.
+                return true;
+              }
+              if (puzzles.length === 1) {
+                // Single puzzle; "next" wraps to itself.
+                return pickNextPuzzleIndex(0) === 0;
+              }
+              if (puzzles.length === 2) {
+                // Two puzzles; 0 -> 1, 1 -> 0.
+                return pickNextPuzzleIndex(0) === 1
+                  && pickNextPuzzleIndex(1) === 0;
+              }
+              // Three or more puzzles; ensure simple iteration without wrapping.
               return pickNextPuzzleIndex(0) === 1
                 && pickNextPuzzleIndex(1) === 2;
             }
