@@ -7,7 +7,7 @@ import sys
 from dataclasses import asdict
 from importlib import resources
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, TextIO
 
 from byewords.lexicon import load_clue_bank, load_word_list
 from byewords.puzzle_store import (
@@ -32,6 +32,7 @@ DEFAULT_EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 DEFAULT_EMBEDDING_SOURCE = "baai-bge-small-en-v1.5"
 DEFAULT_EMBEDDING_URL = "https://huggingface.co/BAAI/bge-small-en-v1.5"
 DEFAULT_EMBEDDING_LICENSE = "MIT"
+CLI_DESCRIPTION = "Offline tooling for semantic theme vectors, cache builds, and review reports."
 DEFAULT_EMBEDDING_ATTRIBUTION = (
     "This data contains semantic vectors derived from BAAI/bge-small-en-v1.5, "
     "released under the MIT license."
@@ -142,16 +143,7 @@ def write_word_vectors(
     )
 
 
-def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    raw_args = list(argv) if argv is not None else sys.argv[1:]
-    if not raw_args or raw_args[0] not in _COMMANDS:
-        raw_args = ["vectors", *raw_args]
-
-    parser = argparse.ArgumentParser(
-        description="Offline tooling for semantic theme vectors, cache builds, and review reports.",
-    )
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
+def add_subcommands(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     vectors_parser = subparsers.add_parser("vectors", help="Build the bundled semantic word vector table.")
     vectors_parser.add_argument(
         "--output",
@@ -258,6 +250,27 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Print structured JSON instead of a text report.",
     )
 
+
+def build_parser(*, include_legacy_default: bool = True) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=CLI_DESCRIPTION)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    add_subcommands(subparsers)
+    parser.set_defaults(_include_legacy_default=include_legacy_default)
+    return parser
+
+
+def parse_args(
+    argv: Sequence[str] | None = None,
+    *,
+    parser: argparse.ArgumentParser | None = None,
+    include_legacy_default: bool = True,
+) -> argparse.Namespace:
+    raw_args = list(argv) if argv is not None else sys.argv[1:]
+    if include_legacy_default and (not raw_args or raw_args[0] not in _COMMANDS):
+        raw_args = ["vectors", *raw_args]
+    if parser is None:
+        parser = build_parser(include_legacy_default=include_legacy_default)
+
     return parser.parse_args(raw_args)
 
 
@@ -283,11 +296,11 @@ def _load_validated_vectors(path: Path, lexicon_words: tuple[str, ...]):
     return vectors
 
 
-def _print_json(payload: object) -> None:
-    print(json.dumps(payload, indent=2, sort_keys=True))
+def _print_json(payload: object, output: TextIO) -> None:
+    print(json.dumps(payload, indent=2, sort_keys=True), file=output)
 
 
-def _print_retrieval_report(reports: tuple[ThemeRetrievalComparison, ...]) -> None:
+def _print_retrieval_report(reports: tuple[ThemeRetrievalComparison, ...], output: TextIO) -> None:
     for report in reports:
         cosine_hits = ", ".join(word.upper() for word in report.cosine.expected_hits) or "none"
         cosine_intrusions = ", ".join(word.upper() for word in report.cosine.unexpected_hits) or "none"
@@ -296,11 +309,12 @@ def _print_retrieval_report(reports: tuple[ThemeRetrievalComparison, ...]) -> No
         print(
             f"{report.seed.upper()}: "
             f"cosine hits={cosine_hits} intrusions={cosine_intrusions}; "
-            f"rank_overlap hits={overlap_hits} intrusions={overlap_intrusions}"
+            f"rank_overlap hits={overlap_hits} intrusions={overlap_intrusions}",
+            file=output,
         )
 
 
-def _print_intrusion_report(reports: tuple[ThemeIntrusionComparison, ...]) -> None:
+def _print_intrusion_report(reports: tuple[ThemeIntrusionComparison, ...], output: TextIO) -> None:
     for report in reports:
         selected_intruders = tuple(
             trial.intruder.upper()
@@ -313,16 +327,16 @@ def _print_intrusion_report(reports: tuple[ThemeIntrusionComparison, ...]) -> No
             f"{report.seed.upper()}: "
             f"pass_rate={report.pass_rate:.2f}; "
             f"baseline={baseline_text}; "
-            f"intruders_selected={intruder_text}"
+            f"intruders_selected={intruder_text}",
+            file=output,
         )
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    args = parse_args(argv)
-
+def run(args: argparse.Namespace, stdout: TextIO | None = None) -> int:
+    output = stdout if stdout is not None else sys.stdout
     if args.command == "vectors":
         write_word_vectors(args.output, batch_size=args.batch_size, device=args.device)
-        print(f"Wrote semantic vectors to {args.output}")
+        print(f"Wrote semantic vectors to {args.output}", file=output)
         return 0
 
     lexicon_words, clue_bank = _load_bundled_inputs()
@@ -339,7 +353,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         print(
             f"Cached {total_records} puzzles in {store_path} "
-            f"({generated_records} generated in this run)."
+            f"({generated_records} generated in this run).",
+            file=output,
         )
         return 0
 
@@ -350,7 +365,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         print(
             f"Refreshed clues for {total_records} puzzles in {store_path} "
-            f"using {refreshed_answers} answers."
+            f"using {refreshed_answers} answers.",
+            file=output,
         )
         return 0
 
@@ -364,9 +380,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             neighbor_count=args.neighbor_count,
         )
         if args.json:
-            _print_json([asdict(report) for report in reports])
+            _print_json([asdict(report) for report in reports], output)
         else:
-            _print_retrieval_report(reports)
+            _print_retrieval_report(reports, output)
         return 0
 
     vectors = _load_validated_vectors(args.vectors, lexicon_words)
@@ -377,10 +393,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         limit=args.limit,
     )
     if args.json:
-        _print_json([asdict(report) for report in reports])
+        _print_json([asdict(report) for report in reports], output)
     else:
-        _print_intrusion_report(reports)
+        _print_intrusion_report(reports, output)
     return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    return run(parse_args(argv))
 
 
 if __name__ == "__main__":

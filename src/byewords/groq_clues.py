@@ -22,6 +22,7 @@ from byewords.puzzle_store import puzzle_answers_for_id
 
 MODEL_NAME = "openai/gpt-oss-120b"
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
+CLI_DESCRIPTION = "Generate sharp crossword clues with Groq's GPT OSS 120B model."
 DEFAULT_CLUE_COUNT = 2
 DEFAULT_PARALLELISM = 5
 DEFAULT_TIMEOUT_SECONDS = 60.0
@@ -191,11 +192,7 @@ class GroqClient:
         return parsed
 
 
-def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        prog="byewords-generate-clues",
-        description="Generate sharp crossword clues with Groq's GPT OSS 120B model.",
-    )
+def configure_parser(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
         "targets",
         nargs="*",
@@ -241,6 +238,21 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Regenerate clues through the API and append them even when clue-bank entries already exist.",
     )
+    return parser
+
+
+def parse_args(
+    argv: Sequence[str] | None = None,
+    *,
+    parser: argparse.ArgumentParser | None = None,
+) -> argparse.Namespace:
+    if parser is None:
+        parser = configure_parser(
+            argparse.ArgumentParser(
+                prog="byewords-generate-clues",
+                description=CLI_DESCRIPTION,
+            )
+        )
     args = parser.parse_args(list(argv) if argv is not None else None)
     if args.count != DEFAULT_CLUE_COUNT:
         parser.error(f"--count must be exactly {DEFAULT_CLUE_COUNT}")
@@ -625,15 +637,15 @@ def regenerate_clues(
             signal.signal(signal.SIGTERM, previous_sigterm)
 
 
-def main(
-    argv: Sequence[str] | None = None,
+def run(
+    args: argparse.Namespace,
+    *,
     env: Mapping[str, str] | None = None,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> int:
     output = stdout if stdout is not None else sys.stdout
     errors = stderr if stderr is not None else sys.stderr
-    args = parse_args(argv)
 
     try:
         lexicon_words, clue_bank = load_default_answer_inputs()
@@ -713,6 +725,15 @@ def main(
     output.write("\n\n".join(format_clue_package(package) for package in packages))
     output.write("\n")
     return 0
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    env: Mapping[str, str] | None = None,
+    stdout: TextIO | None = None,
+    stderr: TextIO | None = None,
+) -> int:
+    return run(parse_args(argv), env=env, stdout=stdout, stderr=stderr)
 
 
 def _format_http_error(error: HTTPError) -> str:

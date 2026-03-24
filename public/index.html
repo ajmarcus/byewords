@@ -21,14 +21,15 @@
       --clue-height: 156px;
       --clue-text-max: 28px;
       --clue-text-min: 16px;
-      --cell-size: min(15.1vw, 70px);
-      --cell-min: 52px;
+      --cell-size: min(14vw, 64px);
+      --cell-min: 48px;
       --cell-edge: max(var(--cell-min), var(--cell-size));
       --board-gap: 2px;
-      --key-gap: 7px;
+      --key-gap: 6px;
       --key-font: 14px;
-      --key-pad-y: 12px;
-      --key-side-pad: 0px;
+      --key-pad-y: 14px;
+      --key-side-pad: 4px;
+      --key-bg: #f1f1f1;
       --frame-width: min(100%, 420px);
     }
 
@@ -426,7 +427,7 @@
     .key {
       min-width: 0;
       border: 2px solid var(--ink);
-      background: var(--white);
+      background: var(--key-bg);
       color: var(--ink);
       box-shadow: var(--shadow-black);
       font-size: var(--key-font);
@@ -637,9 +638,9 @@
           calc((100dvh - var(--mobile-topbar-height) - var(--mobile-pad-top) - var(--mobile-pad-bottom) - (var(--mobile-gap-y) * 2) - var(--mobile-clue-height) - var(--mobile-keyboard-height) - 22px) / 5)
         );
         --cell-min: 0px;
-        --key-gap: 9px;
+        --key-gap: 8px;
         --key-font: 12px;
-        --key-pad-y: 13px;
+        --key-pad-y: 14px;
       }
 
       .app { height: 100vh; height: 100dvh; min-height: 100dvh; padding: 0; align-items: stretch; }
@@ -679,9 +680,9 @@
         --mobile-clue-height: 112px;
         --clue-text-max: 20px;
         --clue-text-min: 14px;
-        --key-gap: 7px;
+        --key-gap: 6px;
         --key-font: 11px;
-        --key-pad-y: 12px;
+        --key-pad-y: 13px;
       }
 
       .topbar { padding: 7px 11px; }
@@ -693,9 +694,9 @@
 
     @media (max-width: 360px) {
       :root {
-        --key-gap: 7px;
+        --key-gap: 6px;
         --key-font: 11px;
-        --key-pad-y: 13px;
+        --key-pad-y: 14px;
       }
 
       .topbar { padding: 7px 11px; }

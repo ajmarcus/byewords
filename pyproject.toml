@@ -20,6 +20,5 @@ build-backend = "hatchling.build"
 packages = ["src/byewords"]
 
 [project.scripts]
+bzw = "byewords.cli:main"
 byewords = "byewords.cli:main"
-byewords-generate-clues = "byewords.groq_clues:main"
-byewords-theme-index = "byewords.theme_index_builder:main"

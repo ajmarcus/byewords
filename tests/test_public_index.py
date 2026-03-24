@@ -57,8 +57,8 @@ class TestPublicIndex(unittest.TestCase):
         self.assertEqual(len(boards), 13)
         self.assertEqual(len(set(boards)), 13)
         html = INDEX_HTML.read_text(encoding="utf-8")
-        self.assertIn("words.map(function (word) {", html)
-        self.assertIn('}).join(" / ");', html)
+        self.assertIn("function makeBragText() {", html)
+        self.assertIn('return "I solved BYEWORDS in " + formatTime(seconds) + "!"', html)
 
     def test_embedded_puzzle_bank_has_thirteen_full_grids(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
@@ -70,7 +70,8 @@ class TestPublicIndex(unittest.TestCase):
         self.assertIn("const puzzles = [", html)
         self.assertNotIn("puzzles.js", html)
         self.assertNotIn("window.BYEWORDS_PUZZLES", html)
-        self.assertIn("function randomPuzzleIndex() {", html)
+        self.assertIn("function activatePuzzle(index) {", html)
+        self.assertIn("activatePuzzle(0);", html)
 
     def test_embedded_puzzle_bank_never_repeats_clue_text(self) -> None:
         clues = []
@@ -129,20 +130,16 @@ class TestPublicIndex(unittest.TestCase):
         html = INDEX_HTML.read_text(encoding="utf-8")
 
         self.assertIn("function normalizePuzzleIndex(index) {", html)
-        self.assertIn("function pickPuzzleIndex(randomValue) {", html)
-        self.assertIn("Math.floor(randomValue * puzzles.length)", html)
-        self.assertIn("function randomPuzzleIndex() {", html)
-        self.assertIn("return pickPuzzleIndex(Math.random());", html)
-        self.assertIn("function pickNextPuzzleIndex(currentIndex, randomValue) {", html)
-        self.assertIn("const offset = Math.floor(randomValue * (puzzles.length - 1)) + 1;", html)
+        self.assertIn("return ((index % puzzles.length) + puzzles.length) % puzzles.length;", html)
+        self.assertIn("function pickNextPuzzleIndex(currentIndex) {", html)
+        self.assertIn("return (normalizePuzzleIndex(currentIndex) + 1) % puzzles.length;", html)
         self.assertIn("function queueNextPuzzle() {", html)
-        self.assertIn("pendingPuzzleIndex = pickNextPuzzleIndex(activePuzzleIndex, Math.random());", html)
+        self.assertIn("pendingPuzzleIndex = pickNextPuzzleIndex(activePuzzleIndex);", html)
         self.assertIn("queueNextPuzzle();", html)
-        self.assertIn("activatePuzzle(randomPuzzleIndex());", html)
+        self.assertIn("activatePuzzle(0);", html)
         self.assertIn("if (pendingPuzzleIndex !== null) {", html)
         self.assertIn("activatePuzzle(pendingPuzzleIndex);", html)
-        self.assertIn("pickPuzzleIndex covers the full puzzle bank", html)
-        self.assertIn("pickNextPuzzleIndex never repeats the active puzzle", html)
+        self.assertIn("pickNextPuzzleIndex iterates through the list of puzzles", html)
         self.assertIn("reset swaps in the queued puzzle", html)
         self.assertNotIn("window.localStorage.getItem", html)
         self.assertNotIn("window.localStorage.setItem", html)
@@ -164,8 +161,11 @@ class TestPublicIndex(unittest.TestCase):
     def test_keyboard_and_modal_buttons_have_extra_vertical_space(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
-        self.assertRegex(html, re.compile(r"--key-gap:\s*9px;"))
-        self.assertRegex(html, re.compile(r"--key-pad-y:\s*13px;"))
+        self.assertRegex(html, re.compile(r"--key-gap:\s*8px;"))
+        self.assertRegex(html, re.compile(r"--key-pad-y:\s*14px;"))
+        self.assertIn("--key-side-pad: 4px;", html)
+        self.assertIn("--key-bg: #f1f1f1;", html)
+        self.assertIn("background: var(--key-bg);", html)
         self.assertIn(".key-row:last-child { margin-bottom: 0; }", html)
         self.assertIn(".win-actions .key {", html)
         self.assertIn("padding-top: 14px;", html)
@@ -185,13 +185,14 @@ class TestPublicIndex(unittest.TestCase):
         self.assertIn("grid-template-rows: auto auto auto;", html)
         self.assertIn("align-content: start;", html)
         self.assertIn(".keyboard { margin-top: 0; padding-top: 0; }", html)
-        self.assertIn("--topbar-bg: #6b21d9;", html)
+        self.assertIn("--purple: #7c3aed;", html)
+        self.assertIn("--topbar-bg: var(--purple);", html)
         self.assertIn("--topbar-fg: #7ef9ff;", html)
         self.assertIn(".topbar {", html)
         self.assertIn("background: var(--topbar-bg);", html)
         self.assertIn("color: var(--topbar-fg);", html)
         self.assertIn(".eyebrow {", html)
-        self.assertIn("color: var(--yellow);", html)
+        self.assertIn("color: var(--white);", html)
         self.assertIn("padding: 8px 12px;", html)
 
     def test_clue_card_uses_fixed_height_and_fit_text_logic(self) -> None:
@@ -280,6 +281,8 @@ class TestPublicIndex(unittest.TestCase):
     def test_board_uses_gap_without_cell_borders_for_uniform_lines(self) -> None:
         html = INDEX_HTML.read_text(encoding="utf-8")
 
+        self.assertIn("--cell-size: min(14vw, 64px);", html)
+        self.assertIn("--cell-min: 48px;", html)
         self.assertIn("--board-gap: 2px;", html)
         self.assertIn("gap: var(--board-gap);", html)
         self.assertIn("padding: var(--board-gap);", html)
