@@ -10,8 +10,8 @@
       --paper: #f6f4ef;
       --white: #ffffff;
       --ink: #111111;
-      --blue: #0b63f6;
-      --topbar-bg: #6b21d9;
+      --purple: #7c3aed;
+      --topbar-bg: var(--purple);
       --topbar-fg: #7ef9ff;
       --yellow: #f5e84b;
       --yellow-soft: #fff7b8;
@@ -447,8 +447,8 @@
       box-shadow: 0 0 0 0 var(--ink);
     }
 
-    .key.blue {
-      background: var(--blue);
+    .key.purple {
+      background: var(--purple);
       color: var(--white);
     }
 
@@ -761,7 +761,7 @@
           <div class="win-title">You cooked.</div>
           <div class="win-copy" id="win-copy">Solved in 00:00. Go ahead and be a little annoying about it.</div>
           <div class="win-actions">
-            <button class="key blue" id="share-btn" type="button">Share brag</button>
+            <button class="key purple" id="share-btn" type="button">Share brag</button>
             <button class="key" id="again-btn" type="button">Play again</button>
           </div>
         </div>
@@ -1530,9 +1530,7 @@
       }
 
       function makeBragText() {
-        return "I solved BYEWORDS in " + formatTime(seconds) + " 🌁\n" + words.map(function (word) {
-          return word.answer;
-        }).join(" / ");
+        return "I solved BYEWORDS in " + formatTime(seconds) + "!"
       }
 
       function shareBrag() {
@@ -1647,12 +1645,6 @@
               return getWordForCell(0, 0, "across").answer === firstAcross.answer
                 && getWordForCell(0, 0, "down").answer === firstDown.answer
                 && getWordForCell(0, 4, "down").answer === lastDown.answer;
-            }
-          },
-          {
-            name: "makeBragText includes newline",
-            run: function () {
-              return makeBragText().indexOf("\n") !== -1;
             }
           },
           {
