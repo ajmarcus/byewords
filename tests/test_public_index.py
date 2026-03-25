@@ -162,6 +162,8 @@ class TestPublicIndex(unittest.TestCase):
         html = INDEX_HTML.read_text(encoding="utf-8")
 
         self.assertRegex(html, re.compile(r"--key-gap:\s*8px;"))
+        self.assertIn("--key-font: 15px;", html)
+        self.assertIn("--key-font: 13px;", html)
         self.assertRegex(html, re.compile(r"--key-pad-y:\s*14px;"))
         self.assertIn("--key-side-pad: 4px;", html)
         self.assertIn("--key-height-adjust: 3px;", html)
