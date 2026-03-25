@@ -29,7 +29,8 @@
       --key-font: 14px;
       --key-pad-y: 14px;
       --key-side-pad: 4px;
-      --key-bg: #f1f1f1;
+      --key-height-adjust: 3px;
+      --delete-key-height-adjust: 1px;
       --frame-width: min(100%, 420px);
     }
 
@@ -427,19 +428,24 @@
     .key {
       min-width: 0;
       border: 2px solid var(--ink);
-      background: var(--key-bg);
+      background: var(--white);
       color: var(--ink);
       box-shadow: var(--shadow-black);
       font-size: var(--key-font);
       font-weight: 900;
       line-height: 1;
       text-transform: uppercase;
+      min-height: calc(var(--key-font) + (var(--key-pad-y) * 2) + 4px + var(--key-height-adjust));
       padding: var(--key-pad-y) var(--key-side-pad);
       cursor: pointer;
       transition: transform 110ms ease, box-shadow 110ms ease, background-color 140ms ease;
       touch-action: manipulation;
       user-select: none;
       -webkit-user-select: none;
+    }
+
+    #delete-key {
+      min-height: calc(var(--key-font) + (var(--key-pad-y) * 2) + 4px + var(--delete-key-height-adjust));
     }
 
     .key:hover { transform: translateY(-1px); }
@@ -632,7 +638,9 @@
         --clue-height: var(--mobile-clue-height);
         --clue-text-max: 22px;
         --clue-text-min: 15px;
-        --mobile-keyboard-height: calc(((var(--key-font) + (var(--key-pad-y) * 2) + 4px) * 4) + (var(--key-gap) * 3));
+        --mobile-keyboard-row-height: calc(var(--key-font) + (var(--key-pad-y) * 2) + 4px + var(--key-height-adjust));
+        --mobile-keyboard-action-height: calc(var(--key-font) + (var(--key-pad-y) * 2) + 4px + var(--delete-key-height-adjust));
+        --mobile-keyboard-height: calc((var(--mobile-keyboard-row-height) * 3) + var(--mobile-keyboard-action-height) + (var(--key-gap) * 3));
         --cell-size: min(
           calc((100vw - (var(--mobile-pad-x) * 2) - 22px) / 5),
           calc((100dvh - var(--mobile-topbar-height) - var(--mobile-pad-top) - var(--mobile-pad-bottom) - (var(--mobile-gap-y) * 2) - var(--mobile-clue-height) - var(--mobile-keyboard-height) - 22px) / 5)
